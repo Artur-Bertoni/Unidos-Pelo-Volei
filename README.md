@@ -167,6 +167,9 @@ com.unidospelovolei
   sem Google Play** — ao criar o AVD, escolha uma imagem com o ícone da Play Store.
 - Conta no [Supabase](https://supabase.com) e no [PowerSync](https://powersync.com)
   (os planos gratuitos bastam para dev).
+- Para os comandos da Supabase CLI, **Node.js** (para rodar via `npx`) ou a CLI
+  instalada pelo Scoop. Não é obrigatório: dá para aplicar as migrations pelo SQL
+  Editor do painel.
 - Para o caminho totalmente local: Docker Desktop e a
   [Supabase CLI](https://supabase.com/docs/guides/cli).
 
@@ -210,12 +213,28 @@ E, se quiser dados de exemplo, `supabase/seed.sql`.
 projeto, o que ajuda quando você mantém dev e prod em paralelo. O repositório já
 traz o `supabase/config.toml`, então **não** é preciso rodar `supabase init`.
 
-Instale a [Supabase CLI](https://supabase.com/docs/guides/cli) e, da raiz do
-repositório:
+A [Supabase CLI](https://supabase.com/docs/guides/cli) não precisa ser instalada:
+com Node no PATH, o `npx` baixa e roda na hora.
 
 ```bash
-supabase link --project-ref SEU_PROJECT_REF
-supabase db push
+npx supabase@latest login
+npx supabase@latest link --project-ref SEU_PROJECT_REF
+npx supabase@latest db push
+```
+
+O `login` abre o navegador para gerar o token da sua conta e vem antes do `link`,
+senão ele falha por falta de autenticação. O `link` pede a **senha do banco**
+(a definida ao criar o projeto, não a senha da sua conta Supabase).
+
+Nenhum desses três comandos usa Docker: eles falam direto com o Postgres remoto.
+Só `supabase start` e `supabase db reset`, do caminho local, precisam dele.
+
+Se preferir o comando `supabase` permanente em vez de `npx` toda vez, no Windows
+use o [Scoop](https://scoop.sh) (`npm i -g supabase` não é suportado):
+
+```powershell
+scoop bucket add supabase https://github.com/supabase/scoop-bucket.git
+scoop install supabase
 ```
 
 O **project ref** é o identificador do projeto, uma string de ~20 letras. Ele
