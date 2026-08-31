@@ -1,0 +1,44 @@
+# yaml-language-server: $schema=https://unpkg.com/@powersync/service-schema@latest/json-schema/powersync-config.json
+#
+# Configuracao do PowerSync self-hosted para desenvolvimento local.
+# Valores sensiveis vem de variaveis de ambiente (`!env`), definidas no .env.
+# Somente variaveis com prefixo PS_ podem ser substituidas.
+
+_type: self-hosted
+
+telemetry:
+  disable_telemetry_sharing: true
+
+replication:
+  connections:
+    - type: postgresql
+      # Postgres do Supabase local. Ver .env.example.
+      uri: !env PS_DATA_SOURCE_URI
+      # 'disable' e aceitavel apenas em rede local de desenvolvimento.
+      sslmode: disable
+
+# Armazenamento interno dos buckets de sync (nao e o banco da aplicacao).
+storage:
+  type: mongodb
+  uri: !env PS_MONGO_URI
+
+port: !env PS_PORT
+
+sync_config:
+  path: sync-config.yaml
+
+client_auth:
+  # Valida o JWT emitido pelo Supabase Auth, o mesmo que o app usa no Postgrest.
+  supabase: true
+  supabase_jwt_secret: !env PS_SUPABASE_JWT_SECRET
+  audience: ["authenticated", "powersync-dev", "powersync"]
+
+api:
+  tokens:
+    # Token apenas das rotas administrativas locais. Nao e usado pelo app.
+    - troque-este-token-de-desenvolvimento
+
+system:
+  logging:
+    level: info
+    format: text

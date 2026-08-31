@@ -4,6 +4,8 @@ import android.content.Context
 import androidx.credentials.CredentialManager
 import androidx.credentials.CustomCredential
 import androidx.credentials.GetCredentialRequest
+import androidx.credentials.exceptions.GetCredentialCancellationException
+import androidx.credentials.exceptions.NoCredentialException
 import com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import io.github.jan.supabase.SupabaseClient
@@ -50,12 +52,22 @@ class AuthRepository(
                 .build()
 
         val resposta =
-            CredentialManager
-                .create(appContext)
-                .getCredential(
-                    context = activityContext,
-                    request = GetCredentialRequest.Builder().addCredentialOption(opcao).build(),
+            try {
+                CredentialManager
+                    .create(appContext)
+                    .getCredential(
+                        context = activityContext,
+                        request = GetCredentialRequest.Builder().addCredentialOption(opcao).build(),
+                    )
+            } catch (e: NoCredentialException) {
+                throw IllegalStateException(
+                    "Nenhuma conta Google disponivel neste aparelho. Adicione uma conta " +
+                        "nas configuracoes do Android e tente de novo.",
+                    e,
                 )
+            } catch (e: GetCredentialCancellationException) {
+                throw IllegalStateException("Login cancelado.", e)
+            }
 
         val credencial = resposta.credential
         check(credencial is CustomCredential && credencial.type in TIPOS_GOOGLE) {

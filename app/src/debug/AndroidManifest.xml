@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Somente builds de debug.
+
+    O caminho de desenvolvimento totalmente local (Supabase pela CLI + PowerSync
+    self-hosted) expoe os servicos em HTTP puro, em 10.0.2.2 para o emulador ou
+    no IP da maquina para um aparelho fisico. Sem isto o Android bloqueia o
+    trafego em texto claro e o app fica permanentemente offline.
+
+    Os builds de release nao recebem esta flag.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <application
+        android:usesCleartextTraffic="true"
+        tools:ignore="UnusedAttribute" />
+</manifest>

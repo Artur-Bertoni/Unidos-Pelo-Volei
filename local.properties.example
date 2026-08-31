@@ -1,0 +1,29 @@
+# Copie este arquivo para local.properties e preencha.
+# local.properties NAO vai para o controle de versao: e onde ficam as chaves.
+#
+# O prefixo escolhe o ambiente e casa com a build variant:
+#   dev.*   -> variants devDebug / devRelease   (padrao no Android Studio)
+#   prod.*  -> variants prodDebug / prodRelease
+#
+# As chaves entram no codigo via BuildConfig (ver app/build.gradle.kts).
+# Em CI, as mesmas chaves podem vir de variaveis de ambiente no formato
+# DEV_SUPABASE_URL, PROD_SUPABASE_URL e assim por diante.
+
+# Caminho do Android SDK. O Android Studio preenche sozinho ao abrir o projeto.
+sdk.dir=C\:\\Users\\SEU_USUARIO\\AppData\\Local\\Android\\Sdk
+
+# ---------------------------------------------------------------------------
+# Ambiente de desenvolvimento
+# ---------------------------------------------------------------------------
+dev.SUPABASE_URL=https://SEU-PROJETO-DEV.supabase.co
+dev.SUPABASE_ANON_KEY=
+dev.POWERSYNC_URL=https://SUA-INSTANCIA-DEV.powersync.journeyapps.com
+dev.GOOGLE_WEB_CLIENT_ID=000000000000-xxxxxxxx.apps.googleusercontent.com
+
+# ---------------------------------------------------------------------------
+# Ambiente de producao
+# ---------------------------------------------------------------------------
+prod.SUPABASE_URL=
+prod.SUPABASE_ANON_KEY=
+prod.POWERSYNC_URL=
+prod.GOOGLE_WEB_CLIENT_ID=

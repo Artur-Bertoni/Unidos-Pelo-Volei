@@ -28,6 +28,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -203,7 +204,7 @@ private fun PlayerEditorDialog(
     onFechar: () -> Unit,
 ) {
     var nome by remember { mutableStateOf(jogador?.nome.orEmpty()) }
-    var nivel by remember { mutableStateOf(jogador?.skillLevel ?: 3) }
+    var nivel by remember { mutableIntStateOf(jogador?.skillLevel ?: 3) }
     var ativo by remember { mutableStateOf(jogador?.ativo ?: true) }
     val valido = nome.isNotBlank()
 

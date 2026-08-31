@@ -24,3 +24,6 @@ local.properties
 *.log
 hs_err_pid*
 replay_pid*
+
+# Configuracao local do PowerSync self-hosted
+powersync/self-host/.env

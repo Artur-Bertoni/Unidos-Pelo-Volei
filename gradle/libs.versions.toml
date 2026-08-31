@@ -9,6 +9,8 @@ coroutines = "1.11.0"
 credentials = "1.6.0"
 googleid = "1.2.0"
 powersync = "1.14.1"
+# Fixado em 3.6.0 de proposito: e a versao contra a qual o
+# com.powersync:connector-supabase 1.14.1 foi compilado.
 supabase = "3.6.0"
 ktor = "3.5.2"
 

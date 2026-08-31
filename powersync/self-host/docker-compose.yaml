@@ -1,0 +1,65 @@
+# =============================================================================
+# PowerSync self-hosted para desenvolvimento local
+# =============================================================================
+# Use este compose no "Caminho 2" do README: Supabase rodando localmente pela
+# Supabase CLI e PowerSync em Docker apontando para o Postgres local.
+#
+# O PowerSync em nuvem NAO consegue alcancar um Postgres em localhost, por isso
+# o caminho totalmente local exige o servico self-hosted.
+#
+# Suba com:
+#   cd powersync/self-host
+#   cp .env.example .env    (e preencha)
+#   docker compose up
+#
+# Base: https://github.com/powersync-ja/self-host-demo
+# =============================================================================
+
+services:
+  # Armazenamento interno do PowerSync (buckets de sync). Nao guarda os dados
+  # da aplicacao, que continuam no Postgres do Supabase.
+  mongo:
+    image: mongo:8
+    restart: unless-stopped
+    command: --replSet rs0 --bind_ip_all --quiet
+    ports:
+      - 27017:27017
+    volumes:
+      - mongo_data:/data/db
+
+  # Inicializa o replica set exigido pelo PowerSync e encerra.
+  mongo-rs-init:
+    image: mongo:8
+    depends_on:
+      - mongo
+    restart: on-failure
+    entrypoint:
+      - bash
+      - -c
+      - 'mongosh --host mongo:27017 --eval ''try { rs.status() } catch (e) { rs.initiate({ _id: "rs0", members: [{ _id: 0, host: "mongo:27017" }] }) }'''
+
+  powersync:
+    image: journeyapps/powersync-service:latest
+    restart: unless-stopped
+    depends_on:
+      - mongo-rs-init
+    command: ["start", "-r", "unified"]
+    ports:
+      - ${PS_PORT}:${PS_PORT}
+    volumes:
+      - ./config/service.yaml:/config/service.yaml:ro
+      # Fonte unica das sync rules: o mesmo arquivo publicado no PowerSync Cloud.
+      - ../sync-rules.yaml:/config/sync-config.yaml:ro
+    environment:
+      POWERSYNC_CONFIG_PATH: /config/service.yaml
+      NODE_OPTIONS: --max-old-space-size=1000
+      PS_PORT: ${PS_PORT}
+      PS_MONGO_URI: mongodb://mongo:27017/powersync_unidos_volei
+      # Postgres do Supabase local. Do container, a maquina host e
+      # host.docker.internal (Docker Desktop no Windows e no macOS).
+      PS_DATA_SOURCE_URI: ${PS_DATA_SOURCE_URI}
+      # JWT secret do Supabase local, mostrado por `supabase status`.
+      PS_SUPABASE_JWT_SECRET: ${PS_SUPABASE_JWT_SECRET}
+
+volumes:
+  mongo_data:

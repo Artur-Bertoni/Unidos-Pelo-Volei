@@ -22,6 +22,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -104,7 +105,7 @@ private fun CartaoChaveamento(
     onGerar: (Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    var quadras by rememberSaveable { mutableStateOf(3) }
+    var quadras by rememberSaveable { mutableIntStateOf(3) }
     var confirmando by remember { mutableStateOf(false) }
 
     Cartao(modifier = modifier.fillMaxWidth()) {
