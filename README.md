@@ -338,9 +338,16 @@ Google reconhecer o APK que está pedindo a credencial.
 4. Em **Sync Rules**, cole o conteúdo de [`powersync/sync-rules.yaml`](powersync/sync-rules.yaml)
    e faça o **Deploy**.
 5. Copie a **instance URL** — vira `POWERSYNC_URL`. Ela fica no botão **Connect**,
-   no topo do dashboard do PowerSync: o diálogo que abre traz a URL com botão de
-   copiar. O formato é `https://<id>.powersync.com`. Use a URL inteira, com
-   `https://` e sem barra no fim.
+   no topo do dashboard do PowerSync: o diálogo traz a URL com botão de copiar.
+   Copie exatamente o que aparecer ali; o domínio varia conforme a época em que a
+   instância foi criada (`<id>.powersync.journeyapps.com` ou `<id>.powersync.com`).
+   Use a URL inteira, com `https://` e sem barra no fim.
+
+> **Uma instância por banco.** A instância PowerSync replica um único banco de
+> origem, então dev e prod **não** compartilham instância: se você tem dois
+> projetos Supabase, precisa de duas instâncias. Reaproveitar a mesma faz o
+> ambiente errado falhar na autenticação, porque a instância valida o JWT contra
+> um projeto só.
 
 As sync rules mandam para o dispositivo o campeonato inteiro (jogadores, times,
 rodadas e partidas) e, do `profiles`, apenas a linha do próprio usuário.
@@ -358,7 +365,7 @@ sdk.dir=C:\\Users\\SEU_USUARIO\\AppData\\Local\\Android\\Sdk
 
 dev.SUPABASE_URL=https://SEU-PROJETO-DEV.supabase.co
 dev.SUPABASE_ANON_KEY=...
-dev.POWERSYNC_URL=https://SUA-INSTANCIA-DEV.powersync.com
+dev.POWERSYNC_URL=https://SUA-INSTANCIA-DEV.powersync.journeyapps.com
 dev.GOOGLE_WEB_CLIENT_ID=...apps.googleusercontent.com
 
 prod.SUPABASE_URL=
