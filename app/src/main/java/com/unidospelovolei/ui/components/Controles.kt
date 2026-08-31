@@ -1,0 +1,228 @@
+package com.unidospelovolei.ui.components
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Remove
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Icon
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.unidospelovolei.ui.theme.VoleiColors
+import com.unidospelovolei.ui.theme.corDoTime
+
+/** Stepper simples de - / valor / +. */
+@Composable
+fun Contador(
+    valor: Int,
+    minimo: Int,
+    maximo: Int,
+    onMudar: (Int) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier,
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        BotaoRedondo(
+            icone = Icons.Filled.Remove,
+            descricao = "Diminuir",
+            habilitado = valor > minimo,
+            onClick = { onMudar((valor - 1).coerceAtLeast(minimo)) },
+        )
+        Text(
+            text = valor.toString(),
+            color = VoleiColors.TextoPrimario,
+            fontSize = 17.sp,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.size(width = 28.dp, height = 24.dp),
+        )
+        BotaoRedondo(
+            icone = Icons.Filled.Add,
+            descricao = "Aumentar",
+            habilitado = valor < maximo,
+            onClick = { onMudar((valor + 1).coerceAtMost(maximo)) },
+        )
+    }
+}
+
+@Composable
+fun BotaoRedondo(
+    icone: ImageVector,
+    descricao: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    habilitado: Boolean = true,
+    tamanho: Dp = 34.dp,
+    cor: Color = VoleiColors.Cartao,
+) {
+    Box(
+        modifier =
+            modifier
+                .size(tamanho)
+                .clip(CircleShape)
+                .background(if (habilitado) cor else VoleiColors.CartaoInterno)
+                .border(1.dp, VoleiColors.Borda, CircleShape)
+                .clickable(enabled = habilitado, onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            imageVector = icone,
+            contentDescription = descricao,
+            tint = if (habilitado) VoleiColors.TextoPrimario else VoleiColors.TextoTerciario,
+            modifier = Modifier.size(tamanho * 0.5f),
+        )
+    }
+}
+
+@Composable
+fun CampoTexto(
+    valor: String,
+    rotulo: String,
+    onMudar: (String) -> Unit,
+    modifier: Modifier = Modifier,
+    maiusculas: Boolean = false,
+) {
+    OutlinedTextField(
+        value = valor,
+        onValueChange = { if (maiusculas) onMudar(it.uppercase()) else onMudar(it) },
+        label = { Text(rotulo) },
+        singleLine = true,
+        modifier = modifier,
+        colors =
+            OutlinedTextFieldDefaults.colors(
+                focusedTextColor = VoleiColors.TextoPrimario,
+                unfocusedTextColor = VoleiColors.TextoPrimario,
+                focusedBorderColor = VoleiColors.Verde,
+                unfocusedBorderColor = VoleiColors.Borda,
+                focusedLabelColor = VoleiColors.Verde,
+                unfocusedLabelColor = VoleiColors.TextoSecundario,
+                cursorColor = VoleiColors.Verde,
+            ),
+    )
+}
+
+/** Seletor de nível de habilidade de 1 a 5. */
+@Composable
+fun SeletorNivel(
+    nivel: Int,
+    onMudar: (Int) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        (1..5).forEach { valor ->
+            val selecionado = valor == nivel
+            Box(
+                modifier =
+                    Modifier
+                        .size(36.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(if (selecionado) VoleiColors.Verde else VoleiColors.CartaoInterno)
+                        .border(
+                            1.dp,
+                            if (selecionado) VoleiColors.Verde else VoleiColors.Borda,
+                            RoundedCornerShape(10.dp),
+                        ).clickable { onMudar(valor) },
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = valor.toString(),
+                    color = if (selecionado) Color.White else VoleiColors.TextoSecundario,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
+        }
+    }
+}
+
+/** Paleta fixa de cores de time, a mesma do protótipo. */
+val CoresDeTime: List<String> =
+    listOf(
+        "#2F80ED", "#E8590C", "#3F444D", "#E8437F", "#8B5CF6",
+        "#16A34A", "#9CA3AF", "#E23B3B", "#EAB308", "#06B6D4",
+    )
+
+@Composable
+fun SeletorCor(
+    corSelecionada: String,
+    onMudar: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        CoresDeTime.forEach { hex ->
+            val selecionada = hex.equals(corSelecionada, ignoreCase = true)
+            Box(
+                modifier =
+                    Modifier
+                        .size(28.dp)
+                        .clip(CircleShape)
+                        .background(corDoTime(hex))
+                        .border(
+                            width = if (selecionada) 3.dp else 1.dp,
+                            color = if (selecionada) Color.White else VoleiColors.Borda,
+                            shape = CircleShape,
+                        ).clickable { onMudar(hex) },
+            )
+        }
+    }
+}
+
+@Composable
+fun DialogoConfirmacao(
+    titulo: String,
+    mensagem: String,
+    textoConfirmar: String,
+    onConfirmar: () -> Unit,
+    onCancelar: () -> Unit,
+    destrutivo: Boolean = true,
+) {
+    AlertDialog(
+        onDismissRequest = onCancelar,
+        containerColor = VoleiColors.Cartao,
+        titleContentColor = VoleiColors.TextoPrimario,
+        textContentColor = VoleiColors.TextoSecundario,
+        title = { Text(titulo, fontWeight = FontWeight.Bold) },
+        text = { Text(mensagem) },
+        confirmButton = {
+            TextButton(onClick = onConfirmar) {
+                Text(
+                    textoConfirmar,
+                    color = if (destrutivo) VoleiColors.Vermelho else VoleiColors.Verde,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onCancelar) {
+                Text("Cancelar", color = VoleiColors.TextoSecundario)
+            }
+        },
+    )
+}

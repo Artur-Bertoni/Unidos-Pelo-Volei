@@ -7,10 +7,31 @@ import com.unidospelovolei.domain.model.MatchStatus
 import com.unidospelovolei.domain.model.Round
 import com.unidospelovolei.domain.scheduling.ScheduledRound
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
+
+/** Resumo do formato do campeonato, usado no subtitulo do cabecalho. */
+data class Formato(
+    val times: Int,
+    val quadras: Int,
+)
 
 class MatchesRepository(
     private val db: PowerSyncDatabase,
 ) {
+    /**
+     * Resumo do formato exibido no cabecalho: quantos times ativos e quantas
+     * quadras o chaveamento atual usa.
+     */
+    fun observeFormato(): Flow<Formato> =
+        db.watch(
+            """
+            SELECT
+                (SELECT COUNT(*) FROM teams WHERE ativo = 1)  AS times,
+                (SELECT COALESCE(MAX(quadra), 0) FROM matches) AS quadras
+            """.trimIndent(),
+        ) { Formato(times = it.int("times"), quadras = it.int("quadras")) }
+            .map { it.firstOrNull() ?: Formato(times = 0, quadras = 0) }
+
     fun observeRounds(): Flow<List<Round>> =
         db.watch("SELECT id, numero, fase FROM rounds ORDER BY numero") { cursor ->
             Round(
