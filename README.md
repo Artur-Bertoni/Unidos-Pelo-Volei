@@ -180,6 +180,16 @@ com.unidospelovolei
 3. Em **Project Settings → API**, anote:
    - **Project URL** → vira `SUPABASE_URL`
    - **anon public key** → vira `SUPABASE_ANON_KEY`
+4. Ainda em **Project Settings → API**, no bloco **Security**, deixe assim:
+
+   | Opção | Estado | Motivo |
+   |---|---|---|
+   | Enable Data API | **ligado** | O app grava pelo Postgrest, tanto no conector de upload do PowerSync quanto no supabase-kt. Sem ele nada escreve. |
+   | Automatically expose new tables | **desligado** | A migration de RLS já faz os `grant` explícitos nas 6 tabelas, na view `standings` e na função `is_admin()`. Desligar evita expor ao `anon` alguma tabela criada depois. |
+   | Enable automatic RLS | **ligado** | Redundante para as tabelas do projeto, que já ligam RLS na migration, mas garante que uma tabela criada no futuro nasça fechada. |
+
+   Ajuste isso **antes** de rodar as migrations: a RLS automática funciona por
+   event trigger no `CREATE TABLE`. Use as mesmas opções no projeto de dev.
 
 > A anon key é pública por definição (vai dentro do app). Quem protege os dados é a
 > RLS, não a chave. Ainda assim ela fica em `local.properties`, fora do Git.
