@@ -1,0 +1,29 @@
+# =============================================================================
+# PowerSync - sync rules
+# =============================================================================
+# Define o que cada dispositivo baixa para o SQLite local.
+#
+# Este e um grupo de volei fechado: todo mundo que entra ve o mesmo campeonato,
+# entao jogadores, times, rodadas e partidas ficam num bucket global. A unica
+# informacao por usuario e o proprio profile, que carrega a flag is_admin.
+#
+# Como fazer o upload deste arquivo: PowerSync Dashboard > sua instancia >
+# "Sync Rules" > cole o conteudo > Deploy. Ou, no self-hosted, monte este
+# arquivo no container conforme o docker-compose.
+# =============================================================================
+
+bucket_definitions:
+  # Dados do campeonato, iguais para todos os usuarios autenticados.
+  campeonato:
+    data:
+      - SELECT * FROM players
+      - SELECT * FROM teams
+      - SELECT * FROM team_players
+      - SELECT * FROM rounds
+      - SELECT * FROM matches
+
+  # Cada usuario recebe apenas o proprio profile (e com ele o is_admin).
+  meu_perfil:
+    parameters: SELECT request.user_id() AS user_id
+    data:
+      - SELECT * FROM profiles WHERE id = bucket.user_id
