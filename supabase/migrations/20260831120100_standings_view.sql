@@ -37,8 +37,17 @@ select
     t.sigla,
     t.cor_hex,
     coalesce(count(l.team_id), 0)::int                              as jogos,
-    coalesce(sum(case when l.venceu then 1 else 0 end), 0)::int     as vitorias,
-    coalesce(sum(case when l.venceu then 0 else 1 end), 0)::int     as derrotas,
+    -- O FILTER e obrigatorio: com LEFT JOIN, um time sem nenhuma partida ainda
+    -- produz uma linha com l.* nulo, e `case when null then 0 else 1 end` cairia
+    -- no ELSE e contaria uma derrota que nao existe.
+    coalesce(
+        sum(case when l.venceu then 1 else 0 end)
+            filter (where l.team_id is not null), 0
+    )::int                                                          as vitorias,
+    coalesce(
+        sum(case when l.venceu then 0 else 1 end)
+            filter (where l.team_id is not null), 0
+    )::int                                                          as derrotas,
     coalesce(sum(l.pontos_pro - l.pontos_contra), 0)::int           as saldo_pontos,
     coalesce(sum(l.pontos_pro), 0)::int                             as pontos_pro,
     coalesce(sum(l.pontos_contra), 0)::int                          as pontos_contra

@@ -514,7 +514,9 @@ Onde o enunciado deixava espaço, foi escolhida a opção mais simples que atend
   reproduzida sobre as tabelas já sincronizadas, em
   [`StandingsRepository.kt`](app/src/main/java/com/unidospelovolei/data/StandingsRepository.kt).
   Sem isso a aba de classificação não funcionaria offline. **Ao mexer em uma das
-  duas definições, mexa na outra.**
+  duas definições, mexa na outra** — as duas foram conferidas lado a lado sobre os
+  mesmos dados (incluindo time sem partida, time inativo, partida agendada e
+  empate) e devolvem exatamente as mesmas linhas na mesma ordem.
 - **`team_players` tem uma coluna `id` própria.** A chave lógica continua sendo
   `(team_id, player_id)`, garantida por `UNIQUE`, mas o PowerSync exige chave
   primária simples em toda tabela sincronizada.
@@ -569,6 +571,13 @@ caminho local, lembre que o emulador enxerga a máquina como `10.0.2.2`, nunca
 **Sincroniza a leitura mas as edições não sobem.**
 É a RLS fazendo o trabalho dela: o usuário não é admin. Rode o `update` de
 [Virar administrador](#virar-administrador).
+
+Vale saber como isso aparece: um `INSERT` sem permissão devolve erro, mas
+`UPDATE` e `DELETE` **não** — a cláusula `USING` da policy simplesmente filtra
+todas as linhas e a operação afeta zero registros, sem mensagem. Então uma edição
+de não-admin fica no SQLite local até o sync trazer o valor do servidor por cima.
+Na prática não acontece, porque o app esconde os controles de edição de quem não
+é admin.
 
 **Nada aparece no app mesmo com dados no Supabase.**
 Confira se a `publication powersync` existe (migration `..._powersync.sql`) e se as
