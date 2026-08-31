@@ -316,8 +316,23 @@ Google reconhecer o APK que está pedindo a credencial.
 1. Em [powersync.journeyapps.com](https://powersync.journeyapps.com), crie uma
    instância.
 2. **Connect to database**: escolha Supabase/Postgres e informe a connection string
-   do projeto (Supabase → **Project Settings → Database → Connection string**,
-   modo *Session* ou *Direct*). Use a senha do banco definida no passo 1.
+   do projeto. Ela fica no botão verde **Connect**, no topo do dashboard do
+   Supabase (não em Project Settings). Troque o `[YOUR-PASSWORD]` pela senha do
+   banco definida no passo 1.
+
+   O modal mostra três variantes, e a escolha importa:
+
+   | Variante | Porta | Serve? |
+   |---|---|---|
+   | Direct connection | 5432 | sim |
+   | Session pooler | 5432 | sim |
+   | Transaction pooler | 6543 | **não** |
+
+   A *transaction pooler* devolve a conexão ao pool a cada statement, e replicação
+   lógica precisa de conexão persistente — o PowerSync conecta e não replica nada,
+   sem erro visível. Comece pela **Direct connection**; em projetos do plano Free
+   ela é só IPv6, então se o PowerSync não alcançar, use a **Session pooler**,
+   que é IPv4.
 3. Na aba de autenticação da instância, ative a integração com **Supabase Auth**
    (o PowerSync valida o mesmo JWT que o app já usa).
 4. Em **Sync Rules**, cole o conteúdo de [`powersync/sync-rules.yaml`](powersync/sync-rules.yaml)
