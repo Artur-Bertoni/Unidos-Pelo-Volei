@@ -27,3 +27,7 @@ replay_pid*
 
 # Configuracao local do PowerSync self-hosted
 powersync/self-host/.env
+
+# Supabase CLI (estado local do link, nao versionar)
+supabase/.temp/
+supabase/.branches/

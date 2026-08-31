@@ -143,6 +143,7 @@ com.unidospelovolei
 ├── app/                              módulo Android
 ├── gradle/libs.versions.toml         catálogo de versões
 ├── supabase/
+│   ├── config.toml                   config da Supabase CLI (start/db push/reset)
 │   ├── migrations/
 │   │   ├── 20260831120000_init.sql            tabelas e triggers
 │   │   ├── 20260831120100_standings_view.sql  VIEW standings
@@ -205,12 +206,29 @@ com.unidospelovolei
 
 E, se quiser dados de exemplo, `supabase/seed.sql`.
 
-**Pela CLI** (a partir da raiz do repositório):
+**Pela CLI** — faz o mesmo, com a vantagem de registrar o que já rodou em cada
+projeto, o que ajuda quando você mantém dev e prod em paralelo. O repositório já
+traz o `supabase/config.toml`, então **não** é preciso rodar `supabase init`.
+
+Instale a [Supabase CLI](https://supabase.com/docs/guides/cli) e, da raiz do
+repositório:
 
 ```bash
 supabase link --project-ref SEU_PROJECT_REF
 supabase db push
 ```
+
+O **project ref** é o identificador do projeto, uma string de ~20 letras. Ele
+aparece em três lugares, sempre igual:
+
+- no subdomínio da URL do projeto — `https://`**`abcdefghijklmnopqrst`**`.supabase.co`,
+  a mesma URL que vira `SUPABASE_URL`;
+- na URL do painel — `https://supabase.com/dashboard/project/`**`abcdefghijklmnopqrst`**;
+- em **Project Settings → General**, no campo *Project ID*.
+
+`link` associa a pasta ao projeto remoto (ele pede a senha do banco) e roda uma
+vez só; `db push` envia as migrations pendentes. Para trocar de projeto depois,
+basta rodar `link` de novo com o outro ref.
 
 O que cada migration faz:
 
@@ -449,9 +467,23 @@ padrão. Por isso o projeto traz um
 cleartext **apenas nos builds de debug** — nenhum build de release recebe essa flag.
 Não é preciso mexer em nada.
 
-> O Supabase local ainda depende do Google para o login. Configure o provedor Google
-> no `supabase/config.toml` com o mesmo Web client ID, ou promova manualmente um
-> usuário criado por e-mail para testar as telas de admin.
+**d) Login Google na stack local**
+
+O `supabase/config.toml` já traz o bloco `[auth.external.google]` ligado, com o
+client id e o segredo vindos de variáveis de ambiente — nada de segredo no
+repositório. Defina as duas antes do `supabase start`:
+
+```bash
+export SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID=<o mesmo Web client ID>
+export SUPABASE_AUTH_EXTERNAL_GOOGLE_SECRET=<o client secret do mesmo client>
+supabase start
+```
+
+No PowerShell, `$env:SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID = "..."`.
+
+Esse bloco tem `skip_nonce_check = true`, recomendação da própria CLI para o
+login Google local. Vale **só** para a stack local: os projetos na nuvem não leem
+este arquivo e continuam checando o nonce normalmente.
 
 ### Alternativa por linha de comando
 
