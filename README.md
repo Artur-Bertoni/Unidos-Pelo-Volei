@@ -313,7 +313,7 @@ Google reconhecer o APK que está pedindo a credencial.
 
 ### 5. Instância do PowerSync
 
-1. Em [powersync.journeyapps.com](https://powersync.journeyapps.com), crie uma
+1. Em [dashboard.powersync.com](https://dashboard.powersync.com), crie uma
    instância.
 2. **Connect to database**: escolha Supabase/Postgres e informe a connection string
    do projeto. Ela fica no botão verde **Connect**, no topo do dashboard do
@@ -337,7 +337,10 @@ Google reconhecer o APK que está pedindo a credencial.
    (o PowerSync valida o mesmo JWT que o app já usa).
 4. Em **Sync Rules**, cole o conteúdo de [`powersync/sync-rules.yaml`](powersync/sync-rules.yaml)
    e faça o **Deploy**.
-5. Copie a **instance URL** — vira `POWERSYNC_URL`.
+5. Copie a **instance URL** — vira `POWERSYNC_URL`. Ela fica no botão **Connect**,
+   no topo do dashboard do PowerSync: o diálogo que abre traz a URL com botão de
+   copiar. O formato é `https://<id>.powersync.com`. Use a URL inteira, com
+   `https://` e sem barra no fim.
 
 As sync rules mandam para o dispositivo o campeonato inteiro (jogadores, times,
 rodadas e partidas) e, do `profiles`, apenas a linha do próprio usuário.
@@ -355,7 +358,7 @@ sdk.dir=C:\\Users\\SEU_USUARIO\\AppData\\Local\\Android\\Sdk
 
 dev.SUPABASE_URL=https://SEU-PROJETO-DEV.supabase.co
 dev.SUPABASE_ANON_KEY=...
-dev.POWERSYNC_URL=https://SUA-INSTANCIA-DEV.powersync.journeyapps.com
+dev.POWERSYNC_URL=https://SUA-INSTANCIA-DEV.powersync.com
 dev.GOOGLE_WEB_CLIENT_ID=...apps.googleusercontent.com
 
 prod.SUPABASE_URL=

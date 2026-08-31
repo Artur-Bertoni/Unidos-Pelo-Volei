@@ -17,7 +17,7 @@ sdk.dir=C\:\\Users\\SEU_USUARIO\\AppData\\Local\\Android\\Sdk
 # ---------------------------------------------------------------------------
 dev.SUPABASE_URL=https://SEU-PROJETO-DEV.supabase.co
 dev.SUPABASE_ANON_KEY=
-dev.POWERSYNC_URL=https://SUA-INSTANCIA-DEV.powersync.journeyapps.com
+dev.POWERSYNC_URL=https://SUA-INSTANCIA-DEV.powersync.com
 dev.GOOGLE_WEB_CLIENT_ID=000000000000-xxxxxxxx.apps.googleusercontent.com
 
 # ---------------------------------------------------------------------------
