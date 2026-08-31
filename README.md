@@ -167,9 +167,6 @@ com.unidospelovolei
   sem Google Play** — ao criar o AVD, escolha uma imagem com o ícone da Play Store.
 - Conta no [Supabase](https://supabase.com) e no [PowerSync](https://powersync.com)
   (os planos gratuitos bastam para dev).
-- Para os comandos da Supabase CLI, **Node.js** (para rodar via `npx`) ou a CLI
-  instalada pelo Scoop. Não é obrigatório: dá para aplicar as migrations pelo SQL
-  Editor do painel.
 - Para o caminho totalmente local: Docker Desktop e a
   [Supabase CLI](https://supabase.com/docs/guides/cli).
 
@@ -300,11 +297,19 @@ Google reconhecer o APK que está pedindo a credencial.
 
 ### 4. Provedor Google no Supabase Auth
 
-1. **Authentication → Providers → Google** e habilite.
-2. Cole o **Client ID** e o **Client secret** do *Web client* do passo anterior.
-3. Em **Authorized Client IDs**, adicione o mesmo **Web client ID**. Esse campo é o
-   que faz o Supabase aceitar o `signInWithIdToken` vindo do app.
-4. Salve.
+1. **Authentication → Sign In / Providers** (na seção *Configuration* do menu
+   lateral, logo abaixo de *Policies*), role até **Auth Providers** e clique em
+   **Google**. Habilite o provedor.
+2. **Client ID** — cole o **Web client ID** do passo anterior. É esse campo que faz
+   o Supabase aceitar o `signInWithIdToken` que o app envia. Se o dashboard mostrar
+   *Client IDs* no plural, ele aceita vários separados por vírgula; se mostrar um
+   campo **Authorized Client IDs** à parte, coloque o mesmo valor nos dois.
+3. **Client Secret** — o secret do mesmo client Web.
+4. **Skip nonce checks** — deixe **desligado**. O app manda o hash SHA-256 do nonce
+   para o Google e o valor original para o Supabase, então a checagem passa e
+   continua protegendo contra replay de token. (O `skip_nonce_check = true` do
+   `supabase/config.toml` vale só para a stack local do Docker.)
+5. Salve.
 
 ### 5. Instância do PowerSync
 
