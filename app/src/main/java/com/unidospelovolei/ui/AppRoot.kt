@@ -49,7 +49,6 @@ import com.unidospelovolei.ui.teams.TeamsScreen
 import com.unidospelovolei.ui.teams.TeamsViewModel
 import com.unidospelovolei.ui.theme.VoleiColors
 
-/** Telas empilhadas sobre as abas. */
 private sealed interface Destino {
     data object Abas : Destino
 
@@ -147,6 +146,13 @@ private fun HomeScreen(
         }
     }
 
+    LaunchedEffect(jogos.aviso) {
+        jogos.aviso?.let {
+            snackbar.showSnackbar(it)
+            gamesViewModel.limparAviso()
+        }
+    }
+
     when (val atual = destino) {
         is Destino.Jogadores -> {
             PlayersScreen(
@@ -215,6 +221,7 @@ private fun HomeScreen(
                         isAdmin = estado.isAdmin,
                         onAbrirPartida = { destino = Destino.Partida(it) },
                         onGerarChaveamento = gamesViewModel::gerarChaveamento,
+                        onEncerrarDia = gamesViewModel::encerrarDia,
                     )
 
                 AbaPrincipal.CLASSIFICACAO ->
@@ -294,6 +301,7 @@ private fun PartidaScreen(
         isAdmin = isAdmin,
         onVoltar = onVoltar,
         onSomar = viewModel::somar,
+        onDefinirPlacar = viewModel::definirPlacar,
         onFinalizar = viewModel::finalizar,
         onReabrir = viewModel::reabrir,
         modifier = modifier,
@@ -309,13 +317,24 @@ private fun HistoricoDoTime(
     val factory =
         remember(time.id) {
             viewModelFactory {
-                initializer { TeamHistoryViewModel(container.matchesRepository, time.id) }
+                initializer {
+                    TeamHistoryViewModel(
+                        matchesRepository = container.matchesRepository,
+                        teamsRepository = container.teamsRepository,
+                        teamId = time.id,
+                    )
+                }
             }
         }
     val viewModel: TeamHistoryViewModel = viewModel(key = "historico-${time.id}", factory = factory)
-    val partidas by viewModel.partidas.collectAsStateWithLifecycle()
+    val detalhe by viewModel.estado.collectAsStateWithLifecycle()
 
-    TeamHistoryDialog(time = time, partidas = partidas, onFechar = onFechar)
+    TeamHistoryDialog(
+        time = time,
+        elenco = detalhe.elenco,
+        partidas = detalhe.partidas,
+        onFechar = onFechar,
+    )
 }
 
 private fun subtituloDoFormato(

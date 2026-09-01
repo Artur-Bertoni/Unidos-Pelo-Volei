@@ -3,7 +3,7 @@
 App Android nativo para controlar jogadores, times, chaveamento, placar e histórico
 do grupo de vôlei de sábado. Substitui o protótipo web mantendo a mesma identidade
 visual, agora com backend real, login Google, sincronização multiusuário em tempo
-real e distribuição de times por nível de habilidade.
+real e sorteio de times equilibrado por gênero e habilidade.
 
 ---
 
@@ -37,38 +37,71 @@ real e distribuição de times por nível de habilidade.
 
 | # | Funcionalidade | Onde fica |
 |---|---|---|
-| 1 | CRUD de jogadores com nível de habilidade de 1 a 5 e flag de ativo | aba **TIMES** → botão **Jogadores** (só admin) |
+| 1 | CRUD de jogadores com nível de habilidade de 1 a 5, gênero e flag de ativo | aba **TIMES** → botão **Jogadores** (só admin) |
 | 2 | Gestão de times coloridos (nome, cor, sigla de 2 letras) | aba **TIMES** → **Novo time** / ícone de lápis no cartão |
-| 3 | Distribuição equilibrada por habilidade (snake draft) com a força de cada time | aba **TIMES** → **Distribuir** |
+| 3 | Sorteio dos times mirando 2 homens e 2 mulheres, equilibrando a força e evitando repetir duplas | aba **TIMES** → **Distribuir** |
 | 4 | Geração do chaveamento round-robin com folgas, agrupado em fases | aba **JOGOS** → **Gerar chaveamento** |
-| 5 | Placar ao vivo por partida, com vencedor marcado automaticamente | aba **JOGOS** → toque em uma partida |
+| 5 | Placar ao vivo por partida, digitado ou ponto a ponto, com vencedor marcado automaticamente | aba **JOGOS** → toque em uma partida |
 | 6 | Classificação geral com V, S e PP e desempate na ordem correta | aba **CLASSIFICAÇÃO** |
-| 7 | Histórico de jogos por time (fase, rodada, quadra, placar, resultado) | aba **TIMES** → toque em um time |
-| 8 | Login com Google; usuário comum só lê, admin edita | tela inicial |
-| 9 | Funciona offline e sincroniza ao reconectar | em todo o app |
+| 7 | Elenco vinculado e histórico de jogos por time (fase, rodada, quadra, placar, resultado) | aba **TIMES** → toque em um time |
+| 8 | Encerrar o dia: arquiva o desempenho dos atletas, desfaz os times e apaga o chaveamento | aba **JOGOS** → **Encerrar dia** |
+| 9 | Login com Google; usuário comum só lê, admin edita | tela inicial |
+| 10 | Funciona offline e sincroniza ao reconectar | em todo o app |
 
 O indicador **Online / Conectando / Offline** no cabeçalho mostra o estado do sync.
 
 ### Como os algoritmos funcionam
 
-**Snake draft** ([`SnakeDraft.kt`](app/src/main/java/com/unidospelovolei/domain/scheduling/SnakeDraft.kt)):
-os jogadores ativos são ordenados por habilidade decrescente e distribuídos em
-serpentina — a primeira leva vai do time 1 ao time N, a segunda volta do N ao 1.
-Quem escolhe por último em uma leva escolhe primeiro na seguinte, o que mantém a
-soma de habilidade dos times próxima.
+**Sorteio dos times** ([`TeamDraft.kt`](app/src/main/java/com/unidospelovolei/domain/scheduling/TeamDraft.kt)):
+três critérios, nesta ordem de importância.
+
+1. *Gênero.* Cada time mira 2 homens e 2 mulheres, independente de habilidade.
+   Quando o grupo do dia não permite, as cotas são ajustadas time a time sempre
+   pelo extremo, para a sobra ficar espalhada em vez de concentrada num time só.
+2. *Histórico.* Duplas que já jogaram juntas pesam contra. O histórico vem dos
+   dias já encerrados (com peso decaindo pela recência), do elenco que está
+   valendo agora e dos sorteios que acabaram de aparecer na tela.
+3. *Habilidade.* Dentro do que sobra, o jogador vai para o time mais fraco até
+   ali, o que aproxima a força total dos elencos.
+
+Cada tentativa é uma montagem gulosa com desempate aleatório, e entre 240
+tentativas fica a de menor custo. Por isso dois toques em **Sortear de novo**
+dão times diferentes, e o sorteio de amanhã não repete o de hoje.
 
 **Chaveamento** ([`RoundRobinScheduler.kt`](app/src/main/java/com/unidospelovolei/domain/scheduling/RoundRobinScheduler.kt)):
-o método do círculo fixa o primeiro time e gira os demais, gerando todos os
-confrontos possíveis sem repetição (com número ímpar de times entra um
-"fantasma", e quem cai contra ele folga). Como o método do círculo produz mais
-partidas simultâneas do que existem quadras, os confrontos entram numa fila e são
-empacotados em rodadas de no máximo `quadras` partidas, sem repetir time na mesma
-rodada. Uma **fase** é um ciclo completo de folgas: o número de rodadas até todos
-terem folgado uma vez.
+o chaveamento é organizado **por quadra**. Cada quadra recebe um trio, que joga
+entre si nas três rodadas da fase: A×B, A×C, B×C. Assim cada time joga dois jogos
+e descansa um dentro da fase. Terminada a fase, os trios são refeitos e os times
+trocam de quadra, até todos terem jogado contra todos.
 
-Com 9 times e 3 quadras isso dá exatamente 12 rodadas de 3 partidas (36 confrontos
-= round-robin completo), agrupadas em 4 fases de 3 rodadas — o mesmo formato do
-protótipo. Há testes cobrindo isso.
+Com 9 times e 3 quadras:
+
+```
+Fase 1   quadra 1: 1,2,3     quadra 2: 4,5,6     quadra 3: 7,8,9
+  rodada 1   1 x 2               4 x 5               7 x 8
+  rodada 2   1 x 3               4 x 6               7 x 9
+  rodada 3   2 x 3               5 x 6               8 x 9
+```
+
+Duas regras guiam a formação dos trios de cada fase: não repetir confronto (uma
+busca com backtracking procura uma partição em que todo par ainda é inédito) e
+não deixar ninguém jogar três seguidos.
+
+A segunda regra tem um detalhe que não é óbvio. O time que joga as rodadas 2 e 3
+da fase chega na fase seguinte com dois jogos seguidos nas costas e precisa
+esperar. Se os três de um trio chegarem cansados, esse trio **entra uma rodada
+depois** — a quadra dele fica vazia na primeira rodada da fase e ele joga nas
+três seguintes. Sem esse atraso, as duas regras seriam incompatíveis: a de
+descanso congela os times em três classes fixas, e times da mesma classe nunca
+poderiam se enfrentar, deixando 9 dos 36 confrontos impossíveis.
+
+O resultado com 9 times e 3 quadras é 13 rodadas, 36 confrontos (round-robin
+completo, nenhum repetido) em 4 fases, e ninguém joga mais de duas partidas
+seguidas. Há testes cobrindo isso e mais sete combinações de times e quadras.
+
+Quando todos os times cabem em quadra ao mesmo tempo (times ≤ 2 × quadras), o
+chaveamento troca os trios por duplas: todo mundo joga todas as rodadas e
+ninguém espera. É o round-robin clássico.
 
 A habilidade **não** entra no chaveamento, apenas na formação dos times.
 
@@ -122,7 +155,7 @@ com.unidospelovolei
 ├── AppContainer.kt          injeção de dependência manual
 ├── domain/
 │   ├── model/               modelos puros (Player, Team, Match, Standing, ...)
-│   └── scheduling/          SnakeDraft e RoundRobinScheduler
+│   └── scheduling/          TeamDraft e RoundRobinScheduler
 ├── data/
 │   ├── AppSchema.kt         espelho local das tabelas sincronizadas
 │   ├── AuthRepository.kt    login Google + Supabase Auth
@@ -149,7 +182,7 @@ com.unidospelovolei
 │   │   ├── 20260831120100_standings_view.sql  VIEW standings
 │   │   ├── 20260831120200_rls.sql             policies RLS
 │   │   └── 20260831120300_powersync.sql       publication de replicação
-│   └── seed.sql                      seed opcional (9 times, 38 jogadores)
+│   └── seed.sql                      zera os dados e recria 9 times e 38 jogadores
 ├── powersync/
 │   ├── sync-rules.yaml               o que cada dispositivo baixa
 │   └── self-host/                    Docker para o caminho totalmente local
@@ -203,8 +236,14 @@ com.unidospelovolei
 2. `supabase/migrations/20260831120100_standings_view.sql`
 3. `supabase/migrations/20260831120200_rls.sql`
 4. `supabase/migrations/20260831120300_powersync.sql`
+5. `supabase/migrations/20260901120000_genero_dias_desempenho.sql`
 
 E, se quiser dados de exemplo, `supabase/seed.sql`.
+
+> **Atenção:** o `seed.sql` começa apagando `player_day_stats`, `game_days`,
+> `matches`, `rounds`, `team_players`, `players` e `teams`, para você sempre
+> reiniciar de um estado limpo. Ele **não** toca em `profiles`, então quem já é
+> admin continua admin. Rode só em banco de teste.
 
 **Pela CLI** — faz o mesmo, com a vantagem de registrar o que já rodou em cada
 projeto, o que ajuda quando você mantém dev e prod em paralelo. O repositório já
@@ -246,6 +285,17 @@ aparece em três lugares, sempre igual:
 vez só; `db push` envia as migrations pendentes. Para trocar de projeto depois,
 basta rodar `link` de novo com o outro ref.
 
+Depois do primeiro `link`, o ciclo de teste é só `npx supabase@latest db push` a
+cada migration nova. Todas as migrations aqui são idempotentes (`if not exists`,
+`create or replace`, `drop ... if exists`), então rodar de novo uma que já passou
+não quebra nada — útil se você aplicou as primeiras pelo SQL Editor e o histórico
+da CLI está vazio.
+
+O `db push` **não** roda o `supabase/seed.sql` em projeto remoto: o seed só entra
+no `supabase db reset` do caminho local com Docker. Para semear o projeto remoto,
+cole o arquivo no SQL Editor — lembrando que ele apaga os dados do campeonato
+antes de recriar (veja o aviso acima).
+
 O que cada migration faz:
 
 - **init** — tabelas `profiles`, `players`, `teams`, `team_players`, `rounds` e
@@ -255,6 +305,9 @@ O que cada migration faz:
 - **rls** — SELECT liberado para qualquer autenticado; INSERT, UPDATE e DELETE só
   para quem tem `profiles.is_admin = true`.
 - **powersync** — a `publication` de replicação lógica que o PowerSync exige.
+- **genero_dias_desempenho** — a coluna `players.genero`, as tabelas `game_days` e
+  `player_day_stats` (o que o "Encerrar dia" arquiva), a VIEW
+  `public.player_performance` e a `publication` recriada com as tabelas novas.
 
 ### 3. Credenciais OAuth no Google Cloud
 
@@ -589,9 +642,10 @@ edição aparecem, sem precisar reiniciar.
 
 Cobrem os dois algoritmos do domínio
 ([`SchedulingTest.kt`](app/src/test/java/com/unidospelovolei/domain/SchedulingTest.kt)):
-equilíbrio do snake draft, round-robin completo com 9 times em 3 quadras, ausência
-de time repetido na mesma rodada, agrupamento das fases e os casos de número par de
-times e de quadras sobrando.
+cotas de gênero, equilíbrio de força, variação entre dois sorteios e afastamento de
+duplas já repetidas; round-robin completo com 9 times em 3 quadras, ausência de time
+repetido na mesma rodada, agrupamento das fases e os casos de número par de times e
+de quadras sobrando.
 
 ---
 

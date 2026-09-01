@@ -28,9 +28,6 @@ import com.unidospelovolei.ui.components.SeletorCor
 import com.unidospelovolei.ui.components.TeamCircle
 import com.unidospelovolei.ui.theme.VoleiColors
 
-/**
- * Cadastro e edição de time. Com [time] nulo cria um novo.
- */
 @Composable
 fun TeamEditorDialog(
     time: Team?,

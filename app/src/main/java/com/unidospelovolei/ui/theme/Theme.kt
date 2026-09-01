@@ -10,10 +10,6 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 
-/**
- * Paleta do app, tirada do prototipo web: fundo quase preto azulado, cartoes
- * arredondados sobre ele e verde como cor das acoes primarias.
- */
 object VoleiColors {
     val Fundo = Color(0xFF0B0F17)
     val FundoCabecalho = Color(0xFF131B2B)
@@ -61,10 +57,6 @@ private val TipografiaVolei =
         )
     }
 
-/**
- * O app e escuro por definicao, entao o tema ignora a preferencia do sistema.
- * O parametro existe so para o preview do Studio.
- */
 @Composable
 fun VoleiTheme(
     escuro: Boolean = isSystemInDarkTheme(),
@@ -77,7 +69,6 @@ fun VoleiTheme(
     )
 }
 
-/** Converte "#RRGGBB" vindo do banco em [Color], com um cinza de reserva. */
 fun corDoTime(hex: String): Color =
     runCatching {
         val limpo = hex.trim().removePrefix("#")

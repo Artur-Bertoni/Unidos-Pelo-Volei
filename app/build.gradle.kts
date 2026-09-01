@@ -6,13 +6,6 @@ plugins {
     alias(libs.plugins.kotlin.compose)
 }
 
-/**
- * Chaves de ambiente.
- *
- * Nenhum segredo entra no controle de versao: as chaves vem de `local.properties`
- * (ou de variaveis de ambiente, util em CI) e sao expostas ao codigo via BuildConfig.
- * O prefixo define o ambiente, por exemplo `dev.SUPABASE_URL` e `prod.SUPABASE_URL`.
- */
 val localProperties: Properties =
     Properties().apply {
         val file = rootProject.file("local.properties")
@@ -113,12 +106,10 @@ dependencies {
     implementation(libs.androidx.compose.material.icons.extended)
     debugImplementation(libs.androidx.compose.ui.tooling)
 
-    // Login Google via Credential Manager + Google Identity Services
     implementation(libs.androidx.credentials)
     implementation(libs.androidx.credentials.play.services)
     implementation(libs.google.identity.googleid)
 
-    // Supabase (Auth + Postgrest) e PowerSync (SQLite local sincronizado)
     implementation(libs.supabase.auth)
     implementation(libs.supabase.postgrest)
     implementation(libs.ktor.client.okhttp)

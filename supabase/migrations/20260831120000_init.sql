@@ -1,18 +1,5 @@
--- =============================================================================
--- Unidos Pelo Volei - schema base
--- =============================================================================
--- Convencoes adotadas para funcionar com o PowerSync:
---   * toda tabela sincronizada tem uma unica coluna `id` do tipo uuid como
---     chave primaria (o PowerSync nao suporta chave composta);
---   * booleanos chegam no SQLite do dispositivo como 0/1 e timestamps como
---     texto ISO-8601.
--- =============================================================================
-
 create extension if not exists pgcrypto;
 
--- -----------------------------------------------------------------------------
--- profiles: papel do usuario autenticado (quem pode escrever)
--- -----------------------------------------------------------------------------
 create table if not exists public.profiles (
     id         uuid primary key references auth.users (id) on delete cascade,
     email      text,
@@ -22,10 +9,6 @@ create table if not exists public.profiles (
     updated_at timestamptz not null default now()
 );
 
-comment on table public.profiles is
-    'Perfil do usuario logado. is_admin = true libera escrita nas demais tabelas via RLS.';
-
--- Cria o profile automaticamente no primeiro login (inclusive login Google).
 create or replace function public.handle_new_user()
     returns trigger
     language plpgsql
@@ -54,9 +37,6 @@ create trigger on_auth_user_created
     for each row
 execute function public.handle_new_user();
 
--- -----------------------------------------------------------------------------
--- players
--- -----------------------------------------------------------------------------
 create table if not exists public.players (
     id          uuid primary key default gen_random_uuid(),
     nome        text        not null,
@@ -68,9 +48,6 @@ create table if not exists public.players (
 
 create index if not exists players_ativo_idx on public.players (ativo);
 
--- -----------------------------------------------------------------------------
--- teams
--- -----------------------------------------------------------------------------
 create table if not exists public.teams (
     id         uuid primary key default gen_random_uuid(),
     nome       text        not null,
@@ -82,14 +59,6 @@ create table if not exists public.teams (
     updated_at timestamptz not null default now()
 );
 
-comment on column public.teams.ordem is
-    'Ordem fixa usada pelo metodo do circulo ao gerar o chaveamento.';
-
--- -----------------------------------------------------------------------------
--- team_players: composicao atual de cada time
--- -----------------------------------------------------------------------------
--- A chave logica e (team_id, player_id), garantida por UNIQUE. A coluna `id`
--- existe porque o PowerSync exige chave primaria simples.
 create table if not exists public.team_players (
     id        uuid primary key default gen_random_uuid(),
     team_id   uuid not null references public.teams (id) on delete cascade,
@@ -100,9 +69,6 @@ create table if not exists public.team_players (
 create index if not exists team_players_team_idx on public.team_players (team_id);
 create index if not exists team_players_player_idx on public.team_players (player_id);
 
--- -----------------------------------------------------------------------------
--- rounds
--- -----------------------------------------------------------------------------
 create table if not exists public.rounds (
     id         uuid primary key default gen_random_uuid(),
     numero     integer     not null unique,
@@ -110,9 +76,6 @@ create table if not exists public.rounds (
     created_at timestamptz not null default now()
 );
 
--- -----------------------------------------------------------------------------
--- matches
--- -----------------------------------------------------------------------------
 create table if not exists public.matches (
     id         uuid primary key default gen_random_uuid(),
     round_id   uuid    not null references public.rounds (id) on delete cascade,
@@ -133,9 +96,6 @@ create index if not exists matches_round_idx on public.matches (round_id);
 create index if not exists matches_team_a_idx on public.matches (team_a_id);
 create index if not exists matches_team_b_idx on public.matches (team_b_id);
 
--- -----------------------------------------------------------------------------
--- updated_at automatico
--- -----------------------------------------------------------------------------
 create or replace function public.touch_updated_at()
     returns trigger
     language plpgsql

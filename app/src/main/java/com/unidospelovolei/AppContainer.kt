@@ -6,6 +6,7 @@ import com.powersync.PowerSyncDatabase
 import com.powersync.connector.supabase.SupabaseConnector
 import com.unidospelovolei.data.AppSchema
 import com.unidospelovolei.data.AuthRepository
+import com.unidospelovolei.data.GameDaysRepository
 import com.unidospelovolei.data.MatchesRepository
 import com.unidospelovolei.data.PlayersRepository
 import com.unidospelovolei.data.ProfileRepository
@@ -19,20 +20,12 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 
-/**
- * Injecao de dependencia manual.
- *
- * O MVP tem um grafo pequeno e de vida unica (tudo vive enquanto o app vive),
- * entao um container escrito a mao entrega o mesmo resultado que Hilt sem o
- * custo de processamento de anotacoes no build.
- */
 class AppContainer(
     context: Context,
 ) {
     private val appContext = context.applicationContext
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
-    /** Chaves que faltam em local.properties para a variant selecionada. */
     val chavesFaltando: List<String> =
         buildList {
             if (BuildConfig.SUPABASE_URL.isBlank()) add("SUPABASE_URL")
@@ -53,7 +46,6 @@ class AppContainer(
         }
     }
 
-    /** SQLite local gerenciado pelo PowerSync: e a fonte de verdade do app. */
     val database: PowerSyncDatabase by lazy {
         PowerSyncDatabase(
             factory = DatabaseDriverFactory(appContext),
@@ -83,6 +75,7 @@ class AppContainer(
     val teamsRepository by lazy { TeamsRepository(database) }
     val matchesRepository by lazy { MatchesRepository(database) }
     val standingsRepository by lazy { StandingsRepository(database) }
+    val gameDaysRepository by lazy { GameDaysRepository(database) }
 
     val syncService by lazy {
         SyncService(

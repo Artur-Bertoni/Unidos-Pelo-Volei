@@ -41,10 +41,6 @@ data class MainUiState(
     val isAdmin: Boolean get() = profile?.isAdmin == true
 }
 
-/**
- * Estado global da aplicacao: sessao, papel do usuario e situacao do sync.
- * As telas de conteudo tem os proprios ViewModels.
- */
 @OptIn(ExperimentalCoroutinesApi::class)
 class MainViewModel(
     private val authRepository: AuthRepository,

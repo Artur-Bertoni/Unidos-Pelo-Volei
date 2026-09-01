@@ -1,14 +1,26 @@
 package com.unidospelovolei.domain.model
 
-/** Jogador do grupo. `skillLevel` vai de 1 a 5 e alimenta o snake draft. */
+enum class Genero(
+    val value: String,
+    val rotulo: String,
+) {
+    MASCULINO("masculino", "Masculino"),
+    FEMININO("feminino", "Feminino"),
+    ;
+
+    companion object {
+        fun from(value: String?): Genero = entries.firstOrNull { it.value == value } ?: MASCULINO
+    }
+}
+
 data class Player(
     val id: String,
     val nome: String,
     val skillLevel: Int,
+    val genero: Genero,
     val ativo: Boolean,
 )
 
-/** Time colorido. A `sigla` de 2 letras e o que aparece dentro do circulo. */
 data class Team(
     val id: String,
     val nome: String,
@@ -28,14 +40,12 @@ enum class MatchStatus(val value: String) {
     }
 }
 
-/** Rodada do chaveamento. Rodadas consecutivas sao agrupadas em fases. */
 data class Round(
     val id: String,
     val numero: Int,
     val fase: Int,
 )
 
-/** Uma partida em uma quadra de uma rodada. */
 data class Match(
     val id: String,
     val roundId: String,
@@ -48,7 +58,6 @@ data class Match(
     val winnerId: String?,
 )
 
-/** Partida ja resolvida com os dados dos dois times, pronta para a tela. */
 data class MatchCard(
     val id: String,
     val roundNumero: Int,
@@ -62,14 +71,12 @@ data class MatchCard(
     val teamB: Team,
 )
 
-/** Uma rodada com suas partidas e os times que folgam nela. */
 data class RoundSchedule(
     val round: Round,
     val matches: List<MatchCard>,
     val folgam: List<Team>,
 )
 
-/** Linha da classificacao geral, lida da view `standings`. */
 data class Standing(
     val teamId: String,
     val nome: String,
@@ -82,15 +89,34 @@ data class Standing(
     val pontosPro: Int,
 )
 
-/** Time com o elenco atual e a soma das habilidades (a "forca" do time). */
 data class TeamRoster(
     val team: Team,
     val players: List<Player>,
 ) {
     val forcaTotal: Int get() = players.sumOf { it.skillLevel }
+
+    val homens: Int get() = players.count { it.genero == Genero.MASCULINO }
+
+    val mulheres: Int get() = players.count { it.genero == Genero.FEMININO }
 }
 
-/** Perfil do usuario logado. So admin escreve. */
+data class PlayerPerformance(
+    val playerId: String,
+    val dias: Int,
+    val jogos: Int,
+    val vitorias: Int,
+    val derrotas: Int,
+    val pontosPro: Int,
+    val pontosContra: Int,
+) {
+    val saldoPontos: Int get() = pontosPro - pontosContra
+}
+
+data class ResumoDoDia(
+    val partidas: Int,
+    val atletas: Int,
+)
+
 data class UserProfile(
     val id: String,
     val email: String?,

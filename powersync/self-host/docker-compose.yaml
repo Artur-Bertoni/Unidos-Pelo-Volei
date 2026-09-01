@@ -1,23 +1,4 @@
-# =============================================================================
-# PowerSync self-hosted para desenvolvimento local
-# =============================================================================
-# Use este compose no "Caminho 2" do README: Supabase rodando localmente pela
-# Supabase CLI e PowerSync em Docker apontando para o Postgres local.
-#
-# O PowerSync em nuvem NAO consegue alcancar um Postgres em localhost, por isso
-# o caminho totalmente local exige o servico self-hosted.
-#
-# Suba com:
-#   cd powersync/self-host
-#   cp .env.example .env    (e preencha)
-#   docker compose up
-#
-# Base: https://github.com/powersync-ja/self-host-demo
-# =============================================================================
-
 services:
-  # Armazenamento interno do PowerSync (buckets de sync). Nao guarda os dados
-  # da aplicacao, que continuam no Postgres do Supabase.
   mongo:
     image: mongo:8
     restart: unless-stopped
@@ -27,7 +8,6 @@ services:
     volumes:
       - mongo_data:/data/db
 
-  # Inicializa o replica set exigido pelo PowerSync e encerra.
   mongo-rs-init:
     image: mongo:8
     depends_on:
@@ -48,17 +28,13 @@ services:
       - ${PS_PORT}:${PS_PORT}
     volumes:
       - ./config/service.yaml:/config/service.yaml:ro
-      # Fonte unica das sync rules: o mesmo arquivo publicado no PowerSync Cloud.
       - ../sync-rules.yaml:/config/sync-config.yaml:ro
     environment:
       POWERSYNC_CONFIG_PATH: /config/service.yaml
       NODE_OPTIONS: --max-old-space-size=1000
       PS_PORT: ${PS_PORT}
       PS_MONGO_URI: mongodb://mongo:27017/powersync_unidos_volei
-      # Postgres do Supabase local. Do container, a maquina host e
-      # host.docker.internal (Docker Desktop no Windows e no macOS).
       PS_DATA_SOURCE_URI: ${PS_DATA_SOURCE_URI}
-      # JWT secret do Supabase local, mostrado por `supabase status`.
       PS_SUPABASE_JWT_SECRET: ${PS_SUPABASE_JWT_SECRET}
 
 volumes:

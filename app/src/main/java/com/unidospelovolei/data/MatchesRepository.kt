@@ -9,7 +9,6 @@ import com.unidospelovolei.domain.scheduling.ScheduledRound
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
-/** Resumo do formato do campeonato, usado no subtitulo do cabecalho. */
 data class Formato(
     val times: Int,
     val quadras: Int,
@@ -18,10 +17,6 @@ data class Formato(
 class MatchesRepository(
     private val db: PowerSyncDatabase,
 ) {
-    /**
-     * Resumo do formato exibido no cabecalho: quantos times ativos e quantas
-     * quadras o chaveamento atual usa.
-     */
     fun observeFormato(): Flow<Formato> =
         db.watch(
             """
@@ -44,7 +39,6 @@ class MatchesRepository(
     fun observeMatches(): Flow<List<MatchCard>> =
         db.watch("$MATCH_CARD_SQL ORDER BY r.numero, m.quadra") { it.toMatchCard() }
 
-    /** Historico completo de um time: toda partida em que ele aparece de qualquer lado. */
     fun observeTeamHistory(teamId: String): Flow<List<MatchCard>> =
         db.watch(
             "$MATCH_CARD_SQL WHERE m.team_a_id = ? OR m.team_b_id = ? ORDER BY r.numero, m.quadra",
@@ -54,11 +48,6 @@ class MatchesRepository(
     fun observeMatch(matchId: String): Flow<List<MatchCard>> =
         db.watch("$MATCH_CARD_SQL WHERE m.id = ?", listOf(matchId)) { it.toMatchCard() }
 
-    /**
-     * Placar ao vivo. A escrita toca apenas as colunas de placar da partida
-     * informada, entao duas pessoas marcando pontos em quadras diferentes nunca
-     * disputam a mesma linha.
-     */
     suspend fun updateScore(
         matchId: String,
         scoreA: Int,
@@ -70,7 +59,6 @@ class MatchesRepository(
         )
     }
 
-    /** Finaliza a partida e marca o vencedor automaticamente pelo placar. */
     suspend fun finish(
         matchId: String,
         scoreA: Int,
@@ -100,7 +88,6 @@ class MatchesRepository(
         )
     }
 
-    /** Substitui o chaveamento inteiro. Apaga rodadas e partidas anteriores. */
     suspend fun replaceSchedule(rodadas: List<ScheduledRound>) {
         db.writeTransactionAsync { tx ->
             tx.execute("DELETE FROM matches", listOf())
@@ -137,7 +124,6 @@ class MatchesRepository(
         }
     }
 
-    /** Zera os placares mantendo o chaveamento. */
     suspend fun clearResults() {
         db.execute(
             """

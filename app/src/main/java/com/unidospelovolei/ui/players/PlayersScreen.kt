@@ -39,18 +39,22 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.unidospelovolei.domain.model.Genero
 import com.unidospelovolei.domain.model.Player
+import com.unidospelovolei.domain.model.PlayerPerformance
 import com.unidospelovolei.ui.components.CampoTexto
 import com.unidospelovolei.ui.components.Cartao
 import com.unidospelovolei.ui.components.EstadoVazio
+import com.unidospelovolei.ui.components.SeletorGenero
 import com.unidospelovolei.ui.components.SeletorNivel
+import com.unidospelovolei.ui.components.Selo
 import com.unidospelovolei.ui.theme.VoleiColors
 
 @Composable
 fun PlayersScreen(
     estado: PlayersUiState,
     onVoltar: () -> Unit,
-    onCriar: (String, Int, Boolean) -> Unit,
+    onCriar: (String, Int, Genero, Boolean) -> Unit,
     onSalvar: (Player) -> Unit,
     onExcluir: (String) -> Unit,
     modifier: Modifier = Modifier,
@@ -91,7 +95,8 @@ fun PlayersScreen(
                         fontWeight = FontWeight.Bold,
                     )
                     Text(
-                        "${estado.ativos} ativos de ${estado.jogadores.size}",
+                        "${estado.ativos} ativos de ${estado.jogadores.size} • " +
+                            "${estado.homensAtivos}H / ${estado.mulheresAtivas}M",
                         color = VoleiColors.TextoSecundario,
                         fontSize = 12.sp,
                     )
@@ -111,7 +116,11 @@ fun PlayersScreen(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 items(estado.jogadores, key = { it.id }) { jogador ->
-                    LinhaJogador(jogador = jogador, onClick = { editando = jogador })
+                    LinhaJogador(
+                        jogador = jogador,
+                        desempenho = estado.desempenho[jogador.id],
+                        onClick = { editando = jogador },
+                    )
                 }
             }
         }
@@ -120,8 +129,8 @@ fun PlayersScreen(
     if (criando) {
         PlayerEditorDialog(
             jogador = null,
-            onSalvarNovo = { nome, nivel, ativo ->
-                onCriar(nome, nivel, ativo)
+            onSalvarNovo = { nome, nivel, genero, ativo ->
+                onCriar(nome, nivel, genero, ativo)
                 criando = false
             },
             onSalvarExistente = {},
@@ -133,7 +142,7 @@ fun PlayersScreen(
     editando?.let { jogador ->
         PlayerEditorDialog(
             jogador = jogador,
-            onSalvarNovo = { _, _, _ -> },
+            onSalvarNovo = { _, _, _, _ -> },
             onSalvarExistente = {
                 onSalvar(it)
                 editando = null
@@ -150,6 +159,7 @@ fun PlayersScreen(
 @Composable
 private fun LinhaJogador(
     jogador: Player,
+    desempenho: PlayerPerformance?,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -178,33 +188,55 @@ private fun LinhaJogador(
                     fontSize = 14.sp,
                 )
             }
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    jogador.nome,
-                    color = if (jogador.ativo) VoleiColors.TextoPrimario else VoleiColors.TextoTerciario,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.SemiBold,
-                )
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Text(
+                        jogador.nome,
+                        color = if (jogador.ativo) VoleiColors.TextoPrimario else VoleiColors.TextoTerciario,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Selo(
+                        texto = if (jogador.genero == Genero.MASCULINO) "H" else "M",
+                        corTexto = VoleiColors.SeloFaseTexto,
+                        corFundo = VoleiColors.SeloFaseFundo,
+                    )
+                }
                 Text(
                     if (jogador.ativo) "Nível ${jogador.skillLevel}" else "Inativo",
                     color = VoleiColors.TextoTerciario,
                     fontSize = 11.sp,
                 )
+                if (desempenho != null && desempenho.jogos > 0) {
+                    Text(
+                        "${desempenho.dias} dias • ${desempenho.jogos} jogos • " +
+                            "${desempenho.vitorias}V ${desempenho.derrotas}D • " +
+                            "saldo ${desempenho.saldoPontos.comSinal()}",
+                        color = VoleiColors.TextoSecundario,
+                        fontSize = 11.sp,
+                    )
+                }
             }
         }
     }
 }
 
+private fun Int.comSinal(): String = if (this > 0) "+$this" else toString()
+
 @Composable
 private fun PlayerEditorDialog(
     jogador: Player?,
-    onSalvarNovo: (String, Int, Boolean) -> Unit,
+    onSalvarNovo: (String, Int, Genero, Boolean) -> Unit,
     onSalvarExistente: (Player) -> Unit,
     onExcluir: (String) -> Unit,
     onFechar: () -> Unit,
 ) {
     var nome by remember { mutableStateOf(jogador?.nome.orEmpty()) }
     var nivel by remember { mutableIntStateOf(jogador?.skillLevel ?: 3) }
+    var genero by remember { mutableStateOf(jogador?.genero ?: Genero.MASCULINO) }
     var ativo by remember { mutableStateOf(jogador?.ativo ?: true) }
     val valido = nome.isNotBlank()
 
@@ -228,6 +260,8 @@ private fun PlayerEditorDialog(
                 )
                 Text("Nível de habilidade", color = VoleiColors.TextoSecundario, fontSize = 12.sp)
                 SeletorNivel(nivel = nivel, onMudar = { nivel = it })
+                Text("Gênero", color = VoleiColors.TextoSecundario, fontSize = 12.sp)
+                SeletorGenero(genero = genero, onMudar = { genero = it })
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
@@ -252,9 +286,16 @@ private fun PlayerEditorDialog(
                 enabled = valido,
                 onClick = {
                     if (jogador == null) {
-                        onSalvarNovo(nome, nivel, ativo)
+                        onSalvarNovo(nome, nivel, genero, ativo)
                     } else {
-                        onSalvarExistente(jogador.copy(nome = nome, skillLevel = nivel, ativo = ativo))
+                        onSalvarExistente(
+                            jogador.copy(
+                                nome = nome,
+                                skillLevel = nivel,
+                                genero = genero,
+                                ativo = ativo,
+                            ),
+                        )
                     }
                 },
             ) {

@@ -13,12 +13,14 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.EventAvailable
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Hotel
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -51,6 +53,7 @@ fun GamesScreen(
     isAdmin: Boolean,
     onAbrirPartida: (String) -> Unit,
     onGerarChaveamento: (Int) -> Unit,
+    onEncerrarDia: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var expandida by rememberSaveable { mutableStateOf<Int?>(1) }
@@ -66,6 +69,14 @@ fun GamesScreen(
                     gerando = estado.gerando,
                     temChaveamento = estado.rodadas.isNotEmpty(),
                     onGerar = onGerarChaveamento,
+                )
+            }
+            item {
+                CartaoEncerrarDia(
+                    encerrando = estado.encerrando,
+                    temElencos = estado.temElencos,
+                    temChaveamento = estado.rodadas.isNotEmpty(),
+                    onEncerrar = onEncerrarDia,
                 )
             }
         }
@@ -120,8 +131,9 @@ private fun CartaoChaveamento(
                 fontWeight = FontWeight.Bold,
             )
             Text(
-                "Round-robin pelo método do círculo. Cada rodada preenche as quadras " +
-                    "disponíveis e os times restantes folgam.",
+                "Cada quadra recebe um trio, que joga entre si nas três rodadas da fase " +
+                    "(A×B, A×C, B×C). Depois os times trocam de quadra até todos jogarem " +
+                    "contra todos, e ninguém joga mais de duas partidas seguidas.",
                 color = VoleiColors.TextoSecundario,
                 fontSize = 12.sp,
             )
@@ -157,6 +169,76 @@ private fun CartaoChaveamento(
             onConfirmar = {
                 confirmando = false
                 onGerar(quadras)
+            },
+            onCancelar = { confirmando = false },
+        )
+    }
+}
+
+@Composable
+private fun CartaoEncerrarDia(
+    encerrando: Boolean,
+    temElencos: Boolean,
+    temChaveamento: Boolean,
+    onEncerrar: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var confirmando by remember { mutableStateOf(false) }
+    val temAlgoParaEncerrar = temElencos || temChaveamento
+
+    Cartao(modifier = modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Text(
+                "Fim do dia",
+                color = VoleiColors.TextoPrimario,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Bold,
+            )
+            Text(
+                if (temAlgoParaEncerrar) {
+                    "Guarda os resultados no desempenho dos atletas, desfaz os times e " +
+                        "apaga o chaveamento. O próximo sorteio usa esse histórico para " +
+                        "evitar repetir os mesmos companheiros."
+                } else {
+                    "Nada a encerrar: não há times montados nem chaveamento gerado."
+                },
+                color = VoleiColors.TextoSecundario,
+                fontSize = 12.sp,
+            )
+            OutlinedButton(
+                onClick = { confirmando = true },
+                enabled = !encerrando && temAlgoParaEncerrar,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Icon(
+                    Icons.Filled.EventAvailable,
+                    contentDescription = null,
+                    tint = if (temAlgoParaEncerrar) VoleiColors.Dourado else VoleiColors.TextoTerciario,
+                    modifier = Modifier.size(16.dp),
+                )
+                Text(
+                    if (encerrando) "  Encerrando..." else "  Encerrar dia",
+                    color = if (temAlgoParaEncerrar) VoleiColors.TextoPrimario else VoleiColors.TextoTerciario,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
+        }
+    }
+
+    if (confirmando) {
+        DialogoConfirmacao(
+            titulo = "Encerrar o dia?",
+            mensagem =
+                "Os resultados das partidas finalizadas vão para o desempenho dos atletas. " +
+                    "Depois disso os times ficam sem elenco e o chaveamento é apagado. " +
+                    "Não dá para desfazer.",
+            textoConfirmar = "Encerrar dia",
+            onConfirmar = {
+                confirmando = false
+                onEncerrar()
             },
             onCancelar = { confirmando = false },
         )
@@ -287,7 +369,6 @@ fun CartaoPartida(
     }
 }
 
-/** Junta nomes como "Azul, Roxo e Vermelho". */
 fun listarNomes(nomes: List<String>): String =
     when (nomes.size) {
         0 -> ""

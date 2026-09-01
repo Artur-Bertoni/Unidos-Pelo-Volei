@@ -3,6 +3,7 @@ package com.unidospelovolei.data
 import com.powersync.PowerSyncDatabase
 import com.powersync.db.getString
 import com.powersync.db.getStringOptional
+import com.unidospelovolei.domain.model.Genero
 import com.unidospelovolei.domain.model.Player
 import com.unidospelovolei.domain.model.Team
 import com.unidospelovolei.domain.model.TeamRoster
@@ -31,7 +32,18 @@ class TeamsRepository(
             """.trimIndent(),
         ) { it.toTeam() }
 
-    /** Times com o elenco atual, para a tela de distribuicao por habilidade. */
+    fun observeRoster(teamId: String): Flow<List<Player>> =
+        db.watch(
+            """
+            SELECT p.id, p.nome, p.skill_level, p.genero, p.ativo
+            FROM team_players tp
+            JOIN players p ON p.id = tp.player_id
+            WHERE tp.team_id = ?
+            ORDER BY p.skill_level DESC, p.nome COLLATE NOCASE
+            """.trimIndent(),
+            listOf(teamId),
+        ) { it.toPlayer() }
+
     fun observeRosters(): Flow<List<TeamRoster>> =
         db
             .watch(
@@ -40,7 +52,8 @@ class TeamsRepository(
                     t.id AS team_id, t.nome AS team_nome, t.cor_hex AS team_cor_hex,
                     t.sigla AS team_sigla, t.ativo AS team_ativo, t.ordem AS team_ordem,
                     p.id AS player_id, p.nome AS player_nome,
-                    p.skill_level AS player_skill_level, p.ativo AS player_ativo
+                    p.skill_level AS player_skill_level, p.genero AS player_genero,
+                    p.ativo AS player_ativo
                 FROM teams t
                 LEFT JOIN team_players tp ON tp.team_id = t.id
                 LEFT JOIN players p ON p.id = tp.player_id
@@ -63,6 +76,7 @@ class TeamsRepository(
                             id = id,
                             nome = cursor.getStringOptional("player_nome").orEmpty(),
                             skillLevel = cursor.int("player_skill_level", 3),
+                            genero = Genero.from(cursor.getStringOptional("player_genero")),
                             ativo = cursor.bool("player_ativo", true),
                         )
                     }
@@ -115,11 +129,10 @@ class TeamsRepository(
         }
     }
 
-    /** Substitui a composicao de todos os times pelo resultado do snake draft. */
     suspend fun replaceRosters(rosters: List<TeamRoster>) {
         db.writeTransactionAsync { tx ->
+            tx.execute("DELETE FROM team_players", listOf())
             rosters.forEach { roster ->
-                tx.execute("DELETE FROM team_players WHERE team_id = ?", listOf(roster.team.id))
                 roster.players.forEach { jogador ->
                     tx.execute(
                         "INSERT INTO team_players (id, team_id, player_id) VALUES (?, ?, ?)",

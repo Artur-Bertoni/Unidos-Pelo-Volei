@@ -1,27 +1,7 @@
-# =============================================================================
-# PowerSync - sync rules
-# =============================================================================
-# Define o que cada dispositivo baixa para o SQLite local.
-#
-# Este é um grupo de vôlei fechado: todo mundo que entra vê o mesmo campeonato,
-# então jogadores, times, rodadas e partidas ficam num stream global. A única
-# informação por usuário é o próprio profile, que carrega a flag is_admin.
-#
-# Como publicar:
-#   * PowerSync Cloud - Dashboard > sua instância > Sync Rules > cole este
-#     conteúdo > Deploy.
-#   * Self-hosted - este arquivo é montado no container como
-#     /config/sync-config.yaml (ver powersync/self-host/docker-compose.yaml).
-#
-# As tabelas aqui precisam bater com AppSchema.kt no app e com a publication
-# `powersync` criada em supabase/migrations/20260831120300_powersync.sql.
-# =============================================================================
-
 config:
   edition: 3
 
 streams:
-  # Dados do campeonato, iguais para todos os usuários autenticados.
   campeonato:
     auto_subscribe: true
     queries:
@@ -30,8 +10,9 @@ streams:
       - SELECT * FROM team_players
       - SELECT * FROM rounds
       - SELECT * FROM matches
+      - SELECT * FROM game_days
+      - SELECT * FROM player_day_stats
 
-  # Cada usuário recebe apenas o próprio profile (e com ele o is_admin).
   meu_perfil:
     auto_subscribe: true
     query: SELECT * FROM profiles WHERE id = auth.user_id()

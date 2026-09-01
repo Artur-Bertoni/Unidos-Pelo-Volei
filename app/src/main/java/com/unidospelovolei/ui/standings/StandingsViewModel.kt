@@ -29,7 +29,6 @@ class StandingsViewModel(
             StandingsUiState(carregando = false, linhas = linhas, erro = mensagem)
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), StandingsUiState())
 
-    /** Zera todos os placares mantendo o chaveamento. */
     fun apagarResultados() {
         viewModelScope.launch {
             runCatching { matchesRepository.clearResults() }

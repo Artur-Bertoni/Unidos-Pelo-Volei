@@ -1,18 +1,3 @@
--- =============================================================================
--- VIEW standings: classificacao geral calculada a partir das partidas
--- finalizadas.
--- =============================================================================
--- Criterios de desempate, nesta ordem:
---   1. V  - vitorias
---   2. S  - saldo de pontos (pontos pro - pontos contra)
---   3. PP - pontos pro
---
--- Observacao: o app le a mesma consulta no SQLite local do PowerSync, porque o
--- PowerSync replica tabelas e nao views. A definicao esta espelhada em
--- app/src/main/java/com/unidospelovolei/data/StandingsQueries.kt e as duas
--- devem ser mantidas em sincronia.
--- =============================================================================
-
 create or replace view public.standings as
 with lados as (
     select
@@ -37,9 +22,7 @@ select
     t.sigla,
     t.cor_hex,
     coalesce(count(l.team_id), 0)::int                              as jogos,
-    -- O FILTER e obrigatorio: com LEFT JOIN, um time sem nenhuma partida ainda
-    -- produz uma linha com l.* nulo, e `case when null then 0 else 1 end` cairia
-    -- no ELSE e contaria uma derrota que nao existe.
+
     coalesce(
         sum(case when l.venceu then 1 else 0 end)
             filter (where l.team_id is not null), 0
@@ -56,6 +39,3 @@ left join lados l on l.team_id = t.id
 where t.ativo
 group by t.id, t.nome, t.sigla, t.cor_hex, t.ordem
 order by vitorias desc, saldo_pontos desc, pontos_pro desc, t.ordem;
-
-comment on view public.standings is
-    'Classificacao geral (V, S, PP) a partir das partidas finalizadas.';

@@ -17,17 +17,6 @@ import kotlinx.coroutines.flow.StateFlow
 import java.security.MessageDigest
 import java.util.UUID
 
-/**
- * Login com Google.
- *
- * O fluxo tem duas etapas: o Credential Manager (Google Identity Services)
- * devolve um ID token do Google e o Supabase Auth troca esse token por uma
- * sessao. O JWT do Supabase e o que autoriza tanto o PowerSync quanto as
- * escritas no Postgrest.
- *
- * O nonce vai em duas versoes: o Google recebe o hash SHA-256 e o Supabase
- * recebe o valor original, que ele mesmo compara com o hash dentro do token.
- */
 class AuthRepository(
     private val supabase: SupabaseClient,
     private val appContext: Context,

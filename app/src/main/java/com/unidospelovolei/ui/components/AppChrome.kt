@@ -37,7 +37,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.unidospelovolei.ui.theme.VoleiColors
 
-/** Abas da navegação inferior. */
 enum class AbaPrincipal(
     val rotulo: String,
     val icone: ImageVector,
@@ -47,7 +46,6 @@ enum class AbaPrincipal(
     TIMES("Times", Icons.Filled.Groups),
 }
 
-/** Situação do sync mostrada no canto do cabeçalho. */
 enum class SinalSync(
     val rotulo: String,
 ) {
@@ -102,26 +100,6 @@ fun AppHeader(
             }
         }
         HorizontalDivider(color = VoleiColors.Borda, thickness = 1.dp)
-    }
-}
-
-@Composable
-private fun LogoUpv(modifier: Modifier = Modifier) {
-    Box(
-        modifier =
-            modifier
-                .size(40.dp)
-                .clip(CircleShape)
-                .background(VoleiColors.Fundo)
-                .border(2.dp, VoleiColors.Dourado, CircleShape),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text = "UPV",
-            color = VoleiColors.Dourado,
-            fontSize = 11.sp,
-            fontWeight = FontWeight.Black,
-        )
     }
 }
 

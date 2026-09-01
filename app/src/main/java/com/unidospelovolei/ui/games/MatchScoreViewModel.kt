@@ -18,13 +18,6 @@ data class MatchScoreUiState(
     val erro: String? = null,
 )
 
-/**
- * Placar ao vivo de uma partida.
- *
- * A partida e observada do banco local, entao o placar que outra pessoa esta
- * marcando na mesma quadra aparece aqui assim que o sync traz a alteracao.
- * Cada toque grava direto na linha daquela partida.
- */
 class MatchScoreViewModel(
     private val matchesRepository: MatchesRepository,
     private val matchId: String,
@@ -48,6 +41,18 @@ class MatchScoreViewModel(
         val partida = estado.value.partida ?: return
         val novoA = (partida.scoreA + if (ladoA) delta else 0).coerceAtLeast(0)
         val novoB = (partida.scoreB + if (ladoA) 0 else delta).coerceAtLeast(0)
+        executar { matchesRepository.updateScore(matchId, novoA, novoB) }
+    }
+
+    fun definirPlacar(
+        ladoA: Boolean,
+        valor: Int,
+    ) {
+        val partida = estado.value.partida ?: return
+        val limitado = valor.coerceIn(0, PLACAR_MAXIMO)
+        val novoA = if (ladoA) limitado else partida.scoreA
+        val novoB = if (ladoA) partida.scoreB else limitado
+        if (novoA == partida.scoreA && novoB == partida.scoreB) return
         executar { matchesRepository.updateScore(matchId, novoA, novoB) }
     }
 
@@ -81,5 +86,9 @@ class MatchScoreViewModel(
                 .onFailure { erro.value = it.message ?: "Nao foi possivel salvar." }
             salvando.value = false
         }
+    }
+
+    companion object {
+        const val PLACAR_MAXIMO: Int = 199
     }
 }

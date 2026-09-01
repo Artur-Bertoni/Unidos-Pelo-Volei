@@ -1,5 +1,6 @@
 package com.unidospelovolei.ui.components
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -18,16 +19,29 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.unidospelovolei.R
 import com.unidospelovolei.domain.model.Team
 import com.unidospelovolei.ui.theme.VoleiColors
 import com.unidospelovolei.ui.theme.corDoTime
 
-/** Circulo na cor do time com a sigla de duas letras no centro. */
+@Composable
+fun LogoUpv(
+    modifier: Modifier = Modifier,
+    tamanho: Dp = 40.dp,
+) {
+    Image(
+        painter = painterResource(R.drawable.logo_upv),
+        contentDescription = null,
+        modifier = modifier.size(tamanho),
+    )
+}
+
 @Composable
 fun TeamCircle(
     sigla: String,
@@ -55,7 +69,6 @@ fun TeamCircle(
     }
 }
 
-/** Circulo do time com o nome logo abaixo, como nos cartoes de partida. */
 @Composable
 fun TeamBadge(
     team: Team,
@@ -80,7 +93,6 @@ fun TeamBadge(
     }
 }
 
-/** Caixa retangular do placar. */
 @Composable
 fun ScoreBox(
     valor: Int?,
@@ -108,7 +120,6 @@ fun ScoreBox(
     }
 }
 
-/** Selo em pilula: usado para FASE, QUADRA, VITORIA e DERROTA. */
 @Composable
 fun Selo(
     texto: String,
@@ -146,7 +157,6 @@ fun SeloResultado(
     Selo("Derrota", VoleiColors.Vermelho, VoleiColors.SeloDerrotaFundo, modifier)
 }
 
-/** Cartao arredondado escuro, base visual de quase toda a interface. */
 @Composable
 fun Cartao(
     modifier: Modifier = Modifier,
@@ -164,7 +174,6 @@ fun Cartao(
     }
 }
 
-/** Pequeno ponto colorido usado nas listas e na classificacao. */
 @Composable
 fun PontoDoTime(
     corHex: String,
@@ -180,7 +189,6 @@ fun PontoDoTime(
     )
 }
 
-/** Linha de rotulo pequeno em caixa alta, como "FASE 1 - RODADA 2 - QUADRA 1". */
 @Composable
 fun RotuloPequeno(
     texto: String,
@@ -197,7 +205,6 @@ fun RotuloPequeno(
     )
 }
 
-/** Estado vazio padrao das listas. */
 @Composable
 fun EstadoVazio(
     titulo: String,

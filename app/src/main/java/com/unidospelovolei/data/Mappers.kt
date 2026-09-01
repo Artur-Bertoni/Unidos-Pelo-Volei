@@ -5,6 +5,7 @@ import com.powersync.db.getBooleanOptional
 import com.powersync.db.getLongOptional
 import com.powersync.db.getString
 import com.powersync.db.getStringOptional
+import com.unidospelovolei.domain.model.Genero
 import com.unidospelovolei.domain.model.MatchCard
 import com.unidospelovolei.domain.model.MatchStatus
 import com.unidospelovolei.domain.model.Player
@@ -27,6 +28,7 @@ internal fun SqlCursor.toPlayer(): Player =
         id = getString("id"),
         nome = getStringOptional("nome").orEmpty(),
         skillLevel = int("skill_level", 3),
+        genero = Genero.from(getStringOptional("genero")),
         ativo = bool("ativo", true),
     )
 

@@ -9,6 +9,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
@@ -21,9 +24,22 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.unidospelovolei.domain.model.MatchCard
@@ -36,19 +52,13 @@ import com.unidospelovolei.ui.components.Selo
 import com.unidospelovolei.ui.components.TeamCircle
 import com.unidospelovolei.ui.theme.VoleiColors
 
-/**
- * Placar ao vivo.
- *
- * A tela lê a partida do banco local, então o placar registrado por outra pessoa
- * na mesma quadra aparece aqui assim que o sync chega. Sem internet os botões
- * continuam funcionando e a alteração sobe depois.
- */
 @Composable
 fun MatchScoreScreen(
     estado: MatchScoreUiState,
     isAdmin: Boolean,
     onVoltar: () -> Unit,
     onSomar: (Boolean, Int) -> Unit,
+    onDefinirPlacar: (Boolean, Int) -> Unit,
     onFinalizar: () -> Unit,
     onReabrir: () -> Unit,
     modifier: Modifier = Modifier,
@@ -103,20 +113,23 @@ fun MatchScoreScreen(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
+                val editavel = isAdmin && partida.status == MatchStatus.AGENDADO
                 PainelDeTime(
                     time = partida.teamA,
                     placar = partida.scoreA,
                     vencedor = partida.winnerId == partida.teamA.id,
-                    editavel = isAdmin && partida.status == MatchStatus.AGENDADO,
+                    editavel = editavel,
                     onSomar = { delta -> onSomar(true, delta) },
+                    onDefinir = { valor -> onDefinirPlacar(true, valor) },
                     modifier = Modifier.weight(1f),
                 )
                 PainelDeTime(
                     time = partida.teamB,
                     placar = partida.scoreB,
                     vencedor = partida.winnerId == partida.teamB.id,
-                    editavel = isAdmin && partida.status == MatchStatus.AGENDADO,
+                    editavel = editavel,
                     onSomar = { delta -> onSomar(false, delta) },
+                    onDefinir = { valor -> onDefinirPlacar(false, valor) },
                     modifier = Modifier.weight(1f),
                 )
             }
@@ -129,7 +142,13 @@ fun MatchScoreScreen(
                         fontSize = 12.sp,
                     )
 
-                partida.status == MatchStatus.AGENDADO ->
+                partida.status == MatchStatus.AGENDADO -> {
+                    Text(
+                        "Toque no número para digitar o resultado, ou use + e - para marcar ponto a ponto.",
+                        color = VoleiColors.TextoTerciario,
+                        fontSize = 12.sp,
+                        textAlign = TextAlign.Center,
+                    )
                     Button(
                         onClick = onFinalizar,
                         enabled = !estado.salvando,
@@ -138,6 +157,7 @@ fun MatchScoreScreen(
                     ) {
                         Text("Finalizar partida", fontWeight = FontWeight.Bold)
                     }
+                }
 
                 else ->
                     OutlinedButton(
@@ -163,6 +183,7 @@ private fun PainelDeTime(
     vencedor: Boolean,
     editavel: Boolean,
     onSomar: (Int) -> Unit,
+    onDefinir: (Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Cartao(modifier = modifier) {
@@ -179,13 +200,14 @@ private fun PainelDeTime(
                 fontWeight = FontWeight.Bold,
                 letterSpacing = 0.6.sp,
             )
-            Text(
-                text = placar.toString(),
-                color = if (vencedor) VoleiColors.VerdeClaro else VoleiColors.TextoPrimario,
-                fontSize = 52.sp,
-                fontWeight = FontWeight.Black,
-            )
+            val corDoPlacar = if (vencedor) VoleiColors.VerdeClaro else VoleiColors.TextoPrimario
             if (editavel) {
+                CampoDePlacar(
+                    placar = placar,
+                    cor = corDoPlacar,
+                    descricao = "Placar do time ${time.nome}",
+                    onDefinir = onDefinir,
+                )
                 Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     BotaoRedondo(
                         icone = Icons.Filled.Remove,
@@ -203,8 +225,69 @@ private fun PainelDeTime(
                     )
                 }
             } else {
+                Text(
+                    text = placar.toString(),
+                    color = corDoPlacar,
+                    fontSize = PLACAR_SP.sp,
+                    fontWeight = FontWeight.Black,
+                )
                 Box(modifier = Modifier.size(44.dp))
             }
         }
     }
 }
+
+@Composable
+private fun CampoDePlacar(
+    placar: Int,
+    cor: Color,
+    descricao: String,
+    onDefinir: (Int) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var digitado by remember { mutableStateOf(placar.toString()) }
+    var emFoco by remember { mutableStateOf(false) }
+    val texto = if (emFoco) digitado else placar.toString()
+
+    BasicTextField(
+        value = texto,
+        onValueChange = { entrada ->
+            val limpo = entrada.filter { it.isDigit() }.trimStart('0').take(3)
+            digitado = limpo
+            onDefinir(limpo.toIntOrNull() ?: 0)
+        },
+        textStyle =
+            TextStyle(
+                color = cor,
+                fontSize = PLACAR_SP.sp,
+                fontWeight = FontWeight.Black,
+                textAlign = TextAlign.Center,
+            ),
+        singleLine = true,
+        cursorBrush = SolidColor(VoleiColors.Verde),
+        keyboardOptions =
+            KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
+        modifier =
+            modifier
+                .width(110.dp)
+                .onFocusChanged { estado ->
+                    if (estado.isFocused) digitado = placar.toString()
+                    emFoco = estado.isFocused
+                }.semantics { contentDescription = descricao },
+        decorationBox = { campo ->
+            Box(contentAlignment = Alignment.Center) {
+                if (texto.isEmpty()) {
+                    Text(
+                        "0",
+                        color = VoleiColors.TextoTerciario,
+                        fontSize = PLACAR_SP.sp,
+                        fontWeight = FontWeight.Black,
+                    )
+                }
+                campo()
+            }
+        },
+    )
+}
+
+private const val PLACAR_SP = 52

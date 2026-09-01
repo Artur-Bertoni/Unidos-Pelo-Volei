@@ -1,13 +1,3 @@
--- =============================================================================
--- Row Level Security
--- =============================================================================
--- Regra do MVP:
---   * SELECT liberado para qualquer usuario autenticado;
---   * INSERT / UPDATE / DELETE apenas para quem tem profiles.is_admin = true.
--- =============================================================================
-
--- Helper: o usuario da requisicao atual e administrador?
--- SECURITY DEFINER para poder ler profiles sem cair na propria RLS de profiles.
 create or replace function public.is_admin()
     returns boolean
     language sql
@@ -31,9 +21,6 @@ alter table public.team_players enable row level security;
 alter table public.rounds       enable row level security;
 alter table public.matches      enable row level security;
 
--- -----------------------------------------------------------------------------
--- profiles
--- -----------------------------------------------------------------------------
 drop policy if exists profiles_select_authenticated on public.profiles;
 create policy profiles_select_authenticated on public.profiles
     for select to authenticated
@@ -55,9 +42,6 @@ create policy profiles_delete_admin on public.profiles
     for delete to authenticated
     using (public.is_admin());
 
--- -----------------------------------------------------------------------------
--- Demais tabelas: mesmo padrao (leitura livre, escrita so para admin).
--- -----------------------------------------------------------------------------
 do $$
 declare
     t text;
@@ -91,9 +75,6 @@ begin
 end;
 $$;
 
--- -----------------------------------------------------------------------------
--- Grants: sem eles a RLS nem chega a ser avaliada.
--- -----------------------------------------------------------------------------
 grant usage on schema public to authenticated;
 grant select, insert, update, delete on
     public.profiles, public.players, public.teams,
@@ -101,5 +82,4 @@ grant select, insert, update, delete on
     to authenticated;
 grant select on public.standings to authenticated;
 
--- A view standings herda a RLS das tabelas base (security_invoker).
 alter view public.standings set (security_invoker = true);

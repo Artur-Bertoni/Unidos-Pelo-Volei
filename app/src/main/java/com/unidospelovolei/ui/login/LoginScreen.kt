@@ -1,26 +1,22 @@
 package com.unidospelovolei.ui.login
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.unidospelovolei.ui.components.LogoUpv
 import com.unidospelovolei.ui.theme.VoleiColors
 
 @Composable
@@ -39,22 +35,7 @@ fun LoginScreen(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
-        Box(
-            modifier =
-                Modifier
-                    .size(92.dp)
-                    .clip(CircleShape)
-                    .background(VoleiColors.FundoCabecalho)
-                    .border(3.dp, VoleiColors.Dourado, CircleShape),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text(
-                "UPV",
-                color = VoleiColors.Dourado,
-                fontSize = 24.sp,
-                fontWeight = FontWeight.Black,
-            )
-        }
+        LogoUpv(tamanho = 128.dp)
 
         Text(
             text = "UNIDOS PELO VÔLEI",
@@ -97,10 +78,6 @@ fun LoginScreen(
     }
 }
 
-/**
- * Tela mostrada quando faltam chaves em `local.properties`. Evita o app quebrar
- * em uma tela branca e diz exatamente o que configurar.
- */
 @Composable
 fun ConfiguracaoPendenteScreen(
     chavesFaltando: List<String>,

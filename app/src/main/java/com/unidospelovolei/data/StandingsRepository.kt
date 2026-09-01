@@ -4,15 +4,6 @@ import com.powersync.PowerSyncDatabase
 import com.unidospelovolei.domain.model.Standing
 import kotlinx.coroutines.flow.Flow
 
-/**
- * Classificacao geral.
- *
- * No Postgres a classificacao e a VIEW `public.standings`
- * (supabase/migrations/20260831120100_standings_view.sql). O PowerSync replica
- * tabelas, nao views, entao a mesma definicao e reproduzida aqui sobre as
- * tabelas ja sincronizadas -- assim a tela continua funcionando offline.
- * Ao mexer em uma das duas, mexa na outra.
- */
 class StandingsRepository(
     private val db: PowerSyncDatabase,
 ) {

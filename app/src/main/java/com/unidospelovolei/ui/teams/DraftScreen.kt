@@ -24,18 +24,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.unidospelovolei.domain.model.Genero
 import com.unidospelovolei.domain.model.TeamRoster
 import com.unidospelovolei.ui.components.Cartao
 import com.unidospelovolei.ui.components.EstadoVazio
 import com.unidospelovolei.ui.components.TeamCircle
 import com.unidospelovolei.ui.theme.VoleiColors
 
-/**
- * Prévia do snake draft.
- *
- * Mostra como os jogadores ativos ficariam distribuídos e a força total de cada
- * time, para conferir o equilíbrio antes de gravar.
- */
 @Composable
 fun DraftScreen(
     previa: List<TeamRoster>?,
@@ -57,18 +52,25 @@ fun DraftScreen(
                     tint = VoleiColors.TextoPrimario,
                 )
             }
-            Text(
-                "Distribuição por habilidade",
-                color = VoleiColors.TextoPrimario,
-                fontSize = 17.sp,
-                fontWeight = FontWeight.Bold,
-            )
+            Column {
+                Text(
+                    "Distribuição dos times",
+                    color = VoleiColors.TextoPrimario,
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.Bold,
+                )
+                Text(
+                    "Alvo de 2 homens e 2 mulheres por time",
+                    color = VoleiColors.TextoSecundario,
+                    fontSize = 12.sp,
+                )
+            }
         }
 
         if (previa == null) {
             EstadoVazio(
-                titulo = "Nada calculado ainda",
-                descricao = "Toque em Calcular para montar os times com o snake draft.",
+                titulo = "Nada sorteado ainda",
+                descricao = "Toque em Sortear para montar os times.",
                 modifier = Modifier.fillMaxWidth(),
             )
         } else {
@@ -81,7 +83,8 @@ fun DraftScreen(
                 item {
                     Text(
                         text =
-                            "${previa.sumOf { it.players.size }} jogadores ativos • " +
+                            "${previa.sumOf { it.players.size }} jogadores ativos " +
+                                "(${previa.sumOf { it.homens }}H / ${previa.sumOf { it.mulheres }}M) • " +
                                 "força de ${forcas.minOrNull() ?: 0} a ${forcas.maxOrNull() ?: 0}",
                         color = VoleiColors.TextoSecundario,
                         fontSize = 12.sp,
@@ -98,7 +101,7 @@ fun DraftScreen(
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             OutlinedButton(onClick = onRecalcular, modifier = Modifier.weight(1f)) {
-                Text(if (previa == null) "Calcular" else "Recalcular", color = VoleiColors.TextoPrimario)
+                Text(if (previa == null) "Sortear" else "Sortear de novo", color = VoleiColors.TextoPrimario)
             }
             Button(
                 onClick = onAplicar,
@@ -135,6 +138,12 @@ private fun CartaoElenco(
                     modifier = Modifier.weight(1f),
                 )
                 Text(
+                    "${elenco.homens}H/${elenco.mulheres}M",
+                    color = VoleiColors.SeloFaseTexto,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                )
+                Text(
                     "força ${elenco.forcaTotal}",
                     color = VoleiColors.VerdeClaro,
                     fontSize = 12.sp,
@@ -142,7 +151,10 @@ private fun CartaoElenco(
                 )
             }
             Text(
-                text = elenco.players.joinToString(", ") { "${it.nome} (${it.skillLevel})" },
+                text =
+                    elenco.players.joinToString(", ") {
+                        "${it.nome} (${it.skillLevel}${if (it.genero == Genero.FEMININO) "F" else "M"})"
+                    },
                 color = VoleiColors.TextoSecundario,
                 fontSize = 12.sp,
             )

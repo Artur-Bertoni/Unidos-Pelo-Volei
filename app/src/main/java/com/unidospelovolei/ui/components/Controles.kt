@@ -6,7 +6,9 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -16,6 +18,8 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.RadioButton
+import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -24,14 +28,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.unidospelovolei.domain.model.Genero
 import com.unidospelovolei.ui.theme.VoleiColors
 import com.unidospelovolei.ui.theme.corDoTime
 
-/** Stepper simples de - / valor / +. */
 @Composable
 fun Contador(
     valor: Int,
@@ -123,7 +128,6 @@ fun CampoTexto(
     )
 }
 
-/** Seletor de nível de habilidade de 1 a 5. */
 @Composable
 fun SeletorNivel(
     nivel: Int,
@@ -159,7 +163,48 @@ fun SeletorNivel(
     }
 }
 
-/** Paleta fixa de cores de time, a mesma do protótipo. */
+@Composable
+fun SeletorGenero(
+    genero: Genero,
+    onMudar: (Genero) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier,
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Genero.entries.forEach { opcao ->
+            val selecionado = opcao == genero
+            Row(
+                modifier =
+                    Modifier
+                        .selectable(
+                            selected = selecionado,
+                            role = Role.RadioButton,
+                            onClick = { onMudar(opcao) },
+                        ).padding(end = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                RadioButton(
+                    selected = selecionado,
+                    onClick = null,
+                    colors =
+                        RadioButtonDefaults.colors(
+                            selectedColor = VoleiColors.Verde,
+                            unselectedColor = VoleiColors.TextoTerciario,
+                        ),
+                )
+                Text(
+                    text = opcao.rotulo,
+                    color = if (selecionado) VoleiColors.TextoPrimario else VoleiColors.TextoSecundario,
+                    fontSize = 13.sp,
+                    fontWeight = if (selecionado) FontWeight.SemiBold else FontWeight.Normal,
+                )
+            }
+        }
+    }
+}
+
 val CoresDeTime: List<String> =
     listOf(
         "#2F80ED", "#E8590C", "#3F444D", "#E8437F", "#8B5CF6",

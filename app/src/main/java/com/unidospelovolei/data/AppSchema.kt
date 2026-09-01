@@ -6,16 +6,6 @@ import com.powersync.db.schema.IndexedColumn
 import com.powersync.db.schema.Schema
 import com.powersync.db.schema.Table
 
-/**
- * Espelho local (SQLite) das tabelas sincronizadas pelo PowerSync.
- *
- * Regras da biblioteca que valem lembrar:
- *  - a coluna `id` e implicita e nao pode ser declarada aqui;
- *  - o SQLite nao tem boolean, entao `ativo` e `is_admin` chegam como 0/1;
- *  - timestamps chegam como texto ISO-8601.
- *
- * Precisa bater com as sync rules em `powersync/sync-rules.yaml`.
- */
 val AppSchema: Schema =
     Schema(
         Table(
@@ -24,6 +14,7 @@ val AppSchema: Schema =
                 listOf(
                     Column.text("nome"),
                     Column.integer("skill_level"),
+                    Column.text("genero"),
                     Column.integer("ativo"),
                     Column.text("created_at"),
                     Column.text("updated_at"),
@@ -93,6 +84,37 @@ val AppSchema: Schema =
                     Column.integer("is_admin"),
                     Column.text("created_at"),
                     Column.text("updated_at"),
+                ),
+        ),
+        Table(
+            name = "game_days",
+            columns =
+                listOf(
+                    Column.text("encerrado_em"),
+                    Column.integer("partidas"),
+                    Column.text("created_at"),
+                ),
+        ),
+        Table(
+            name = "player_day_stats",
+            columns =
+                listOf(
+                    Column.text("day_id"),
+                    Column.text("player_id"),
+                    Column.text("team_id"),
+                    Column.text("team_nome"),
+                    Column.text("team_cor_hex"),
+                    Column.integer("jogos"),
+                    Column.integer("vitorias"),
+                    Column.integer("derrotas"),
+                    Column.integer("pontos_pro"),
+                    Column.integer("pontos_contra"),
+                    Column.text("created_at"),
+                ),
+            indexes =
+                listOf(
+                    Index("por_dia", IndexedColumn.ascending("day_id")),
+                    Index("por_atleta", IndexedColumn.ascending("player_id")),
                 ),
         ),
     )

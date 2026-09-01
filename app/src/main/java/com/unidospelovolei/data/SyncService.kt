@@ -10,13 +10,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
-/**
- * Liga e desliga o sync conforme a sessao do Supabase.
- *
- * O SQLite local continua sendo lido e escrito com ou sem conexao; conectar
- * apenas define se o PowerSync esta enviando as escritas pendentes e recebendo
- * as alteracoes dos outros usuarios.
- */
 class SyncService(
     private val db: PowerSyncDatabase,
     private val connector: SupabaseConnector,

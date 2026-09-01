@@ -2,6 +2,7 @@ package com.unidospelovolei.ui.games
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.unidospelovolei.data.GameDaysRepository
 import com.unidospelovolei.data.MatchesRepository
 import com.unidospelovolei.data.TeamsRepository
 import com.unidospelovolei.domain.model.RoundSchedule
@@ -19,25 +20,33 @@ data class GamesUiState(
     val carregando: Boolean = true,
     val rodadas: List<RoundSchedule> = emptyList(),
     val times: List<Team> = emptyList(),
+    val temElencos: Boolean = false,
     val gerando: Boolean = false,
+    val encerrando: Boolean = false,
+    val aviso: String? = null,
     val erro: String? = null,
 )
 
 class GamesViewModel(
     private val matchesRepository: MatchesRepository,
     private val teamsRepository: TeamsRepository,
+    private val gameDaysRepository: GameDaysRepository,
 ) : ViewModel() {
     private val gerando = MutableStateFlow(false)
+    private val encerrando = MutableStateFlow(false)
+    private val aviso = MutableStateFlow<String?>(null)
     private val erro = MutableStateFlow<String?>(null)
+
+    private val progresso = combine(gerando, encerrando, aviso, erro, ::Progresso)
 
     val estado: StateFlow<GamesUiState> =
         combine(
             matchesRepository.observeRounds(),
             matchesRepository.observeMatches(),
-            teamsRepository.observeTeams(),
-            gerando,
-            erro,
-        ) { rodadas, partidas, times, gerandoAgora, mensagem ->
+            teamsRepository.observeRosters(),
+            progresso,
+        ) { rodadas, partidas, elencos, emAndamento ->
+            val times = elencos.map { it.team }
             val porRodada = partidas.groupBy { it.roundNumero }
             GamesUiState(
                 carregando = false,
@@ -52,15 +61,14 @@ class GamesViewModel(
                         )
                     },
                 times = times,
-                gerando = gerandoAgora,
-                erro = mensagem,
+                temElencos = elencos.any { it.players.isNotEmpty() },
+                gerando = emAndamento.gerando,
+                encerrando = emAndamento.encerrando,
+                aviso = emAndamento.aviso,
+                erro = emAndamento.erro,
             )
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), GamesUiState())
 
-    /**
-     * Gera o chaveamento do zero. Apaga rodadas e partidas anteriores, entao a
-     * tela pede confirmacao antes de chamar.
-     */
     fun gerarChaveamento(quadras: Int) {
         if (gerando.value) return
         viewModelScope.launch {
@@ -75,7 +83,38 @@ class GamesViewModel(
         }
     }
 
+    fun encerrarDia() {
+        if (encerrando.value) return
+        viewModelScope.launch {
+            encerrando.value = true
+            erro.value = null
+            runCatching { gameDaysRepository.encerrarDia() }
+                .onSuccess { resumo ->
+                    aviso.value =
+                        when {
+                            resumo.atletas == 0 -> "Nao havia elenco montado: o dia foi apenas limpo."
+                            else ->
+                                "Dia encerrado: ${resumo.partidas} " +
+                                    (if (resumo.partidas == 1) "partida" else "partidas") +
+                                    " no desempenho de ${resumo.atletas} atletas."
+                        }
+                }.onFailure { erro.value = it.message ?: "Nao foi possivel encerrar o dia." }
+            encerrando.value = false
+        }
+    }
+
     fun limparErro() {
         erro.value = null
     }
+
+    fun limparAviso() {
+        aviso.value = null
+    }
+
+    private data class Progresso(
+        val gerando: Boolean,
+        val encerrando: Boolean,
+        val aviso: String?,
+        val erro: String?,
+    )
 }

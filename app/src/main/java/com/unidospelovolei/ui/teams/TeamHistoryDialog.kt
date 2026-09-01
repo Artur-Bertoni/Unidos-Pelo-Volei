@@ -25,25 +25,25 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import com.unidospelovolei.domain.model.Genero
 import com.unidospelovolei.domain.model.MatchCard
 import com.unidospelovolei.domain.model.MatchStatus
+import com.unidospelovolei.domain.model.Player
 import com.unidospelovolei.domain.model.Team
 import com.unidospelovolei.ui.components.Cartao
 import com.unidospelovolei.ui.components.EstadoVazio
 import com.unidospelovolei.ui.components.PontoDoTime
 import com.unidospelovolei.ui.components.RotuloPequeno
 import com.unidospelovolei.ui.components.ScoreBox
+import com.unidospelovolei.ui.components.Selo
 import com.unidospelovolei.ui.components.SeloResultado
 import com.unidospelovolei.ui.components.TeamCircle
 import com.unidospelovolei.ui.theme.VoleiColors
 
-/**
- * Agenda de jogos do time: todas as partidas dele com fase, rodada, quadra,
- * placar e o resultado quando já finalizada.
- */
 @Composable
 fun TeamHistoryDialog(
     time: Team,
+    elenco: List<Player>,
     partidas: List<MatchCard>,
     onFechar: () -> Unit,
 ) {
@@ -73,7 +73,7 @@ fun TeamHistoryDialog(
                         fontWeight = FontWeight.Bold,
                     )
                     Text(
-                        "Agenda de Jogos",
+                        "Elenco e agenda de jogos",
                         color = VoleiColors.TextoSecundario,
                         fontSize = 12.sp,
                     )
@@ -88,10 +88,10 @@ fun TeamHistoryDialog(
                 }
             }
 
-            if (partidas.isEmpty()) {
+            if (elenco.isEmpty() && partidas.isEmpty()) {
                 EstadoVazio(
-                    titulo = "Sem jogos",
-                    descricao = "Este time ainda não aparece em nenhuma rodada.",
+                    titulo = "Time vazio",
+                    descricao = "Este time ainda não tem elenco sorteado nem jogos marcados.",
                     modifier = Modifier.fillMaxWidth(),
                 )
             } else {
@@ -100,8 +100,88 @@ fun TeamHistoryDialog(
                     contentPadding = PaddingValues(12.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
+                    item {
+                        SecaoElenco(elenco = elenco)
+                    }
+                    item {
+                        RotuloPequeno("Agenda de jogos")
+                    }
+                    if (partidas.isEmpty()) {
+                        item {
+                            Text(
+                                "Este time ainda não aparece em nenhuma rodada.",
+                                color = VoleiColors.TextoSecundario,
+                                fontSize = 12.sp,
+                            )
+                        }
+                    }
                     items(partidas, key = { it.id }) { partida ->
                         LinhaHistorico(partida = partida, timeId = time.id)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SecaoElenco(
+    elenco: List<Player>,
+    modifier: Modifier = Modifier,
+) {
+    Cartao(modifier = modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                RotuloPequeno("Elenco do dia")
+                if (elenco.isNotEmpty()) {
+                    Text(
+                        "${elenco.count { it.genero == Genero.MASCULINO }}H / " +
+                            "${elenco.count { it.genero == Genero.FEMININO }}M • " +
+                            "força ${elenco.sumOf { it.skillLevel }}",
+                        color = VoleiColors.VerdeClaro,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                    )
+                }
+            }
+            if (elenco.isEmpty()) {
+                Text(
+                    "Sem elenco vinculado. Sorteie os times na aba Times.",
+                    color = VoleiColors.TextoSecundario,
+                    fontSize = 12.sp,
+                )
+            } else {
+                elenco.forEach { jogador ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Text(
+                            jogador.nome,
+                            color = VoleiColors.TextoPrimario,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            modifier = Modifier.weight(1f),
+                        )
+                        Selo(
+                            texto = if (jogador.genero == Genero.MASCULINO) "H" else "M",
+                            corTexto = VoleiColors.SeloFaseTexto,
+                            corFundo = VoleiColors.SeloFaseFundo,
+                        )
+                        Text(
+                            "nível ${jogador.skillLevel}",
+                            color = VoleiColors.TextoTerciario,
+                            fontSize = 11.sp,
+                        )
                     }
                 }
             }

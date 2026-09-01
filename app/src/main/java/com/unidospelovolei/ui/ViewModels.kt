@@ -12,10 +12,6 @@ import com.unidospelovolei.ui.players.PlayersViewModel
 import com.unidospelovolei.ui.standings.StandingsViewModel
 import com.unidospelovolei.ui.teams.TeamsViewModel
 
-/**
- * Fabrica unica dos ViewModels sem parametro de runtime. Os que dependem de um
- * id (partida, historico de time) sao criados no proprio local de uso.
- */
 @Composable
 fun rememberVoleiViewModelFactory(container: AppContainer): ViewModelProvider.Factory =
     remember(container) {
@@ -32,6 +28,7 @@ fun rememberVoleiViewModelFactory(container: AppContainer): ViewModelProvider.Fa
                 GamesViewModel(
                     matchesRepository = container.matchesRepository,
                     teamsRepository = container.teamsRepository,
+                    gameDaysRepository = container.gameDaysRepository,
                 )
             }
             initializer {
@@ -44,8 +41,14 @@ fun rememberVoleiViewModelFactory(container: AppContainer): ViewModelProvider.Fa
                 TeamsViewModel(
                     teamsRepository = container.teamsRepository,
                     playersRepository = container.playersRepository,
+                    gameDaysRepository = container.gameDaysRepository,
                 )
             }
-            initializer { PlayersViewModel(playersRepository = container.playersRepository) }
+            initializer {
+                PlayersViewModel(
+                    playersRepository = container.playersRepository,
+                    gameDaysRepository = container.gameDaysRepository,
+                )
+            }
         }
     }
