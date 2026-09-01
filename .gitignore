@@ -37,3 +37,16 @@ supabase/.branches/
 /keystore.properties
 *.jks
 *.keystore
+
+# Web (Vite + React)
+web/node_modules/
+web/dist/
+web/dist-ssr/
+web/.vite/
+web/coverage/
+web/*.local
+web/.env
+web/.env.*
+!web/.env.example
+web/*.tsbuildinfo
+web/dev-dist/

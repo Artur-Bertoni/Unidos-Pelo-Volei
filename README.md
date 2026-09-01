@@ -1,9 +1,21 @@
 # Unidos Pelo Vôlei
 
-App Android nativo para controlar jogadores, times, chaveamento, placar e histórico
-do grupo de vôlei de sábado. Substitui o protótipo web mantendo a mesma identidade
-visual, agora com backend real, login Google, sincronização multiusuário em tempo
-real e sorteio de times equilibrado por gênero e habilidade.
+Controle de jogadores, times, chaveamento, placar e histórico do grupo de vôlei de
+sábado, com backend real, login Google, sincronização multiusuário em tempo real e
+sorteio de times equilibrado por gênero e habilidade.
+
+São **dois clientes sobre o mesmo backend**:
+
+| Cliente | Pasta | Para quem |
+|---|---|---|
+| App Android nativo | [`app/`](app/) | Quem usa Android instala pela Play Store |
+| Aplicação web (PWA) | [`web/`](web/) | Quem usa iPhone — ou qualquer navegador — acessa pelo link |
+
+Os dois falam com o mesmo projeto Supabase e a mesma instância PowerSync, então
+presença, times e placar aparecem nos dois em segundos. Por isso **os dois clientes
+vivem na mesma branch**: as migrations e as sync rules valem para ambos ao mesmo
+tempo, e separá-los em branches faria toda mudança de schema precisar pousar duas
+vezes.
 
 ---
 
@@ -26,6 +38,9 @@ real e sorteio de times equilibrado por gênero e habilidade.
   - [Caminho 1 — projeto Supabase e instância PowerSync só de dev (recomendado)](#caminho-1--projeto-supabase-e-instância-powersync-só-de-dev-recomendado)
   - [Caminho 2 — tudo local com Docker](#caminho-2--tudo-local-com-docker)
   - [Alternativa por linha de comando](#alternativa-por-linha-de-comando)
+- [Aplicação web](#aplicação-web)
+  - [Rodando a web localmente](#rodando-a-web-localmente)
+  - [Publicando a web](#publicando-a-web)
 - [Virar administrador](#virar-administrador)
 - [Testes](#testes)
 - [Decisões de projeto](#decisões-de-projeto)
@@ -147,8 +162,9 @@ A habilidade **não** entra no chaveamento, apenas na formação dos times.
 
 | Camada | Tecnologia |
 |---|---|
-| App | Kotlin + Jetpack Compose, MVVM |
-| Build | Gradle 9.7.1 + Android Gradle Plugin 9.3.2, `compileSdk` 37, `minSdk` 26 |
+| App Android | Kotlin + Jetpack Compose, MVVM |
+| Build Android | Gradle 9.7.1 + Android Gradle Plugin 9.3.2, `compileSdk` 37, `minSdk` 26 |
+| Aplicação web | React + TypeScript sobre Vite, PWA instalável |
 | Backend | Supabase (PostgreSQL gerenciado), acessado pelo SDK Kotlin da comunidade `io.github.jan-tennert.supabase` (Auth + Postgrest) |
 | Sync offline | PowerSync (`com.powersync`), SQLite local sincronizado nos dois sentidos |
 | Autenticação | Supabase Auth com login Google via Credential Manager (Google Identity Services) |
@@ -224,7 +240,13 @@ com.unidospelovolei
 ├── powersync/
 │   ├── sync-rules.yaml               o que cada dispositivo baixa
 │   └── self-host/                    Docker para o caminho totalmente local
-├── local.properties.example          modelo das chaves
+├── web/                              aplicação web (React + Vite)
+│   ├── src/domain/                   porte em TypeScript dos algoritmos e dos testes
+│   ├── src/data/                     consultas e escritas sobre o SQLite do PowerSync
+│   ├── src/lib/                      Supabase, PowerSync e leitura das variáveis
+│   ├── src/ui/                       telas e componentes
+│   └── .env.example                  modelo das chaves da web
+├── local.properties.example          modelo das chaves do app Android
 └── keystore.properties.example       modelo das senhas do keystore de release
 ```
 
@@ -239,6 +261,8 @@ com.unidospelovolei
   sem Google Play** — ao criar o AVD, escolha uma imagem com o ícone da Play Store.
 - Conta no [Supabase](https://supabase.com) e no [PowerSync](https://powersync.com)
   (os planos gratuitos bastam para dev).
+- **Node.js 20 ou mais novo**, só para a aplicação web em [`web/`](web/). Quem for
+  mexer apenas no app Android não precisa.
 - Para o caminho totalmente local: Docker Desktop e a
   [Supabase CLI](https://supabase.com/docs/guides/cli).
 
@@ -727,6 +751,83 @@ No Windows, use `gradlew.bat` no lugar de `./gradlew`.
 
 ---
 
+## Aplicação web
+
+A pasta [`web/`](web/) traz o mesmo app rodando no navegador, para quem usa iPhone e
+não tem a versão da Play Store. É um **PWA**: dá para instalar na tela de início e
+continuar funcionando com a rede oscilando, porque o PowerSync mantém um SQLite local
+no navegador (WebAssembly), igual ao do Android.
+
+O que muda em relação ao app Android:
+
+| | Android | Web |
+|---|---|---|
+| Login | Credential Manager (token nativo) | Redirecionamento do Supabase (`signInWithOAuth`) |
+| Chaves | `local.properties`, por flavor | `.env.development` / `.env.production` |
+| Banco local | SQLite nativo | SQLite em WebAssembly, no armazenamento do navegador |
+| Distribuição | `.aab` na Play Store | deploy de arquivos estáticos |
+
+O que **não** muda: o schema, as policies de RLS, as sync rules e as regras dos dois
+algoritmos. Os algoritmos foram portados para TypeScript junto com os testes, que
+rodam com as mesmas sementes do `SchedulingTest.kt` — inclusive as asserções de valor
+exato, porque o gerador aleatório do Kotlin foi reproduzido em
+[`web/src/domain/random.ts`](web/src/domain/random.ts).
+
+### Rodando a web localmente
+
+```bash
+cd web
+npm install
+cp .env.example .env.development   # preencha as chaves de dev
+npm run dev
+```
+
+As três variáveis são as mesmas do `local.properties`, com outro nome:
+
+```properties
+VITE_SUPABASE_URL=https://SEU-PROJETO.supabase.co
+VITE_SUPABASE_ANON_KEY=...
+VITE_POWERSYNC_URL=https://SUA-INSTANCIA.powersync.journeyapps.com
+```
+
+Não há `GOOGLE_WEB_CLIENT_ID` aqui: no navegador o login usa o fluxo de
+redirecionamento, e quem conhece o client é o painel do Supabase.
+
+> **Cadastre a URL do site no Supabase.** Em **Authentication → URL Configuration**,
+> preencha a *Site URL* e acrescente os endereços de desenvolvimento
+> (`http://localhost:5173`) à lista de *Redirect URLs*. Sem isso o login volta do
+> Google e não encontra para onde ir.
+
+Comandos disponíveis:
+
+```bash
+npm run dev         # servidor de desenvolvimento
+npm test            # testes dos algoritmos (Vitest)
+npm run typecheck   # checagem de tipos
+npm run build       # gera dist/ para publicar
+npm run preview     # serve o dist/ localmente
+```
+
+### Publicando a web
+
+O build gera arquivos estáticos em `web/dist`, então serve qualquer hospedagem de
+site estático. **Cloudflare Pages** e **Vercel** têm plano gratuito e fazem deploy a
+cada push:
+
+- **Root directory**: `web`
+- **Build command**: `npm run build`
+- **Output directory**: `dist`
+- **Variáveis de ambiente**: as três `VITE_*` de produção
+
+Como o Vite lê as variáveis **no momento do build** e as embute no bundle — do mesmo
+jeito que o Gradle embute as chaves no `.aab` —, trocar uma chave exige um novo
+deploy, não uma mudança de configuração no servidor.
+
+Depois do primeiro deploy, volte ao Supabase e acrescente o domínio publicado às
+*Redirect URLs*, e ao Google Cloud em *Domínios autorizados* se ainda não estiver lá.
+
+---
+
 ## Virar administrador
 
 Todo usuário que entra é criado como leitor. Depois do primeiro login, rode no SQL
@@ -744,8 +845,13 @@ edição aparecem, sem precisar reiniciar.
 ## Testes
 
 ```bash
-./gradlew testDevDebugUnitTest
+./gradlew testDevDebugUnitTest   # app Android
+cd web && npm test               # aplicação web
 ```
+
+Os dois conjuntos cobrem os mesmos casos, com as mesmas sementes: o porte em
+TypeScript reproduz o `kotlin.random.Random`, então as asserções de valor exato
+(quantidade de rodadas, distribuição das fases) valem nos dois lados.
 
 Cobrem os dois algoritmos do domínio
 ([`SchedulingTest.kt`](app/src/test/java/com/unidospelovolei/domain/SchedulingTest.kt)):
