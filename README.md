@@ -20,6 +20,7 @@ real e sorteio de times equilibrado por gênero e habilidade.
   - [4. Provedor Google no Supabase Auth](#4-provedor-google-no-supabase-auth)
   - [5. Instância do PowerSync](#5-instância-do-powersync)
 - [Chaves em local.properties](#chaves-em-localproperties)
+- [Assinatura do release](#assinatura-do-release)
 - [Rodando localmente para teste](#rodando-localmente-para-teste)
   - [Rodar no Android Studio](#rodar-no-android-studio)
   - [Caminho 1 — projeto Supabase e instância PowerSync só de dev (recomendado)](#caminho-1--projeto-supabase-e-instância-powersync-só-de-dev-recomendado)
@@ -223,7 +224,8 @@ com.unidospelovolei
 ├── powersync/
 │   ├── sync-rules.yaml               o que cada dispositivo baixa
 │   └── self-host/                    Docker para o caminho totalmente local
-└── local.properties.example          modelo das chaves
+├── local.properties.example          modelo das chaves
+└── keystore.properties.example       modelo das senhas do keystore de release
 ```
 
 ---
@@ -386,7 +388,8 @@ Google reconhecer o APK que está pedindo a credencial.
    No Windows, o keystore fica em `%USERPROFILE%\.android\debug.keystore`.
 
 > Se um dia gerar um APK assinado com outro keystore, cadastre também o SHA-1 dele,
-> senão o login falha só naquele build.
+> senão o login falha só naquele build. É o caso do keystore de release — ver
+> [Assinatura do release](#assinatura-do-release).
 
 ### 4. Provedor Google no Supabase Auth
 
@@ -473,6 +476,63 @@ variáveis de ambiente (`DEV_SUPABASE_URL`, `PROD_SUPABASE_URL`, ...).
 
 Se faltar alguma chave, o app abre numa tela dizendo exatamente qual, em vez de
 quebrar.
+
+---
+
+## Assinatura do release
+
+A Play Store só aceita um app assinado com um keystore seu. As senhas desse keystore
+seguem o mesmo padrão das chaves de ambiente: ficam em um arquivo fora do Git.
+
+Copie [`keystore.properties.example`](keystore.properties.example) para
+`keystore.properties` e preencha:
+
+```properties
+storeFile=C\:/Users/SEU_USUARIO/chaves/upload-keystore.jks
+storePassword=...
+keyAlias=upload
+keyPassword=...
+```
+
+O keystore em si é gerado uma única vez, **fora da pasta do repositório**:
+
+```bash
+keytool -genkeypair -v -keystore upload-keystore.jks \
+  -alias upload -keyalg RSA -keysize 2048 -validity 10000
+```
+
+> **Faça backup do arquivo e das senhas.** Perder qualquer um dos dois impede
+> publicar atualizações do app — a saída é abrir um pedido de reset da chave de
+> upload no suporte do Google.
+
+Enquanto `keystore.properties` não existir, o build type `release` continua saindo
+**sem assinatura**: [`app/build.gradle.kts`](app/build.gradle.kts) só cria a
+`signingConfig` quando encontra o keystore apontado. Isso mantém
+`./gradlew assembleDevRelease` funcionando em qualquer máquina, inclusive em um
+clone recém-feito. Confira qual configuração cada variant pegou com:
+
+```bash
+./gradlew signingReport
+```
+
+O `SHA1` que aparece na variant `prodRelease` é o que vai no OAuth client Android do
+Google Cloud, senão o login com Google falha no build assinado.
+
+Para gerar o arquivo que sobe para a loja:
+
+```bash
+./gradlew bundleProdRelease
+```
+
+O `.aab` sai em `app/build/outputs/bundle/prodRelease/`.
+
+> **O SHA-1 que vale na loja não é o seu.** A Play Store reassina o bundle com uma
+> chave própria (Play App Signing), então o APK instalado pelas pessoas tem outro
+> SHA-1. Depois do primeiro upload, pegue os dois em **Test and release → Setup →
+> App signing** no Play Console e cadastre ambos no mesmo OAuth client Android.
+
+O `versionCode` em [`app/build.gradle.kts`](app/build.gradle.kts) precisa subir a
+cada arquivo enviado à loja, mesmo em reenvio de correção.
 
 ---
 

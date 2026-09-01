@@ -32,3 +32,8 @@ powersync/self-host/.env
 # Supabase CLI (estado local do link, nao versionar)
 supabase/.temp/
 supabase/.branches/
+
+# Chaves de assinatura do release (nunca versionar)
+/keystore.properties
+*.jks
+*.keystore

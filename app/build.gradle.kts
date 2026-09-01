@@ -12,6 +12,17 @@ val localProperties: Properties =
         if (file.exists()) file.inputStream().use { load(it) }
     }
 
+val keystoreProperties: Properties =
+    Properties().apply {
+        val file = rootProject.file("keystore.properties")
+        if (file.exists()) file.inputStream().use { load(it) }
+    }
+
+val uploadKeystore =
+    keystoreProperties.getProperty("storeFile")
+        ?.let { rootProject.file(it) }
+        ?.takeIf { it.exists() }
+
 fun secret(
     flavor: String,
     key: String,
@@ -55,11 +66,23 @@ android {
         }
     }
 
+    signingConfigs {
+        if (uploadKeystore != null) {
+            create("upload") {
+                storeFile = uploadKeystore
+                storePassword = keystoreProperties.getProperty("storePassword")
+                keyAlias = keystoreProperties.getProperty("keyAlias")
+                keyPassword = keystoreProperties.getProperty("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         debug {
             isMinifyEnabled = false
         }
         release {
+            signingConfig = signingConfigs.findByName("upload")
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
