@@ -494,12 +494,19 @@ keyAlias=upload
 keyPassword=...
 ```
 
-O keystore em si é gerado uma única vez, **fora da pasta do repositório**:
+O keystore em si é gerado uma única vez, **fora da pasta do repositório**. O
+`keytool` não cria o diretório, então a pasta precisa existir antes:
 
-```bash
-keytool -genkeypair -v -keystore upload-keystore.jks \
-  -alias upload -keyalg RSA -keysize 2048 -validity 10000
+```powershell
+New-Item -ItemType Directory -Force "$env:USERPROFILE\chaves"
+
+keytool -genkeypair -v -keystore "$env:USERPROFILE\chaves\upload-keystore.jks" -alias upload -keyalg RSA -keysize 2048 -validity 10000
 ```
+
+Quando ele pedir a **senha da chave para `upload`**, aperte Enter para reusar a do
+keystore: o formato padrão (PKCS12) não suporta senhas diferentes, e digitar outra
+faz o keytool ignorá-la com um aviso — o `keystore.properties` ficaria com uma senha
+que não existe. Os dois campos de senha recebem o mesmo valor.
 
 > **Faça backup do arquivo e das senhas.** Perder qualquer um dos dois impede
 > publicar atualizações do app — a saída é abrir um pedido de reset da chave de
