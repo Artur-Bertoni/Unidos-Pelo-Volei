@@ -37,18 +37,53 @@ real e sorteio de times equilibrado por gênero e habilidade.
 
 | # | Funcionalidade | Onde fica |
 |---|---|---|
-| 1 | CRUD de jogadores com nível de habilidade de 1 a 5, gênero e flag de ativo | aba **TIMES** → botão **Jogadores** (só admin) |
-| 2 | Gestão de times coloridos (nome, cor, sigla de 2 letras) | aba **TIMES** → **Novo time** / ícone de lápis no cartão |
-| 3 | Sorteio dos times mirando 2 homens e 2 mulheres, equilibrando a força e evitando repetir duplas | aba **TIMES** → **Distribuir** |
-| 4 | Geração do chaveamento round-robin com folgas, agrupado em fases | aba **JOGOS** → **Gerar chaveamento** |
-| 5 | Placar ao vivo por partida, digitado ou ponto a ponto, com vencedor marcado automaticamente | aba **JOGOS** → toque em uma partida |
-| 6 | Classificação geral com V, S e PP e desempate na ordem correta | aba **CLASSIFICAÇÃO** |
-| 7 | Elenco vinculado e histórico de jogos por time (fase, rodada, quadra, placar, resultado) | aba **TIMES** → toque em um time |
-| 8 | Encerrar o dia: arquiva o desempenho dos atletas, desfaz os times e apaga o chaveamento | aba **JOGOS** → **Encerrar dia** |
-| 9 | Login com Google; usuário comum só lê, admin edita | tela inicial |
-| 10 | Funciona offline e sincroniza ao reconectar | em todo o app |
+| 1 | CRUD de jogadores com nível de habilidade em estrelas de 1 a 5 e gênero | aba **TIMES** → botão **Jogadores** (só admin) |
+| 2 | Presença do dia: busca pelo nome, filtro de presentes/ausentes, chave **Presente?** na linha, **Marcar todos** e **Limpar presenças** | aba **TIMES** → botão **Jogadores** |
+| 3 | Gestão de times coloridos (nome, cor, sigla de 2 letras), com ativar/desativar o time do dia, **Ajustar** ao tanto de gente e excluir | aba **TIMES** → **Novo time** / lápis / chave no cartão |
+| 4 | Sorteio dos times mirando 2 homens e 2 mulheres, equilibrando a força e evitando repetir duplas | aba **TIMES** → **Distribuir** |
+| 5 | Geração do chaveamento round-robin com folgas, agrupado em fases | aba **JOGOS** → **Gerar chaveamento** |
+| 6 | Placar ao vivo por partida, digitado ou ponto a ponto, com vencedor marcado automaticamente | aba **JOGOS** → toque em uma partida |
+| 7 | Classificação geral com V, S e PP e desempate na ordem correta | aba **CLASSIFICAÇÃO** |
+| 8 | Elenco vinculado e histórico de jogos por time (fase, rodada, quadra, placar, resultado) | aba **TIMES** → toque em um time |
+| 9 | Encerrar o dia: guarda o desempenho e a presença de quem veio, desfaz os times, apaga o chaveamento e zera as presenças | aba **JOGOS** → **Encerrar dia** |
+| 10 | Login com Google; usuário comum só lê, admin edita | tela inicial |
+| 11 | Funciona offline e sincroniza ao reconectar | em todo o app |
 
 O indicador **Online / Conectando / Offline** no cabeçalho mostra o estado do sync.
+
+### Sábados com mais ou menos gente
+
+O grupo é grande e nunca vem todo mundo. Quem organiza abre o app na quadra e
+prepara o dia em três passos, sem precisar entrar jogador por jogador.
+
+1. *Marcar quem veio.* Na listagem de jogadores, a coluna **Presente?** liga e
+   desliga cada um direto na linha. A busca no topo acha o nome no meio de uma
+   lista longa e os filtros **Todos / Presentes / Ausentes** separam quem já foi
+   marcado de quem falta conferir. Para as pontas: **Marcar todos** deixa o grupo
+   inteiro presente (sábado cheio, você só desmarca os poucos que faltaram) e
+   **Limpar presenças** desmarca todo mundo de uma vez. O cabeçalho mostra
+   quantos estão presentes e a divisão entre homens e mulheres.
+2. *Ajustar os times do dia.* Cada cartão da aba **TIMES** tem uma chave no canto
+   que tira o time do dia sem apagar nada: ele some do sorteio, do chaveamento e
+   da contagem, e volta na semana que vem com um toque. O resumo no topo da aba
+   compara os presentes com os times ativos e sugere quantos times de 4 cabem
+   hoje; o **Ajustar** ao lado da sugestão liga e desliga os times sozinho até
+   bater com o número de presentes, mantendo os que já estavam ativos e
+   preenchendo o resto pela ordem. O lápis abre a edição, onde fica o **Excluir
+   time** — esse sim apaga o time e os jogos dele.
+3. *Sortear e jogar.* Só entram no sorteio os jogadores presentes e os times
+   ativos, então o resto do fluxo — **Distribuir**, **Gerar chaveamento**,
+   placar e **Encerrar dia** — segue igual em qualquer tamanho de sábado.
+
+Presença é a mesma flag `ativo` do jogador, e o time do dia é a flag `ativo` do
+time: nada é apagado ao desmarcar, e o histórico dos dias já encerrados continua
+inteiro.
+
+O **Encerrar dia** fecha o ciclo: guarda uma linha em `player_day_stats` para
+cada presente — com time e desempenho para quem jogou, sem time para quem só
+apareceu — e zera as presenças, para o próximo sábado começar em branco. É daí
+que sai o `X dias` na linha de cada jogador: quantos sábados a pessoa veio, não
+quantos ela jogou.
 
 ### Como os algoritmos funcionam
 
@@ -181,7 +216,9 @@ com.unidospelovolei
 │   │   ├── 20260831120000_init.sql            tabelas e triggers
 │   │   ├── 20260831120100_standings_view.sql  VIEW standings
 │   │   ├── 20260831120200_rls.sql             policies RLS
-│   │   └── 20260831120300_powersync.sql       publication de replicação
+│   │   ├── 20260831120300_powersync.sql       publication de replicação
+│   │   ├── 20260901120000_genero_dias_desempenho.sql  gênero e histórico do dia
+│   │   └── 20260901130000_presenca_do_dia.sql presença sem time no histórico
 │   └── seed.sql                      zera os dados e recria 9 times e 38 jogadores
 ├── powersync/
 │   ├── sync-rules.yaml               o que cada dispositivo baixa
@@ -237,6 +274,7 @@ com.unidospelovolei
 3. `supabase/migrations/20260831120200_rls.sql`
 4. `supabase/migrations/20260831120300_powersync.sql`
 5. `supabase/migrations/20260901120000_genero_dias_desempenho.sql`
+6. `supabase/migrations/20260901130000_presenca_do_dia.sql`
 
 E, se quiser dados de exemplo, `supabase/seed.sql`.
 
@@ -308,6 +346,8 @@ O que cada migration faz:
 - **genero_dias_desempenho** — a coluna `players.genero`, as tabelas `game_days` e
   `player_day_stats` (o que o "Encerrar dia" arquiva), a VIEW
   `public.player_performance` e a `publication` recriada com as tabelas novas.
+- **presenca_do_dia** — torna `player_day_stats.team_id` opcional, para o "Encerrar
+  dia" também guardar quem estava presente sem ter entrado em nenhum time.
 
 ### 3. Credenciais OAuth no Google Cloud
 

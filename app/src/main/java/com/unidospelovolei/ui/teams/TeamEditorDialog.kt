@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.sp
 import com.unidospelovolei.domain.model.Team
 import com.unidospelovolei.ui.components.CampoTexto
 import com.unidospelovolei.ui.components.CoresDeTime
+import com.unidospelovolei.ui.components.DialogoConfirmacao
 import com.unidospelovolei.ui.components.SeletorCor
 import com.unidospelovolei.ui.components.TeamCircle
 import com.unidospelovolei.ui.theme.VoleiColors
@@ -40,8 +41,22 @@ fun TeamEditorDialog(
     var sigla by remember { mutableStateOf(time?.sigla.orEmpty()) }
     var cor by remember { mutableStateOf(time?.corHex ?: CoresDeTime.first()) }
     var ativo by remember { mutableStateOf(time?.ativo ?: true) }
+    var confirmandoExclusao by remember { mutableStateOf(false) }
 
     val valido = nome.isNotBlank() && sigla.trim().length == 2
+
+    if (time != null && confirmandoExclusao) {
+        DialogoConfirmacao(
+            titulo = "Excluir o time ${time.nome}?",
+            mensagem =
+                "O time sai da lista e os jogos dele no chaveamento de hoje são apagados. " +
+                    "Para tirar o time só de hoje, desative-o.",
+            textoConfirmar = "Excluir",
+            onConfirmar = { onExcluir(time.id) },
+            onCancelar = { confirmandoExclusao = false },
+        )
+        return
+    }
 
     AlertDialog(
         onDismissRequest = onFechar,
@@ -90,14 +105,14 @@ fun TeamEditorDialog(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween,
                     ) {
-                        Text("Ativo", color = VoleiColors.TextoSecundario, fontSize = 13.sp)
+                        Text("Time ativo hoje", color = VoleiColors.TextoSecundario, fontSize = 13.sp)
                         Switch(
                             checked = ativo,
                             onCheckedChange = { ativo = it },
                             colors = SwitchDefaults.colors(checkedTrackColor = VoleiColors.Verde),
                         )
                     }
-                    TextButton(onClick = { onExcluir(time.id) }) {
+                    TextButton(onClick = { confirmandoExclusao = true }) {
                         Text("Excluir time", color = VoleiColors.Vermelho)
                     }
                 }

@@ -115,6 +115,7 @@ data class PlayerPerformance(
 data class ResumoDoDia(
     val partidas: Int,
     val atletas: Int,
+    val presencas: Int,
 )
 
 data class UserProfile(

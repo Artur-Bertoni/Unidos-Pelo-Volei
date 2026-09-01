@@ -83,7 +83,7 @@ fun DraftScreen(
                 item {
                     Text(
                         text =
-                            "${previa.sumOf { it.players.size }} jogadores ativos " +
+                            "${previa.sumOf { it.players.size }} jogadores presentes " +
                                 "(${previa.sumOf { it.homens }}H / ${previa.sumOf { it.mulheres }}M) • " +
                                 "força de ${forcas.minOrNull() ?: 0} a ${forcas.maxOrNull() ?: 0}",
                         color = VoleiColors.TextoSecundario,

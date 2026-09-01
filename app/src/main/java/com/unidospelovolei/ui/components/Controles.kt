@@ -13,7 +13,11 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Remove
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
@@ -129,36 +133,81 @@ fun CampoTexto(
 }
 
 @Composable
-fun SeletorNivel(
-    nivel: Int,
-    onMudar: (Int) -> Unit,
+fun CampoBusca(
+    valor: String,
+    onMudar: (String) -> Unit,
     modifier: Modifier = Modifier,
+    dica: String = "Buscar",
+) {
+    OutlinedTextField(
+        value = valor,
+        onValueChange = onMudar,
+        placeholder = { Text(dica, color = VoleiColors.TextoTerciario, fontSize = 14.sp) },
+        singleLine = true,
+        shape = RoundedCornerShape(12.dp),
+        modifier = modifier,
+        leadingIcon = {
+            Icon(
+                imageVector = Icons.Filled.Search,
+                contentDescription = null,
+                tint = VoleiColors.TextoSecundario,
+                modifier = Modifier.size(18.dp),
+            )
+        },
+        trailingIcon = {
+            if (valor.isNotEmpty()) {
+                Icon(
+                    imageVector = Icons.Filled.Close,
+                    contentDescription = "Limpar busca",
+                    tint = VoleiColors.TextoSecundario,
+                    modifier =
+                        Modifier
+                            .size(18.dp)
+                            .clickable { onMudar("") },
+                )
+            }
+        },
+        colors =
+            OutlinedTextFieldDefaults.colors(
+                focusedTextColor = VoleiColors.TextoPrimario,
+                unfocusedTextColor = VoleiColors.TextoPrimario,
+                focusedBorderColor = VoleiColors.Verde,
+                unfocusedBorderColor = VoleiColors.Borda,
+                cursorColor = VoleiColors.Verde,
+            ),
+    )
+}
+
+@Composable
+fun Estrelas(
+    nivel: Int,
+    modifier: Modifier = Modifier,
+    tamanho: Dp = 14.dp,
+    espacamento: Dp = 2.dp,
+    onMudar: ((Int) -> Unit)? = null,
 ) {
     Row(
         modifier = modifier,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(espacamento),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         (1..5).forEach { valor ->
-            val selecionado = valor == nivel
-            Box(
+            val preenchida = valor <= nivel
+            Icon(
+                imageVector = if (preenchida) Icons.Filled.Star else Icons.Filled.StarBorder,
+                contentDescription = onMudar?.let { "Nível $valor" },
+                tint = if (preenchida) VoleiColors.Dourado else VoleiColors.TextoTerciario,
                 modifier =
                     Modifier
-                        .size(36.dp)
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(if (selecionado) VoleiColors.Verde else VoleiColors.CartaoInterno)
-                        .border(
-                            1.dp,
-                            if (selecionado) VoleiColors.Verde else VoleiColors.Borda,
-                            RoundedCornerShape(10.dp),
-                        ).clickable { onMudar(valor) },
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    text = valor.toString(),
-                    color = if (selecionado) Color.White else VoleiColors.TextoSecundario,
-                    fontWeight = FontWeight.Bold,
-                )
-            }
+                        .size(tamanho)
+                        .then(
+                            if (onMudar == null) {
+                                Modifier
+                            } else {
+                                Modifier.clickable { onMudar(valor) }
+                            },
+                        ),
+            )
         }
     }
 }

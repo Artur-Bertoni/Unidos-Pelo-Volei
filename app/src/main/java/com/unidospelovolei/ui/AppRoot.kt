@@ -158,6 +158,11 @@ private fun HomeScreen(
             PlayersScreen(
                 estado = jogadores,
                 onVoltar = { destino = Destino.Abas },
+                onBuscar = playersViewModel::buscar,
+                onFiltrar = playersViewModel::filtrar,
+                onAlternarPresenca = playersViewModel::alternarPresenca,
+                onMarcarTodosPresentes = playersViewModel::marcarTodosPresentes,
+                onLimparPresencas = playersViewModel::limparPresencas,
                 onCriar = playersViewModel::criar,
                 onSalvar = playersViewModel::salvar,
                 onExcluir = playersViewModel::excluir,
@@ -237,6 +242,8 @@ private fun HomeScreen(
                         isAdmin = estado.isAdmin,
                         onAbrirTime = { historicoDoTime = it },
                         onEditarTime = { editandoTime = it },
+                        onAlternarAtivoTime = teamsViewModel::alternarAtivo,
+                        onAjustarTimes = teamsViewModel::ajustarTimesAosPresentes,
                         onNovoTime = { criandoTime = true },
                         onAbrirJogadores = { destino = Destino.Jogadores },
                         onDistribuir = {

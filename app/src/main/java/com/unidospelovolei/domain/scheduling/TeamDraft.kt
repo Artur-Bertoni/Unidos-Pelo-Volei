@@ -56,6 +56,8 @@ class HistoricoDeDuplas private constructor(
 object TeamDraft {
     const val ALVO_POR_GENERO: Int = 2
 
+    const val JOGADORES_POR_TIME: Int = ALVO_POR_GENERO * 2
+
     const val TENTATIVAS_PADRAO: Int = 240
 
     private const val PESO_HISTORICO_NA_ESCOLHA = 2.5

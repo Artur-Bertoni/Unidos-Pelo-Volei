@@ -18,16 +18,16 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Shuffle
+import androidx.compose.material.icons.filled.ToggleOff
+import androidx.compose.material.icons.filled.ToggleOn
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -45,6 +45,8 @@ fun TeamsScreen(
     isAdmin: Boolean,
     onAbrirTime: (Team) -> Unit,
     onEditarTime: (Team) -> Unit,
+    onAlternarAtivoTime: (Team) -> Unit,
+    onAjustarTimes: () -> Unit,
     onNovoTime: () -> Unit,
     onAbrirJogadores: () -> Unit,
     onDistribuir: () -> Unit,
@@ -59,12 +61,41 @@ fun TeamsScreen(
     ) {
         item(span = { GridItemSpan(maxLineSpan) }) {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text(
-                    "Equipes Participantes",
-                    color = VoleiColors.TextoPrimario,
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                )
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(
+                        "Equipes Participantes",
+                        color = VoleiColors.TextoPrimario,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    Text(
+                        "${estado.presentes} presentes " +
+                            "(${estado.homensPresentes}H / ${estado.mulheresPresentes}M) • " +
+                            "${estado.timesAtivos} times ativos",
+                        color = VoleiColors.TextoSecundario,
+                        fontSize = 12.sp,
+                    )
+                    if (isAdmin) {
+                        dicaDeTimes(estado)?.let { dica ->
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    dica.texto,
+                                    color = VoleiColors.Dourado,
+                                    fontSize = 12.sp,
+                                    modifier = Modifier.weight(1f),
+                                )
+                                if (dica.ajustavel) {
+                                    TextButton(
+                                        onClick = onAjustarTimes,
+                                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                                    ) {
+                                        Text("Ajustar", color = VoleiColors.Verde, fontSize = 12.sp)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
                 if (isAdmin) {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         BotaoAcao(
@@ -113,8 +144,32 @@ fun TeamsScreen(
                 forca = elenco?.forcaTotal ?: 0,
                 onClick = { onAbrirTime(time) },
                 onEditar = if (isAdmin) ({ onEditarTime(time) }) else null,
+                onAlternarAtivo = if (isAdmin) ({ onAlternarAtivoTime(time) }) else null,
             )
         }
+    }
+}
+
+private data class DicaDoDia(
+    val texto: String,
+    val ajustavel: Boolean,
+)
+
+private fun dicaDeTimes(estado: TeamsUiState): DicaDoDia? {
+    val cabem = estado.timesQueCabem.coerceAtMost(estado.times.size)
+    val sobrando = estado.timesAtivos - cabem
+    return when {
+        estado.presentes == 0 -> DicaDoDia("Marque em Jogadores quem veio jogar hoje.", false)
+        estado.timesQueCabem == 0 -> DicaDoDia("Menos de 4 presentes: ainda não dá para um time.", false)
+        estado.timesQueCabem > estado.times.size ->
+            DicaDoDia(
+                "Dá para ${estado.timesQueCabem} times de 4: " +
+                    "cadastre mais ${estado.timesQueCabem - estado.times.size}.",
+                sobrando != 0,
+            )
+        sobrando > 0 -> DicaDoDia("Dá para $cabem times de 4: desative $sobrando.", true)
+        sobrando < 0 -> DicaDoDia("Dá para $cabem times de 4: ative mais ${-sobrando}.", true)
+        else -> null
     }
 }
 
@@ -147,26 +202,18 @@ private fun CartaoTime(
     forca: Int,
     onClick: () -> Unit,
     onEditar: (() -> Unit)?,
+    onAlternarAtivo: (() -> Unit)?,
     modifier: Modifier = Modifier,
 ) {
-    Cartao(modifier = modifier.aspectRatio(0.86f)) {
-        if (onEditar != null) {
-            Icon(
-                imageVector = Icons.Filled.Edit,
-                contentDescription = "Editar time",
-                tint = VoleiColors.TextoTerciario,
-                modifier =
-                    Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(6.dp)
-                        .size(16.dp)
-                        .clickable(onClick = onEditar),
-            )
-        }
+    Cartao(
+        modifier = modifier.aspectRatio(0.86f),
+        cor = if (time.ativo) VoleiColors.Cartao else VoleiColors.CartaoInterno,
+    ) {
         Column(
             modifier =
                 Modifier
                     .fillMaxWidth()
+                    .alpha(if (time.ativo) 1f else 0.45f)
                     .clickable(onClick = onClick)
                     .padding(vertical = 14.dp, horizontal = 6.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -181,22 +228,44 @@ private fun CartaoTime(
                 textAlign = TextAlign.Center,
                 maxLines = 1,
             )
-            if (jogadores > 0) {
-                Text(
-                    text = "$jogadores jog. • força $forca",
-                    color = VoleiColors.TextoTerciario,
-                    fontSize = 10.sp,
-                    textAlign = TextAlign.Center,
-                    maxLines = 1,
-                )
-            } else {
-                Text(
-                    text = if (time.ativo) "sem elenco" else "inativo",
-                    color = VoleiColors.TextoTerciario,
-                    fontSize = 10.sp,
-                    maxLines = 1,
-                )
-            }
+            Text(
+                text =
+                    when {
+                        !time.ativo -> "fora de hoje"
+                        jogadores > 0 -> "$jogadores jog. • força $forca"
+                        else -> "sem elenco"
+                    },
+                color = VoleiColors.TextoTerciario,
+                fontSize = 10.sp,
+                textAlign = TextAlign.Center,
+                maxLines = 1,
+            )
+        }
+        if (onAlternarAtivo != null) {
+            Icon(
+                imageVector = if (time.ativo) Icons.Filled.ToggleOn else Icons.Filled.ToggleOff,
+                contentDescription = if (time.ativo) "Tirar o time de hoje" else "Colocar o time em hoje",
+                tint = if (time.ativo) VoleiColors.Verde else VoleiColors.TextoTerciario,
+                modifier =
+                    Modifier
+                        .align(Alignment.TopStart)
+                        .size(36.dp)
+                        .clickable(onClick = onAlternarAtivo)
+                        .padding(8.dp),
+            )
+        }
+        if (onEditar != null) {
+            Icon(
+                imageVector = Icons.Filled.Edit,
+                contentDescription = "Editar time",
+                tint = VoleiColors.TextoTerciario,
+                modifier =
+                    Modifier
+                        .align(Alignment.TopEnd)
+                        .size(34.dp)
+                        .clickable(onClick = onEditar)
+                        .padding(9.dp),
+            )
         }
     }
 }

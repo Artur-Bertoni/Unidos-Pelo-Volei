@@ -122,8 +122,34 @@ class TeamsRepository(
         )
     }
 
+    suspend fun setAtivo(
+        teamId: String,
+        ativo: Boolean,
+    ) {
+        db.execute(
+            "UPDATE teams SET ativo = ?, updated_at = ? WHERE id = ?",
+            listOf(if (ativo) 1 else 0, agoraIso(), teamId),
+        )
+    }
+
+    suspend fun definirAtivos(ativos: Map<String, Boolean>) {
+        val agora = agoraIso()
+        db.writeTransactionAsync { tx ->
+            ativos.forEach { (teamId, ativo) ->
+                tx.execute(
+                    "UPDATE teams SET ativo = ?, updated_at = ? WHERE id = ? AND ativo <> ?",
+                    listOf(if (ativo) 1 else 0, agora, teamId, if (ativo) 1 else 0),
+                )
+            }
+        }
+    }
+
     suspend fun delete(teamId: String) {
         db.writeTransactionAsync { tx ->
+            tx.execute(
+                "DELETE FROM matches WHERE team_a_id = ? OR team_b_id = ?",
+                listOf(teamId, teamId),
+            )
             tx.execute("DELETE FROM team_players WHERE team_id = ?", listOf(teamId))
             tx.execute("DELETE FROM teams WHERE id = ?", listOf(teamId))
         }

@@ -13,7 +13,7 @@ class PlayersRepository(
             """
             SELECT id, nome, skill_level, genero, ativo
             FROM players
-            ORDER BY ativo DESC, nome COLLATE NOCASE
+            ORDER BY nome COLLATE NOCASE
             """.trimIndent(),
         ) { it.toPlayer() }
 
@@ -58,6 +58,23 @@ class PlayersRepository(
                 agoraIso(),
                 player.id,
             ),
+        )
+    }
+
+    suspend fun setAtivo(
+        playerId: String,
+        ativo: Boolean,
+    ) {
+        db.execute(
+            "UPDATE players SET ativo = ?, updated_at = ? WHERE id = ?",
+            listOf(if (ativo) 1 else 0, agoraIso(), playerId),
+        )
+    }
+
+    suspend fun definirPresencaDeTodos(presente: Boolean) {
+        db.execute(
+            "UPDATE players SET ativo = ?, updated_at = ? WHERE ativo <> ?",
+            listOf(if (presente) 1 else 0, agoraIso(), if (presente) 1 else 0),
         )
     }
 

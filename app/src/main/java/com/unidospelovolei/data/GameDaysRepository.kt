@@ -55,6 +55,9 @@ class GameDaysRepository(
                     )
                 }
 
+            val presentes =
+                tx.getAll("SELECT id FROM players WHERE ativo = 1") { it.getString("id") }
+
             val partidas =
                 tx.getAll(
                     """
@@ -79,7 +82,10 @@ class GameDaysRepository(
                 porTime.acumular(partida.teamBId, partida.scoreB, partida.scoreA, partida.winnerId == partida.teamBId)
             }
 
-            if (vinculos.isNotEmpty()) {
+            val comTime = vinculos.map { it.playerId }.toSet()
+            val presentesSemTime = presentes.filterNot { it in comTime }
+
+            if (vinculos.isNotEmpty() || presentesSemTime.isNotEmpty()) {
                 val diaId = novoId()
                 val agora = agoraIso()
                 tx.execute(
@@ -111,13 +117,32 @@ class GameDaysRepository(
                         ),
                     )
                 }
+                presentesSemTime.forEach { playerId ->
+                    tx.execute(
+                        """
+                        INSERT INTO player_day_stats (
+                            id, day_id, player_id, team_id, team_nome, team_cor_hex,
+                            jogos, vitorias, derrotas, pontos_pro, pontos_contra, created_at
+                        ) VALUES (?, ?, ?, NULL, NULL, NULL, 0, 0, 0, 0, 0, ?)
+                        """.trimIndent(),
+                        listOf(novoId(), diaId, playerId, agora),
+                    )
+                }
             }
 
+            tx.execute(
+                "UPDATE players SET ativo = 0, updated_at = ? WHERE ativo = 1",
+                listOf(agoraIso()),
+            )
             tx.execute("DELETE FROM team_players", listOf())
             tx.execute("DELETE FROM matches", listOf())
             tx.execute("DELETE FROM rounds", listOf())
 
-            ResumoDoDia(partidas = partidas.size, atletas = vinculos.size)
+            ResumoDoDia(
+                partidas = partidas.size,
+                atletas = vinculos.size,
+                presencas = vinculos.size + presentesSemTime.size,
+            )
         }
 
     private fun agruparEmElencos(linhas: List<Triple<String, String, String>>): List<ElencoPassado> {
@@ -184,6 +209,7 @@ class GameDaysRepository(
                 ORDER BY encerrado_em DESC
                 LIMIT $DIAS_NO_HISTORICO
             ) d ON d.id = s.day_id
+            WHERE s.team_id IS NOT NULL
             ORDER BY d.encerrado_em DESC, s.day_id, s.team_id
             """.trimIndent()
 

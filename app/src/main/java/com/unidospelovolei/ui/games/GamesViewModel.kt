@@ -4,7 +4,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.unidospelovolei.data.GameDaysRepository
 import com.unidospelovolei.data.MatchesRepository
+import com.unidospelovolei.data.PlayersRepository
 import com.unidospelovolei.data.TeamsRepository
+import com.unidospelovolei.domain.model.ResumoDoDia
 import com.unidospelovolei.domain.model.RoundSchedule
 import com.unidospelovolei.domain.model.Team
 import com.unidospelovolei.domain.scheduling.RoundRobinScheduler
@@ -21,6 +23,7 @@ data class GamesUiState(
     val rodadas: List<RoundSchedule> = emptyList(),
     val times: List<Team> = emptyList(),
     val temElencos: Boolean = false,
+    val presentes: Int = 0,
     val gerando: Boolean = false,
     val encerrando: Boolean = false,
     val aviso: String? = null,
@@ -31,6 +34,7 @@ class GamesViewModel(
     private val matchesRepository: MatchesRepository,
     private val teamsRepository: TeamsRepository,
     private val gameDaysRepository: GameDaysRepository,
+    playersRepository: PlayersRepository,
 ) : ViewModel() {
     private val gerando = MutableStateFlow(false)
     private val encerrando = MutableStateFlow(false)
@@ -44,8 +48,9 @@ class GamesViewModel(
             matchesRepository.observeRounds(),
             matchesRepository.observeMatches(),
             teamsRepository.observeRosters(),
+            playersRepository.observeActivePlayers(),
             progresso,
-        ) { rodadas, partidas, elencos, emAndamento ->
+        ) { rodadas, partidas, elencos, presentes, emAndamento ->
             val times = elencos.map { it.team }
             val porRodada = partidas.groupBy { it.roundNumero }
             GamesUiState(
@@ -62,6 +67,7 @@ class GamesViewModel(
                     },
                 times = times,
                 temElencos = elencos.any { it.players.isNotEmpty() },
+                presentes = presentes.size,
                 gerando = emAndamento.gerando,
                 encerrando = emAndamento.encerrando,
                 aviso = emAndamento.aviso,
@@ -76,7 +82,7 @@ class GamesViewModel(
             erro.value = null
             runCatching {
                 val times = teamsRepository.observeTeams().first()
-                require(times.size >= 2) { "Cadastre pelo menos 2 times ativos." }
+                require(times.size >= 2) { "Deixe pelo menos 2 times ativos para gerar o chaveamento." }
                 matchesRepository.replaceSchedule(RoundRobinScheduler.generate(times, quadras))
             }.onFailure { erro.value = it.message ?: "Nao foi possivel gerar o chaveamento." }
             gerando.value = false
@@ -90,14 +96,7 @@ class GamesViewModel(
             erro.value = null
             runCatching { gameDaysRepository.encerrarDia() }
                 .onSuccess { resumo ->
-                    aviso.value =
-                        when {
-                            resumo.atletas == 0 -> "Nao havia elenco montado: o dia foi apenas limpo."
-                            else ->
-                                "Dia encerrado: ${resumo.partidas} " +
-                                    (if (resumo.partidas == 1) "partida" else "partidas") +
-                                    " no desempenho de ${resumo.atletas} atletas."
-                        }
+                    aviso.value = mensagemDoDia(resumo)
                 }.onFailure { erro.value = it.message ?: "Nao foi possivel encerrar o dia." }
             encerrando.value = false
         }
@@ -110,6 +109,19 @@ class GamesViewModel(
     fun limparAviso() {
         aviso.value = null
     }
+
+    private fun mensagemDoDia(resumo: ResumoDoDia): String =
+        when {
+            resumo.presencas == 0 -> "Ninguém estava marcado como presente: o dia foi apenas limpo."
+            resumo.atletas == 0 ->
+                "Dia encerrado: ${resumo.presencas} presenças guardadas, sem times montados. " +
+                    "A lista de presença já está zerada."
+            else ->
+                "Dia encerrado: ${resumo.partidas} " +
+                    (if (resumo.partidas == 1) "partida" else "partidas") +
+                    " no desempenho de ${resumo.atletas} atletas e ${resumo.presencas} presenças guardadas. " +
+                    "A lista de presença já está zerada."
+        }
 
     private data class Progresso(
         val gerando: Boolean,

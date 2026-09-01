@@ -29,6 +29,7 @@ fun rememberVoleiViewModelFactory(container: AppContainer): ViewModelProvider.Fa
                     matchesRepository = container.matchesRepository,
                     teamsRepository = container.teamsRepository,
                     gameDaysRepository = container.gameDaysRepository,
+                    playersRepository = container.playersRepository,
                 )
             }
             initializer {

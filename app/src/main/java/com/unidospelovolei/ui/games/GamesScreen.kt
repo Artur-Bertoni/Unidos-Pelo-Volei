@@ -76,6 +76,7 @@ fun GamesScreen(
                     encerrando = estado.encerrando,
                     temElencos = estado.temElencos,
                     temChaveamento = estado.rodadas.isNotEmpty(),
+                    temPresentes = estado.presentes > 0,
                     onEncerrar = onEncerrarDia,
                 )
             }
@@ -180,11 +181,12 @@ private fun CartaoEncerrarDia(
     encerrando: Boolean,
     temElencos: Boolean,
     temChaveamento: Boolean,
+    temPresentes: Boolean,
     onEncerrar: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var confirmando by remember { mutableStateOf(false) }
-    val temAlgoParaEncerrar = temElencos || temChaveamento
+    val temAlgoParaEncerrar = temElencos || temChaveamento || temPresentes
 
     Cartao(modifier = modifier.fillMaxWidth()) {
         Column(
@@ -199,11 +201,11 @@ private fun CartaoEncerrarDia(
             )
             Text(
                 if (temAlgoParaEncerrar) {
-                    "Guarda os resultados no desempenho dos atletas, desfaz os times e " +
-                        "apaga o chaveamento. O próximo sorteio usa esse histórico para " +
-                        "evitar repetir os mesmos companheiros."
+                    "Guarda os resultados e a presença de quem veio, desfaz os times, " +
+                        "apaga o chaveamento e zera as presenças. O próximo sorteio usa " +
+                        "esse histórico para evitar repetir os mesmos companheiros."
                 } else {
-                    "Nada a encerrar: não há times montados nem chaveamento gerado."
+                    "Nada a encerrar: ninguém presente, nenhum time montado e nenhum chaveamento."
                 },
                 color = VoleiColors.TextoSecundario,
                 fontSize = 12.sp,
@@ -232,9 +234,10 @@ private fun CartaoEncerrarDia(
         DialogoConfirmacao(
             titulo = "Encerrar o dia?",
             mensagem =
-                "Os resultados das partidas finalizadas vão para o desempenho dos atletas. " +
-                    "Depois disso os times ficam sem elenco e o chaveamento é apagado. " +
-                    "Não dá para desfazer.",
+                "Os resultados das partidas finalizadas vão para o desempenho dos atletas, " +
+                    "e todo mundo que estava presente ganha mais um dia no histórico. " +
+                    "Depois disso os times ficam sem elenco, o chaveamento é apagado e as " +
+                    "presenças são zeradas para o próximo sábado. Não dá para desfazer.",
             textoConfirmar = "Encerrar dia",
             onConfirmar = {
                 confirmando = false
