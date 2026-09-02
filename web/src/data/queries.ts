@@ -1,13 +1,19 @@
 export const DIAS_NO_HISTORICO = 12;
 
+const PLAYER_COLUNAS = `id, nome, skill_level, genero, ativo, profile_id, posicao,
+         foto_url, nascimento_dia, nascimento_mes, entrou_em`;
+
+const PLAYER_COLUNAS_P = `p.id, p.nome, p.skill_level, p.genero, p.ativo, p.profile_id,
+         p.posicao, p.foto_url, p.nascimento_dia, p.nascimento_mes, p.entrou_em`;
+
 export const PLAYERS_SQL = `
-  SELECT id, nome, skill_level, genero, ativo
+  SELECT ${PLAYER_COLUNAS}
   FROM players
   ORDER BY nome COLLATE NOCASE
 `;
 
 export const ACTIVE_PLAYERS_SQL = `
-  SELECT id, nome, skill_level, genero, ativo
+  SELECT ${PLAYER_COLUNAS}
   FROM players
   WHERE ativo = 1
   ORDER BY skill_level DESC, nome COLLATE NOCASE
@@ -27,7 +33,7 @@ export const ALL_TEAMS_SQL = `
 `;
 
 export const ROSTER_SQL = `
-  SELECT p.id, p.nome, p.skill_level, p.genero, p.ativo
+  SELECT ${PLAYER_COLUNAS_P}
   FROM team_players tp
   JOIN players p ON p.id = tp.player_id
   WHERE tp.team_id = ?
@@ -76,7 +82,121 @@ export const TEAM_HISTORY_SQL = `${MATCH_CARD_SQL} WHERE m.team_a_id = ? OR m.te
 
 export const MATCH_SQL = `${MATCH_CARD_SQL} WHERE m.id = ?`;
 
-export const PROFILE_SQL = `SELECT id, email, nome, is_admin FROM profiles WHERE id = ?`;
+export const PROFILE_SQL = `SELECT id, email, nome, papel, is_admin FROM profiles WHERE id = ?`;
+
+export const MEU_JOGADOR_SQL = `
+  SELECT ${PLAYER_COLUNAS}
+  FROM players
+  WHERE profile_id = ?
+`;
+
+const PEDIDO_COLUNAS = `id, profile_id, player_id, profile_nome, status, criado_em`;
+
+export const MEU_PEDIDO_SQL = `
+  SELECT ${PEDIDO_COLUNAS}
+  FROM vinculo_pedidos
+  WHERE profile_id = ?
+  ORDER BY criado_em DESC
+  LIMIT 1
+`;
+
+export const PEDIDOS_PENDENTES_SQL = `
+  SELECT ${PEDIDO_COLUNAS}
+  FROM vinculo_pedidos
+  WHERE status = 'pendente'
+  ORDER BY criado_em
+`;
+
+export const MEU_CONTATO_SQL = `
+  SELECT id, player_id, telefone, contato_emergencia, nascimento_ano
+  FROM player_contatos
+  WHERE player_id = ?
+`;
+
+export const CONFIG_GRUPO_SQL = `SELECT id, jogo_hora, jogo_local FROM config_grupo LIMIT 1`;
+
+export const PRESENCAS_SQL = `
+  SELECT id, player_id, data, status, origem
+  FROM presencas
+  WHERE data = ?
+`;
+
+export const POSTS_SQL = `
+  SELECT
+      p.id, p.autor_nome, p.titulo, p.corpo, p.fixado, p.publicado_em,
+      (SELECT COUNT(*) FROM post_reacoes r WHERE r.post_id = p.id) AS reacoes,
+      (SELECT COUNT(*) FROM post_reacoes r WHERE r.post_id = p.id AND r.profile_id = ?) AS reagi
+  FROM posts p
+  ORDER BY p.fixado DESC, p.publicado_em DESC
+`;
+
+export const EVENTOS_SQL = `
+  SELECT id, titulo, descricao, tipo, inicio, local
+  FROM eventos
+  ORDER BY inicio
+`;
+
+export const PAGINAS_SQL = `
+  SELECT id, slug, categoria, titulo, corpo, ordem
+  FROM paginas
+  ORDER BY categoria, ordem, titulo COLLATE NOCASE
+`;
+
+export const CONFIG_FINANCEIRO_SQL = `
+  SELECT id, pix_chave, pix_nome, pix_cidade, mensalidade_centavos, diaria_centavos
+  FROM config_financeiro
+  LIMIT 1
+`;
+
+export const COBRANCAS_SQL = `
+  SELECT id, titulo, tipo, valor_centavos, competencia, vence_em
+  FROM cobrancas
+  ORDER BY COALESCE(competencia, criado_em) DESC, criado_em DESC
+`;
+
+export const MEUS_PAGAMENTOS_SQL = `
+  SELECT id, cobranca_id, player_id, valor_centavos, status, pago_em, observacao
+  FROM pagamentos
+  ORDER BY criado_em DESC
+`;
+
+export const EVOLUCAO_SQL = `
+  SELECT player_id, total_avaliacoes, saque_media, passe_media, ataque_media,
+         bloqueio_media, defesa_media, atitude_media
+  FROM player_evolucao
+  LIMIT 1
+`;
+
+export const DICAS_SQL = `
+  SELECT id, atributo, faixa_max, titulo, texto
+  FROM dicas
+  ORDER BY atributo, faixa_max, ordem
+`;
+
+export const AVALIACOES_PENDENTES_SQL = `
+  SELECT
+      meu.day_id       AS day_id,
+      colega.player_id AS avaliado_player_id,
+      p.nome           AS avaliado_nome
+  FROM player_day_stats meu
+  JOIN player_day_stats colega
+      ON colega.day_id = meu.day_id
+      AND colega.team_id = meu.team_id
+      AND colega.player_id <> meu.player_id
+  JOIN players p ON p.id = colega.player_id
+  JOIN (
+      SELECT id FROM game_days ORDER BY encerrado_em DESC LIMIT 4
+  ) d ON d.id = meu.day_id
+  WHERE meu.player_id = ?
+      AND meu.team_id IS NOT NULL
+      AND NOT EXISTS (
+          SELECT 1 FROM avaliacao_registros r
+          WHERE r.day_id = meu.day_id
+              AND r.avaliador_player_id = ?
+              AND r.avaliado_player_id = colega.player_id
+      )
+  ORDER BY meu.day_id DESC, p.nome COLLATE NOCASE
+`;
 
 export const STANDINGS_SQL = `
   WITH lados AS (

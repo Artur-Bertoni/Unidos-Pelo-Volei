@@ -17,7 +17,9 @@ import androidx.compose.material.icons.filled.CloudDone
 import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.CloudSync
 import androidx.compose.material.icons.filled.EmojiEvents
+import androidx.compose.material.icons.filled.Forum
 import androidx.compose.material.icons.filled.Groups
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.SportsVolleyball
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -41,9 +43,11 @@ enum class AbaPrincipal(
     val rotulo: String,
     val icone: ImageVector,
 ) {
+    SOCIAL("Social", Icons.Filled.Forum),
     JOGOS("Jogos", Icons.Filled.SportsVolleyball),
     CLASSIFICACAO("Classificação", Icons.Filled.EmojiEvents),
     TIMES("Times", Icons.Filled.Groups),
+    EU("Eu", Icons.Filled.Person),
 }
 
 enum class SinalSync(

@@ -41,7 +41,12 @@ vezes.
 - [Aplicação web](#aplicação-web)
   - [Rodando a web localmente](#rodando-a-web-localmente)
   - [Publicando a web](#publicando-a-web)
-- [Virar administrador](#virar-administrador)
+- [As cinco abas](#as-cinco-abas)
+- [Quem é quem no app](#quem-é-quem-no-app)
+- [Confirmação de presença e lembretes](#confirmação-de-presença-e-lembretes)
+- [Mural, agenda e regras](#mural-agenda-e-regras)
+- [Financeiro](#financeiro)
+- [Avaliação entre colegas](#avaliação-entre-colegas)
 - [Testes](#testes)
 - [Decisões de projeto](#decisões-de-projeto)
 - [Fora do escopo do MVP](#fora-do-escopo-do-mvp)
@@ -53,7 +58,7 @@ vezes.
 
 | # | Funcionalidade | Onde fica |
 |---|---|---|
-| 1 | CRUD de jogadores com nível de habilidade em estrelas de 1 a 5 e gênero | aba **TIMES** → botão **Jogadores** (só admin) |
+| 1 | CRUD de jogadores com nível de habilidade em estrelas de 1 a 5 e gênero | aba **TIMES** → botão **Jogadores** (só diretoria edita) |
 | 2 | Presença do dia: busca pelo nome, filtro de presentes/ausentes, chave **Presente?** na linha, **Marcar todos** e **Limpar presenças** | aba **TIMES** → botão **Jogadores** |
 | 3 | Gestão de times coloridos (nome, cor, sigla de 2 letras), com ativar/desativar o time do dia, **Ajustar** ao tanto de gente e excluir | aba **TIMES** → **Novo time** / lápis / chave no cartão |
 | 4 | Sorteio dos times mirando 2 homens e 2 mulheres, equilibrando a força e evitando repetir duplas | aba **TIMES** → **Distribuir** |
@@ -64,6 +69,16 @@ vezes.
 | 9 | Encerrar o dia: guarda o desempenho e a presença de quem veio, desfaz os times, apaga o chaveamento e zera as presenças | aba **JOGOS** → **Encerrar dia** |
 | 10 | Login com Google; usuário comum só lê, admin edita | tela inicial |
 | 11 | Funciona offline e sincroniza ao reconectar | em todo o app |
+| 12 | Cada pessoa vira dona da própria ficha: escolhe o nome na lista e a diretoria confirma | aba **EU** |
+| 13 | Ficha do membro com posição, aniversário, telefone e contato de emergência | aba **EU** → lápis |
+| 14 | Confirmação antecipada do sábado (**Vou / Talvez / Não vou**), pela pessoa ou pela diretoria | aba **EU** e aba **SOCIAL** → **Chamada** |
+| 15 | **Trazer confirmados**: quem respondeu que vem vira presença na lista de hoje | aba **SOCIAL** → **Chamada** (só diretoria) |
+| 16 | Lembrete por notificação na sexta à noite e no sábado de manhã | push no Android e no PWA |
+| 17 | Mural de recados da diretoria, com reação do grupo — é a tela que abre | aba **SOCIAL** → **Mural** |
+| 18 | Agenda de eventos, mais aniversários e tempo de casa calculados sozinhos | aba **SOCIAL** → **Agenda** |
+| 19 | Páginas de regras do vôlei, regras do grupo e campeonatos, editáveis pela diretoria | aba **SOCIAL** → **Regras** |
+| 20 | Mensalidade e diária, extrato pessoal e Pix Copia e Cola | aba **EU**; painel do grupo só para a diretoria |
+| 21 | Avaliação anônima entre companheiros de time e painel de evolução com dicas | aba **EU** → **Avaliar agora** |
 
 O indicador **Online / Conectando / Offline** no cabeçalho mostra o estado do sync.
 
@@ -235,8 +250,15 @@ com.unidospelovolei
 │   │   ├── 20260831120200_rls.sql             policies RLS
 │   │   ├── 20260831120300_powersync.sql       publication de replicação
 │   │   ├── 20260901120000_genero_dias_desempenho.sql  gênero e histórico do dia
-│   │   └── 20260901130000_presenca_do_dia.sql presença sem time no histórico
+│   │   ├── 20260901130000_presenca_do_dia.sql presença sem time no histórico
+│   │   ├── 20260901140000_identidade.sql       vínculo conta-jogador, papéis e ficha
+│   │   ├── 20260901150000_presenca_e_avisos.sql confirmação do sábado e push
+│   │   ├── 20260901160000_mural_agenda_regras.sql mural, agenda e páginas
+│   │   ├── 20260901170000_financeiro.sql       cobranças, pagamentos e Pix
+│   │   └── 20260901180000_avaliacao.sql        avaliação anônima e evolução
 │   └── seed.sql                      zera os dados e recria 9 times e 38 jogadores
+│   └── functions/
+│       └── enviar-avisos/            Edge Function que dispara os lembretes
 ├── powersync/
 │   ├── sync-rules.yaml               o que cada dispositivo baixa
 │   └── self-host/                    Docker para o caminho totalmente local
@@ -301,6 +323,11 @@ com.unidospelovolei
 4. `supabase/migrations/20260831120300_powersync.sql`
 5. `supabase/migrations/20260901120000_genero_dias_desempenho.sql`
 6. `supabase/migrations/20260901130000_presenca_do_dia.sql`
+7. `supabase/migrations/20260901140000_identidade.sql`
+8. `supabase/migrations/20260901150000_presenca_e_avisos.sql`
+9. `supabase/migrations/20260901160000_mural_agenda_regras.sql`
+10. `supabase/migrations/20260901170000_financeiro.sql`
+11. `supabase/migrations/20260901180000_avaliacao.sql`
 
 E, se quiser dados de exemplo, `supabase/seed.sql`.
 
@@ -828,14 +855,202 @@ Depois do primeiro deploy, volte ao Supabase e acrescente o domínio publicado �
 
 ---
 
-## Virar administrador
+## As cinco abas
 
-Todo usuário que entra é criado como leitor. Depois do primeiro login, rode no SQL
-Editor do Supabase:
+O app abre no **SOCIAL**, no mural: é a primeira coisa que todo mundo vê, e é onde a
+diretoria fala com o grupo. As outras quatro são **JOGOS** (chaveamento e placar),
+**CLASSIFICAÇÃO**, **TIMES** e **EU**.
+
+A lista de **Jogadores**, dentro de TIMES, é a lista única do grupo: todo mundo abre
+e vê nome, nível, posição e aniversário de cada um. Só a diretoria enxerga a chave
+**Presente?**, o botão de criar e a edição — para o atleta ela é uma ficha de leitura,
+com um selo indicando quem já tem acesso ao app.
+
+## Quem é quem no app
+
+O app tem **dois papéis**, guardados em `profiles.papel`: `diretoria` e `atleta`.
+A diretoria faz tudo que o admin já fazia — jogadores, times, sorteio, placar — e
+ganha o financeiro do grupo, o mural, a agenda, as regras e a fila de aprovações. O
+atleta confirma a própria presença, edita a própria ficha, vê o próprio extrato e o
+próprio painel de evolução.
+
+`is_admin` **continua existindo** e continua sendo o que a RLS lê. Um trigger a
+mantém em sincronia com `papel` nos dois sentidos: mudar `papel` atualiza
+`is_admin`, e o `update` antigo em `is_admin` atualiza `papel`. Por isso as policies
+que já estavam escritas não precisaram de uma linha de alteração, e os dois clientes
+seguem lendo a mesma coluna de sempre.
+
+Para promover alguém, depois do primeiro login:
 
 ```sql
-update public.profiles set is_admin = true where email = 'voce@gmail.com';
+update public.profiles set papel = 'diretoria' where email = 'voce@gmail.com';
 ```
+
+### Conta e jogador
+
+`profiles` é quem entrou com o Google; `players` é quem joga. A coluna
+`players.profile_id` liga os dois, e é ela que faz o app saber que você é você.
+
+O caminho normal é o atleta abrir a aba **EU**, achar o próprio nome na lista de
+jogadores ainda sem dono e tocar em **Sou eu**. Isso grava uma linha em
+`vinculo_pedidos` com status `pendente`. Alguém da diretoria abre **Pedidos de
+acesso** e confirma; um trigger no Postgres preenche `players.profile_id`.
+
+Esse é o padrão que se repete em todo o app: **a escrita vai para uma tabela
+sincronizada e o trigger faz o efeito privilegiado**. As escritas dos dois clientes
+sobem pelo PowerSync, que aplica tudo via Postgrest sob a RLS, então não há como
+chamar função privilegiada de dentro do app — e fazer pela tabela mantém a aprovação
+funcionando offline, como o resto.
+
+Para pré-vincular quem a diretoria já conhece, sem passar pela fila:
+
+```sql
+update public.players p
+set profile_id = f.id
+from public.profiles f
+where f.email = 'fulano@gmail.com' and p.nome = 'Fulano';
+```
+
+O atleta pode editar a própria ficha, mas não tudo: um trigger recusa mudança em
+`skill_level`, `genero`, `ativo`, `entrou_em` e `profile_id` para quem não é
+diretoria. Nome, posição, foto e aniversário são dele.
+
+Telefone, contato de emergência e o **ano** de nascimento ficam em
+`player_contatos`, tabela à parte que só sincroniza para o dono. O dia e o mês do
+aniversário ficam em `players`, porque o grupo inteiro precisa deles para a agenda —
+o ano, não.
+
+## Confirmação de presença e lembretes
+
+`players.ativo` continua significando **"está na quadra agora"**, e o Encerrar dia
+continua zerando. Quem responde "vou no sábado que vem" grava em `presencas`, tabela
+nova, com a data do sábado e a origem da resposta — se foi a própria pessoa ou um
+diretor respondendo por ela, porque muita gente avisa pelo WhatsApp.
+
+No sábado de manhã, o botão **Trazer confirmados** liga `ativo` de quem respondeu
+`vou` e desliga o resto. Daí para frente o dia segue igual: sorteio, chaveamento,
+placar e Encerrar dia não sabem que a chamada existe.
+
+### Ligando o push
+
+O push é **opcional**: sem as chaves, o app funciona igual e só não registra o
+aparelho. Para ligar:
+
+1. Crie um projeto no [Firebase](https://console.firebase.google.com) e adicione um
+   app Android com o package name da variant (`com.unidospelovolei.dev` em dev).
+2. Copie **Project ID**, **App ID**, **API key** e **Sender ID** para o
+   `local.properties`, como mostra o `local.properties.example`. Não é preciso
+   `google-services.json`: o app monta o `FirebaseOptions` na mão a partir dessas
+   quatro chaves, seguindo o mesmo padrão das outras credenciais do projeto.
+3. Gere um par de chaves VAPID para o Web Push (`npx web-push generate-vapid-keys`).
+   A **pública** vai em `VITE_VAPID_PUBLIC_KEY` no `.env` da web; a **privada**
+   nunca sai do servidor.
+4. Publique a Edge Function e cadastre os secrets:
+
+   ```bash
+   npx supabase@latest functions deploy enviar-avisos
+   npx supabase@latest secrets set VAPID_PUBLIC_KEY=... VAPID_PRIVATE_KEY=...
+   npx supabase@latest secrets set FIREBASE_SERVICE_ACCOUNT="$(cat conta-de-servico.json)"
+   ```
+
+5. Agende os dois disparos com `pg_cron` e `pg_net`, no SQL Editor. O primeiro
+   convida todo mundo na sexta às 19h; o segundo cobra, no sábado às 8h, só quem
+   ainda não respondeu:
+
+   ```sql
+   select cron.schedule(
+       'convite-de-sexta', '0 22 * * 5',
+       $$select net.http_post(
+           url := 'https://SEU-PROJETO.supabase.co/functions/v1/enviar-avisos',
+           headers := '{"Authorization": "Bearer SUA_SERVICE_ROLE_KEY", "Content-Type": "application/json"}'::jsonb,
+           body := '{"tipo": "convite"}'::jsonb
+       )$$
+   );
+
+   select cron.schedule(
+       'cobranca-de-sabado', '0 11 * * 6',
+       $$select net.http_post(
+           url := 'https://SEU-PROJETO.supabase.co/functions/v1/enviar-avisos',
+           headers := '{"Authorization": "Bearer SUA_SERVICE_ROLE_KEY", "Content-Type": "application/json"}'::jsonb,
+           body := '{"tipo": "cobranca-resposta"}'::jsonb
+       )$$
+   );
+   ```
+
+   Os horários do `cron` estão em **UTC**: 22h e 11h UTC são 19h de sexta e 8h de
+   sábado no horário de Brasília.
+
+> **No iPhone o push só chega se a pessoa instalar o site na tela de início.** É
+> limitação da Apple: o Safari só entrega Web Push a partir do iOS 16.4 e apenas
+> para PWA instalado. Como o público da web é justamente quem tem iPhone, conte com
+> isso e mantenha o resumo do sábado indo para o grupo do WhatsApp também.
+
+## Mural, agenda e regras
+
+O mural é da diretoria: só ela publica, o grupo lê e reage. A agenda guarda o que
+foge da rotina — confraternização, amistoso, campeonato —, porque o sábado é toda
+semana e não faz sentido cadastrar 52 vezes.
+
+Aniversário e tempo de casa **não são eventos cadastrados**. Saem por consulta de
+`players.entrou_em` e do dia e mês de nascimento, então mudam de ano sozinhos e
+ninguém precisa manter.
+
+As páginas de regras são texto com uma formatação mínima, escrita uma vez em cada
+cliente: `#` no começo da linha vira título e `-` vira item de lista. Puxar uma
+biblioteca de Markdown para Compose e outra para React custaria mais manutenção do
+que as duas regras que a diretoria vai realmente usar.
+
+## Financeiro
+
+O grupo cobra dos dois jeitos, e cada atleta tem um `regime` na ficha:
+`mensalista`, `diarista` ou `isento`. A diretoria aperta **Gerar mensalidade deste
+mês** e o app cria uma cobrança com uma linha de pagamento para cada mensalista;
+**Gerar diária de hoje** faz o mesmo para os diaristas que estão presentes. Gerar
+duas vezes a mesma competência não duplica nada.
+
+**Todo valor é inteiro em centavos.** R$ 25,50 é gravado como `2550`, e nenhum
+número quebrado encosta em dinheiro — erro de arredondamento em cobrança de grupo de
+amigos vira discussão, e discussão de centavo não se resolve por commit.
+
+O Pix Copia e Cola é montado dentro do app, em
+[`PixBrCode.kt`](app/src/main/java/com/unidospelovolei/domain/financeiro/PixBrCode.kt)
+e [`pix.ts`](web/src/domain/pix.ts): o BR Code estático é uma cadeia de campos com um
+CRC16 no fim, cerca de sessenta linhas em cada cliente, sem dependência e
+funcionando offline. Os dois portes têm os mesmos testes, incluindo um que confere
+que produzem exatamente a mesma string.
+
+O extrato do atleta sincroniza e funciona offline. **O painel com o dinheiro de
+todo mundo, não**: ele lê direto do Postgrest quando a diretoria abre. É uma escolha
+deliberada — o PowerSync baixa linhas cruas para o aparelho, e sincronizar o extrato
+do grupo inteiro deixaria tudo legível no SQLite de qualquer celular da diretoria.
+Ler online mantém a RLS sendo a única guardiã e evita ter que colocar o papel dentro
+do JWT.
+
+## Avaliação entre colegas
+
+No fim do sábado, cada um dá nota de 1 a 5 aos **três companheiros de time** em seis
+fundamentos: saque, passe, ataque, bloqueio, defesa e atitude. Semanas depois, cada
+um vê a própria média e uma dica do que treinar no ponto mais fraco.
+
+O anonimato não é só esconder o nome na tela:
+
+- `avaliacoes` **não entra na publication do PowerSync**, e no schema dos clientes é
+  declarada como somente-inserção. A nota sobe para o servidor e **nunca desce para
+  aparelho nenhum** — nem para o de quem é diretoria.
+- A RLS de `avaliacoes` tem policy de `insert` e **nenhuma de `select`**. Ninguém lê
+  a nota individual pelo app, em nenhum papel.
+- O que sincroniza de volta é `player_evolucao`, mantida por trigger, com médias e
+  contagem, filtrada para o próprio dono.
+- Há um **mínimo de cinco avaliações** antes de qualquer número aparecer. Com time
+  de quatro, quem recebe três notas consegue adivinhar de quem vieram; com cinco,
+  vindas de sábados diferentes, não consegue mais.
+- `avaliacao_registros` guarda só o *fato* de você ter avaliado alguém, sem a nota,
+  para o app saber o que já foi preenchido sem vazar nada.
+
+**A nota dos colegas não mexe no sorteio.** `skill_level` continua sendo a estrela
+que a diretoria dá e continua sendo a única coisa que o `TeamDraft` lê. Se a média
+dos colegas alimentasse o sorteio, a força dos times mudaria sozinha toda semana e a
+nota viraria assunto político dentro do grupo.
 
 O app reage sozinho: em segundos o sync traz o profile atualizado e os botões de
 edição aparecem, sem precisar reiniciar.
@@ -902,8 +1117,13 @@ Coisas visíveis no protótipo web ou que costumam ser pedidas, mas que **não**
 aqui porque não constam do escopo descrito:
 
 - **Exportar resultados** (o botão verde de exportar planilha do protótipo).
-- Notificações push, estatísticas por jogador, múltiplos campeonatos ou temporadas,
-  e edição do papel de admin dentro do app (é feita por SQL).
+- Foto no mural e na ficha: as tabelas já têm a coluna, mas o Supabase Storage não
+  está ligado, então nada de imagem sobe ainda.
+- Múltiplos campeonatos ou temporadas em paralelo: `rounds`, `matches` e
+  `standings` continuam assumindo um único campeonato em andamento. A aba de
+  campeonatos é conteúdo, não gestão.
+- Comentário no mural (só reação), e edição do papel dentro do app (é feita por SQL).
+- Baixa automática de Pix: não há integração bancária. A diretoria dá baixa na mão.
 
 ---
 
@@ -927,8 +1147,8 @@ caminho local, lembre que o emulador enxerga a máquina como `10.0.2.2`, nunca
 `localhost`.
 
 **Sincroniza a leitura mas as edições não sobem.**
-É a RLS fazendo o trabalho dela: o usuário não é admin. Rode o `update` de
-[Virar administrador](#virar-administrador).
+É a RLS fazendo o trabalho dela: o usuário não é da diretoria. Rode o `update` de
+[Quem é quem no app](#quem-é-quem-no-app).
 
 Vale saber como isso aparece: um `INSERT` sem permissão devolve erro, mas
 `UPDATE` e `DELETE` **não** — a cláusula `USING` da policy simplesmente filtra

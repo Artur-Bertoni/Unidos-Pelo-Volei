@@ -1,5 +1,7 @@
 package com.unidospelovolei.ui
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -24,19 +26,37 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.unidospelovolei.AppContainer
 import com.unidospelovolei.BuildConfig
+import com.unidospelovolei.data.Push
+import com.unidospelovolei.data.TokenPendente
+import com.unidospelovolei.domain.model.Evento
+import com.unidospelovolei.domain.model.Pagina
 import com.unidospelovolei.domain.model.Team
 import com.unidospelovolei.ui.components.AbaPrincipal
 import com.unidospelovolei.ui.components.AppHeader
 import com.unidospelovolei.ui.components.BarraDeAbas
 import com.unidospelovolei.ui.components.SinalSync
+import com.unidospelovolei.ui.evolucao.AvaliacaoScreen
+import com.unidospelovolei.ui.evolucao.EvolucaoViewModel
+import com.unidospelovolei.ui.financeiro.ConfigFinanceiroDialog
+import com.unidospelovolei.ui.financeiro.FinanceiroViewModel
+import com.unidospelovolei.ui.financeiro.PainelFinanceiroScreen
 import com.unidospelovolei.ui.games.GamesScreen
 import com.unidospelovolei.ui.games.GamesViewModel
 import com.unidospelovolei.ui.games.MatchScoreScreen
 import com.unidospelovolei.ui.games.MatchScoreViewModel
+import com.unidospelovolei.ui.grupo.EventoDialog
+import com.unidospelovolei.ui.grupo.GrupoScreen
+import com.unidospelovolei.ui.grupo.GrupoViewModel
+import com.unidospelovolei.ui.grupo.PaginaScreen
+import com.unidospelovolei.ui.grupo.PostDialog
 import com.unidospelovolei.ui.login.ConfiguracaoPendenteScreen
 import com.unidospelovolei.ui.login.LoginScreen
 import com.unidospelovolei.ui.main.EstadoSincronizacao
 import com.unidospelovolei.ui.main.MainViewModel
+import com.unidospelovolei.ui.membro.AprovacoesScreen
+import com.unidospelovolei.ui.membro.EuScreen
+import com.unidospelovolei.ui.membro.FichaDialog
+import com.unidospelovolei.ui.membro.MembroViewModel
 import com.unidospelovolei.ui.players.PlayersScreen
 import com.unidospelovolei.ui.players.PlayersViewModel
 import com.unidospelovolei.ui.standings.StandingsScreen
@@ -55,6 +75,16 @@ private sealed interface Destino {
     data object Jogadores : Destino
 
     data object Distribuicao : Destino
+
+    data object Aprovacoes : Destino
+
+    data object PainelFinanceiro : Destino
+
+    data object Avaliacao : Destino
+
+    data class Conteudo(
+        val pagina: Pagina,
+    ) : Destino
 
     data class Partida(
         val matchId: String,
@@ -119,21 +149,48 @@ private fun HomeScreen(
     val standingsViewModel: StandingsViewModel = viewModel(factory = factory)
     val teamsViewModel: TeamsViewModel = viewModel(factory = factory)
     val playersViewModel: PlayersViewModel = viewModel(factory = factory)
+    val membroViewModel: MembroViewModel = viewModel(factory = factory)
+    val grupoViewModel: GrupoViewModel = viewModel(factory = factory)
+    val financeiroViewModel: FinanceiroViewModel = viewModel(factory = factory)
+    val evolucaoViewModel: EvolucaoViewModel = viewModel(factory = factory)
 
     val jogos by gamesViewModel.estado.collectAsStateWithLifecycle()
     val classificacao by standingsViewModel.estado.collectAsStateWithLifecycle()
     val times by teamsViewModel.estado.collectAsStateWithLifecycle()
     val jogadores by playersViewModel.estado.collectAsStateWithLifecycle()
+    val membro by membroViewModel.estado.collectAsStateWithLifecycle()
+    val grupo by grupoViewModel.estado.collectAsStateWithLifecycle()
+    val financeiro by financeiroViewModel.estado.collectAsStateWithLifecycle()
+    val evolucao by evolucaoViewModel.estado.collectAsStateWithLifecycle()
 
-    var aba by rememberSaveable { mutableStateOf(AbaPrincipal.JOGOS) }
+    val perfilId = membro.profile?.id
+    val meuPlayerId = membro.meuJogador?.id
+
+    LaunchedEffect(perfilId) {
+        perfilId?.let(grupoViewModel::definirPerfil)
+    }
+
+    LaunchedEffect(meuPlayerId) {
+        evolucaoViewModel.definirMeuJogador(meuPlayerId)
+    }
+
+    RegistroDePush(container = container, perfilId = perfilId)
+
+    var aba by rememberSaveable { mutableStateOf(AbaPrincipal.SOCIAL) }
     var destino by remember { mutableStateOf<Destino>(Destino.Abas) }
     var historicoDoTime by remember { mutableStateOf<Team?>(null) }
     var editandoTime by remember { mutableStateOf<Team?>(null) }
     var criandoTime by remember { mutableStateOf(false) }
+    var editandoFicha by remember { mutableStateOf(false) }
+    var criandoPost by remember { mutableStateOf(false) }
+    var editandoEvento by remember { mutableStateOf<Evento?>(null) }
+    var criandoEvento by remember { mutableStateOf(false) }
+    var configurandoFinanceiro by remember { mutableStateOf(false) }
 
     val snackbar = remember { SnackbarHostState() }
     val mensagemDeErro =
         estado.erro ?: jogos.erro ?: classificacao.erro ?: times.erro ?: jogadores.erro
+            ?: membro.erro ?: grupo.erro ?: financeiro.erro ?: evolucao.erro
 
     LaunchedEffect(mensagemDeErro) {
         mensagemDeErro?.let {
@@ -143,13 +200,22 @@ private fun HomeScreen(
             standingsViewModel.limparErro()
             teamsViewModel.limparErro()
             playersViewModel.limparErro()
+            membroViewModel.limparErro()
+            grupoViewModel.limparErro()
+            financeiroViewModel.limparErro()
+            evolucaoViewModel.limparErro()
         }
     }
 
-    LaunchedEffect(jogos.aviso) {
-        jogos.aviso?.let {
+    val mensagemDeAviso = jogos.aviso ?: grupo.aviso ?: financeiro.aviso ?: evolucao.aviso
+
+    LaunchedEffect(mensagemDeAviso) {
+        mensagemDeAviso?.let {
             snackbar.showSnackbar(it)
             gamesViewModel.limparAviso()
+            grupoViewModel.limparAviso()
+            financeiroViewModel.limparAviso()
+            evolucaoViewModel.limparAviso()
         }
     }
 
@@ -157,6 +223,7 @@ private fun HomeScreen(
         is Destino.Jogadores -> {
             PlayersScreen(
                 estado = jogadores,
+                isAdmin = estado.isAdmin,
                 onVoltar = { destino = Destino.Abas },
                 onBuscar = playersViewModel::buscar,
                 onFiltrar = playersViewModel::filtrar,
@@ -181,6 +248,66 @@ private fun HomeScreen(
                 },
                 onRecalcular = teamsViewModel::calcularDistribuicao,
                 onAplicar = teamsViewModel::aplicarDistribuicao,
+                modifier = modifier,
+            )
+            return
+        }
+
+        is Destino.Aprovacoes -> {
+            AprovacoesScreen(
+                fila = membro.fila,
+                salvando = membro.salvando,
+                onVoltar = { destino = Destino.Abas },
+                onDecidir = membroViewModel::decidir,
+                modifier = modifier,
+            )
+            return
+        }
+
+        is Destino.PainelFinanceiro -> {
+            PainelFinanceiroScreen(
+                estado = financeiro,
+                onVoltar = { destino = Destino.Abas },
+                onRecarregar = financeiroViewModel::carregarPainel,
+                onDefinirStatus = { pagamentoId, status ->
+                    perfilId?.let { financeiroViewModel.definirStatus(pagamentoId, status, it) }
+                },
+                onGerarMensalidade = { perfilId?.let(financeiroViewModel::gerarMensalidadeDoMes) },
+                onGerarDiaria = { perfilId?.let(financeiroViewModel::gerarDiariaDeHoje) },
+                onConfigurar = { configurandoFinanceiro = true },
+                modifier = modifier,
+            )
+            if (configurandoFinanceiro) {
+                ConfigFinanceiroDialog(
+                    estado = financeiro,
+                    onSalvar = { chave, nome, cidade, mensalidade, diaria ->
+                        financeiroViewModel.salvarConfig(chave, nome, cidade, mensalidade, diaria)
+                        configurandoFinanceiro = false
+                    },
+                    onFechar = { configurandoFinanceiro = false },
+                )
+            }
+            return
+        }
+
+        is Destino.Avaliacao -> {
+            AvaliacaoScreen(
+                pendentes = evolucao.pendentes,
+                salvando = evolucao.salvando,
+                onVoltar = { destino = Destino.Abas },
+                onEnviar = evolucaoViewModel::avaliar,
+                modifier = modifier,
+            )
+            return
+        }
+
+        is Destino.Conteudo -> {
+            PaginaScreen(
+                pagina = grupo.paginas.firstOrNull { it.id == atual.pagina.id } ?: atual.pagina,
+                isAdmin = estado.isAdmin,
+                salvando = grupo.salvando,
+                onVoltar = { destino = Destino.Abas },
+                onSalvar = { titulo, corpo -> grupoViewModel.salvarPagina(atual.pagina.id, titulo, corpo) },
                 modifier = modifier,
             )
             return
@@ -251,8 +378,83 @@ private fun HomeScreen(
                             destino = Destino.Distribuicao
                         },
                     )
+
+                AbaPrincipal.SOCIAL ->
+                    GrupoScreen(
+                        estado = grupo,
+                        isAdmin = estado.isAdmin,
+                        onSecao = grupoViewModel::abrir,
+                        onNovoPost = { criandoPost = true },
+                        onExcluirPost = grupoViewModel::excluirPost,
+                        onReagir = grupoViewModel::alternarReacao,
+                        onNovoEvento = { criandoEvento = true },
+                        onEditarEvento = { editandoEvento = it },
+                        onExcluirEvento = grupoViewModel::excluirEvento,
+                        onAbrirPagina = { destino = Destino.Conteudo(it) },
+                        onResponderPor = grupoViewModel::responderPor,
+                        onTrazerConfirmados = grupoViewModel::trazerConfirmados,
+                    )
+
+                AbaPrincipal.EU ->
+                    EuScreen(
+                        estado = membro,
+                        financeiro = financeiro,
+                        evolucao = evolucao,
+                        onBuscar = membroViewModel::buscar,
+                        onPedirVinculo = membroViewModel::pedirVinculo,
+                        onCancelarPedido = membroViewModel::cancelarPedido,
+                        onEditarFicha = { editandoFicha = true },
+                        onAbrirAprovacoes = { destino = Destino.Aprovacoes },
+                        onResponderChamada = membroViewModel::responderChamada,
+                        onAbrirPainelFinanceiro = {
+                            financeiroViewModel.carregarPainel()
+                            destino = Destino.PainelFinanceiro
+                        },
+                        onAbrirAvaliacao = { destino = Destino.Avaliacao },
+                    )
             }
         }
+    }
+
+    if (criandoPost) {
+        PostDialog(
+            salvando = grupo.salvando,
+            onSalvar = { titulo, corpo, fixado ->
+                grupoViewModel.publicar(titulo, corpo, fixado, membro.profile?.nome)
+                criandoPost = false
+            },
+            onFechar = { criandoPost = false },
+        )
+    }
+
+    if (criandoEvento || editandoEvento != null) {
+        EventoDialog(
+            evento = editandoEvento,
+            salvando = grupo.salvando,
+            onSalvar = { id, titulo, descricao, tipo, inicio, local ->
+                grupoViewModel.salvarEvento(id, titulo, descricao, tipo, inicio, local)
+                criandoEvento = false
+                editandoEvento = null
+            },
+            onFechar = {
+                criandoEvento = false
+                editandoEvento = null
+            },
+        )
+    }
+
+    val meuJogador = membro.meuJogador
+    if (editandoFicha && meuJogador != null) {
+        FichaDialog(
+            jogador = meuJogador,
+            contato = membro.meuContato,
+            salvando = membro.salvando,
+            onSalvar = { nome, posicao, dia, mes, telefone, emergencia, ano ->
+                membroViewModel.salvarFicha(nome, posicao, dia, mes, telefone, emergencia, ano)
+                editandoFicha = false
+            },
+            onFechar = { editandoFicha = false },
+        )
     }
 
     historicoDoTime?.let { time ->
@@ -353,3 +555,43 @@ private fun subtituloDoFormato(
         quadras == 0 -> "$times times - chaveamento pendente"
         else -> "Jogos de Sábado - $times Times ($quadras Quadras)"
     }
+
+@Composable
+private fun RegistroDePush(
+    container: AppContainer,
+    perfilId: String?,
+) {
+    val contexto = LocalContext.current
+    var permitido by remember { mutableStateOf(Push.temPermissao(contexto)) }
+
+    val pedirPermissao =
+        rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { concedida ->
+            permitido = concedida
+        }
+
+    LaunchedEffect(Unit) {
+        if (Push.configurado) Push.iniciar(contexto)
+    }
+
+    LaunchedEffect(perfilId, permitido) {
+        if (perfilId == null || !Push.configurado) return@LaunchedEffect
+
+        if (!permitido) {
+            val permissao = Push.permissaoNecessaria()
+            if (permissao != null) {
+                pedirPermissao.launch(permissao)
+                return@LaunchedEffect
+            }
+            permitido = true
+        }
+
+        val token = TokenPendente.ultimo ?: Push.token() ?: return@LaunchedEffect
+        runCatching {
+            container.chamadaRepository.registrarDispositivo(
+                profileId = perfilId,
+                token = token,
+                plataforma = "android",
+            )
+        }
+    }
+}

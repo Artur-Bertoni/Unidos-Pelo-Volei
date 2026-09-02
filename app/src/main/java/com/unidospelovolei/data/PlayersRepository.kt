@@ -3,7 +3,9 @@ package com.unidospelovolei.data
 import com.powersync.PowerSyncDatabase
 import com.unidospelovolei.domain.model.Genero
 import com.unidospelovolei.domain.model.Player
+import com.unidospelovolei.domain.model.Posicao
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 
 class PlayersRepository(
     private val db: PowerSyncDatabase,
@@ -11,7 +13,7 @@ class PlayersRepository(
     fun observePlayers(): Flow<List<Player>> =
         db.watch(
             """
-            SELECT id, nome, skill_level, genero, ativo
+            SELECT $COLUNAS
             FROM players
             ORDER BY nome COLLATE NOCASE
             """.trimIndent(),
@@ -20,12 +22,20 @@ class PlayersRepository(
     fun observeActivePlayers(): Flow<List<Player>> =
         db.watch(
             """
-            SELECT id, nome, skill_level, genero, ativo
+            SELECT $COLUNAS
             FROM players
             WHERE ativo = 1
             ORDER BY skill_level DESC, nome COLLATE NOCASE
             """.trimIndent(),
         ) { it.toPlayer() }
+
+    fun observePlayerDoPerfil(profileId: String): Flow<Player?> =
+        db
+            .watch(
+                "SELECT $COLUNAS FROM players WHERE profile_id = ?",
+                listOf(profileId),
+            ) { it.toPlayer() }
+            .map { it.firstOrNull() }
 
     suspend fun create(
         nome: String,
@@ -47,7 +57,7 @@ class PlayersRepository(
         db.execute(
             """
             UPDATE players
-            SET nome = ?, skill_level = ?, genero = ?, ativo = ?, updated_at = ?
+            SET nome = ?, skill_level = ?, genero = ?, ativo = ?, regime = ?, updated_at = ?
             WHERE id = ?
             """.trimIndent(),
             listOf(
@@ -55,6 +65,7 @@ class PlayersRepository(
                 player.skillLevel,
                 player.genero.value,
                 if (player.ativo) 1 else 0,
+                player.regime.value,
                 agoraIso(),
                 player.id,
             ),
@@ -78,11 +89,64 @@ class PlayersRepository(
         )
     }
 
+    suspend fun salvarFicha(
+        playerId: String,
+        nome: String,
+        posicao: Posicao?,
+        nascimentoDia: Int?,
+        nascimentoMes: Int?,
+    ) {
+        db.execute(
+            """
+            UPDATE players
+            SET nome = ?, posicao = ?, nascimento_dia = ?, nascimento_mes = ?, updated_at = ?
+            WHERE id = ?
+            """.trimIndent(),
+            listOf(nome.trim(), posicao?.value, nascimentoDia, nascimentoMes, agoraIso(), playerId),
+        )
+    }
+
+    suspend fun definirEntrada(
+        playerId: String,
+        entrouEm: String?,
+    ) {
+        db.execute(
+            "UPDATE players SET entrou_em = ?, updated_at = ? WHERE id = ?",
+            listOf(entrouEm, agoraIso(), playerId),
+        )
+    }
+
+    suspend fun vincular(
+        playerId: String,
+        profileId: String?,
+    ) {
+        db.writeTransactionAsync { tx ->
+            if (profileId != null) {
+                tx.execute(
+                    "UPDATE players SET profile_id = NULL, updated_at = ? WHERE profile_id = ? AND id <> ?",
+                    listOf(agoraIso(), profileId, playerId),
+                )
+            }
+            tx.execute(
+                "UPDATE players SET profile_id = ?, updated_at = ? WHERE id = ?",
+                listOf(profileId, agoraIso(), playerId),
+            )
+        }
+    }
+
     suspend fun delete(playerId: String) {
         db.writeTransactionAsync { tx ->
             tx.execute("DELETE FROM team_players WHERE player_id = ?", listOf(playerId))
             tx.execute("DELETE FROM player_day_stats WHERE player_id = ?", listOf(playerId))
+            tx.execute("DELETE FROM player_contatos WHERE player_id = ?", listOf(playerId))
+            tx.execute("DELETE FROM vinculo_pedidos WHERE player_id = ?", listOf(playerId))
             tx.execute("DELETE FROM players WHERE id = ?", listOf(playerId))
         }
+    }
+
+    private companion object {
+        const val COLUNAS =
+            "id, nome, skill_level, genero, ativo, profile_id, posicao, foto_url, " +
+                "nascimento_dia, nascimento_mes, entrou_em, regime"
     }
 }

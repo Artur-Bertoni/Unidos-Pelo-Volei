@@ -2,13 +2,50 @@ import { useQuery, useStatus } from '@powersync/react';
 import type { Session } from '@supabase/supabase-js';
 import { useEffect, useMemo, useState } from 'react';
 import type { Row } from '../data/mappers';
-import { booleano, inteiro, texto, textoOuNulo, toMatchCard, toPlayer, toStanding, toTeam, toUserProfile } from '../data/mappers';
+import {
+  booleano,
+  inteiro,
+  texto,
+  textoOuNulo,
+  toCobranca,
+  toConfigFinanceiro,
+  toConfigGrupo,
+  toDica,
+  toEvento,
+  toEvolucao,
+  toMatchCard,
+  toPagamento,
+  toPagina,
+  toPlayer,
+  toPlayerContato,
+  toPost,
+  toPresenca,
+  toStanding,
+  toTeam,
+  toUserProfile,
+  toVinculoPedido,
+} from '../data/mappers';
 import {
   ACTIVE_PLAYERS_SQL,
   ALL_TEAMS_SQL,
+  AVALIACOES_PENDENTES_SQL,
+  COBRANCAS_SQL,
+  CONFIG_FINANCEIRO_SQL,
+  CONFIG_GRUPO_SQL,
+  DICAS_SQL,
+  EVENTOS_SQL,
+  EVOLUCAO_SQL,
   FORMATO_SQL,
+  MEUS_PAGAMENTOS_SQL,
+  PAGINAS_SQL,
+  POSTS_SQL,
+  PRESENCAS_SQL,
   MATCHES_SQL,
   MATCH_SQL,
+  MEU_CONTATO_SQL,
+  MEU_JOGADOR_SQL,
+  MEU_PEDIDO_SQL,
+  PEDIDOS_PENDENTES_SQL,
   PERFORMANCE_SQL,
   PLAYERS_SQL,
   PROFILE_SQL,
@@ -21,14 +58,27 @@ import {
 } from '../data/queries';
 import {
   generoDe,
+  type AvaliacaoPendente,
+  type Cobranca,
+  type ConfigFinanceiro,
+  type ConfigGrupo,
+  type Dica,
+  type Evento,
+  type Evolucao,
+  type ItemDoExtrato,
   type MatchCard,
+  type Pagina,
   type Player,
+  type PlayerContato,
   type PlayerPerformance,
+  type Post,
+  type Presenca,
   type RoundSchedule,
   type Standing,
   type Team,
   type TeamRoster,
   type UserProfile,
+  type VinculoPedido,
 } from '../domain/models';
 import { supabase } from '../lib/supabase';
 import type { SinalSync } from './components/Componentes';
@@ -61,6 +111,96 @@ export function useSessao(): EstadoDaSessao {
 export function usePerfil(usuarioId: string | undefined): UserProfile | null {
   const { data } = useQuery<Row>(PROFILE_SQL, [usuarioId ?? '']);
   return data.length > 0 ? toUserProfile(data[0]) : null;
+}
+
+export function useMeuJogador(profileId: string | undefined): Player | null {
+  const { data } = useQuery<Row>(MEU_JOGADOR_SQL, [profileId ?? '']);
+  return data.length > 0 ? toPlayer(data[0]) : null;
+}
+
+export function useMeuPedido(profileId: string | undefined): VinculoPedido | null {
+  const { data } = useQuery<Row>(MEU_PEDIDO_SQL, [profileId ?? '']);
+  return data.length > 0 ? toVinculoPedido(data[0]) : null;
+}
+
+export function usePedidosPendentes(): VinculoPedido[] {
+  const { data } = useQuery<Row>(PEDIDOS_PENDENTES_SQL);
+  return useMemo(() => data.map(toVinculoPedido), [data]);
+}
+
+export function useMeuContato(playerId: string | undefined): PlayerContato | null {
+  const { data } = useQuery<Row>(MEU_CONTATO_SQL, [playerId ?? '']);
+  return data.length > 0 ? toPlayerContato(data[0]) : null;
+}
+
+export function useConfigGrupo(): ConfigGrupo | null {
+  const { data } = useQuery<Row>(CONFIG_GRUPO_SQL);
+  return data.length > 0 ? toConfigGrupo(data[0]) : null;
+}
+
+export function usePresencas(data: string): Presenca[] {
+  const { data: linhas } = useQuery<Row>(PRESENCAS_SQL, [data]);
+  return useMemo(() => linhas.map(toPresenca), [linhas]);
+}
+
+export function usePosts(profileId: string | undefined): Post[] {
+  const { data } = useQuery<Row>(POSTS_SQL, [profileId ?? '']);
+  return useMemo(() => data.map(toPost), [data]);
+}
+
+export function useEventos(): Evento[] {
+  const { data } = useQuery<Row>(EVENTOS_SQL);
+  return useMemo(() => data.map(toEvento), [data]);
+}
+
+export function usePaginas(): Pagina[] {
+  const { data } = useQuery<Row>(PAGINAS_SQL);
+  return useMemo(() => data.map(toPagina), [data]);
+}
+
+export function useConfigFinanceiro(): ConfigFinanceiro | null {
+  const { data } = useQuery<Row>(CONFIG_FINANCEIRO_SQL);
+  return data.length > 0 ? toConfigFinanceiro(data[0]) : null;
+}
+
+export function useCobrancas(): Cobranca[] {
+  const { data } = useQuery<Row>(COBRANCAS_SQL);
+  return useMemo(() => data.map(toCobranca), [data]);
+}
+
+export function useMeuExtrato(): ItemDoExtrato[] {
+  const { data } = useQuery<Row>(MEUS_PAGAMENTOS_SQL);
+  const cobrancas = useCobrancas();
+  return useMemo(() => {
+    const porId = new Map(cobrancas.map((cobranca) => [cobranca.id, cobranca]));
+    return data.map((linha) => {
+      const pagamento = toPagamento(linha);
+      return { pagamento, cobranca: porId.get(pagamento.cobrancaId) };
+    });
+  }, [data, cobrancas]);
+}
+
+export function useEvolucao(): Evolucao | null {
+  const { data } = useQuery<Row>(EVOLUCAO_SQL);
+  return data.length > 0 ? toEvolucao(data[0]) : null;
+}
+
+export function useDicas(): Dica[] {
+  const { data } = useQuery<Row>(DICAS_SQL);
+  return useMemo(() => data.map(toDica), [data]);
+}
+
+export function useAvaliacoesPendentes(playerId: string | undefined): AvaliacaoPendente[] {
+  const { data } = useQuery<Row>(AVALIACOES_PENDENTES_SQL, [playerId ?? '', playerId ?? '']);
+  return useMemo(
+    () =>
+      data.map((linha) => ({
+        dayId: texto(linha, 'day_id'),
+        avaliadoPlayerId: texto(linha, 'avaliado_player_id'),
+        avaliadoNome: texto(linha, 'avaliado_nome'),
+      })),
+    [data],
+  );
 }
 
 export function useSinal(): SinalSync {
@@ -150,6 +290,13 @@ export function useElencos(): TeamRoster[] {
           skillLevel: inteiro(linha, 'player_skill_level', 3),
           genero: generoDe(textoOuNulo(linha, 'player_genero')),
           ativo: booleano(linha, 'player_ativo', true),
+          profileId: null,
+          posicao: null,
+          fotoUrl: null,
+          nascimentoDia: null,
+          nascimentoMes: null,
+          entrouEm: null,
+          regime: 'mensalista',
         });
       }
       porTime.set(teamId, roster);

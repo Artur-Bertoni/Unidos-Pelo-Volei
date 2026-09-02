@@ -121,19 +121,21 @@ export const TimesScreen = ({
         )}
       </div>
 
-      {isAdmin && (
-        <div className="linha" style={{ gap: 8 }}>
-          <BotaoAcao texto="Jogadores" onClick={onAbrirJogadores}>
-            <IconePessoa tamanho={16} />
-          </BotaoAcao>
-          <BotaoAcao texto="Distribuir" onClick={onDistribuir}>
-            <IconeSortear />
-          </BotaoAcao>
-          <BotaoAcao texto="Novo time" onClick={onNovoTime}>
-            <IconeMais tamanho={16} />
-          </BotaoAcao>
-        </div>
-      )}
+      <div className="linha" style={{ gap: 8 }}>
+        <BotaoAcao texto="Jogadores" onClick={onAbrirJogadores}>
+          <IconePessoa tamanho={16} />
+        </BotaoAcao>
+        {isAdmin && (
+          <>
+            <BotaoAcao texto="Distribuir" onClick={onDistribuir}>
+              <IconeSortear />
+            </BotaoAcao>
+            <BotaoAcao texto="Novo time" onClick={onNovoTime}>
+              <IconeMais tamanho={16} />
+            </BotaoAcao>
+          </>
+        )}
+      </div>
 
       {times.length === 0 && !carregando ? (
         <EstadoVazio

@@ -32,7 +32,10 @@ fun secret(
         ?: ""
 
 fun com.android.build.api.dsl.ApplicationProductFlavor.environmentKeys(flavor: String) {
-    listOf("SUPABASE_URL", "SUPABASE_ANON_KEY", "POWERSYNC_URL", "GOOGLE_WEB_CLIENT_ID").forEach { key ->
+    listOf(
+        "SUPABASE_URL", "SUPABASE_ANON_KEY", "POWERSYNC_URL", "GOOGLE_WEB_CLIENT_ID",
+        "FIREBASE_PROJECT_ID", "FIREBASE_APP_ID", "FIREBASE_API_KEY", "FIREBASE_SENDER_ID",
+    ).forEach { key ->
         buildConfigField("String", key, "\"${secret(flavor, key)}\"")
     }
     buildConfigField("String", "ENVIRONMENT", "\"$flavor\"")
@@ -139,6 +142,9 @@ dependencies {
     implementation(libs.powersync.core)
     implementation(libs.powersync.compose)
     implementation(libs.powersync.connector.supabase)
+
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.messaging)
 
     testImplementation(libs.junit)
 }

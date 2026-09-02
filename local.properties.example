@@ -27,3 +27,25 @@ prod.SUPABASE_URL=
 prod.SUPABASE_ANON_KEY=
 prod.POWERSYNC_URL=
 prod.GOOGLE_WEB_CLIENT_ID=
+
+# Push (opcional). Sem estas quatro chaves o app funciona igual, so nao registra
+# o aparelho para receber notificacao. Elas vem do Firebase console, em
+# Configuracoes do projeto > Seus apps > app Android.
+#
+#   FIREBASE_PROJECT_ID  -> Project ID
+#   FIREBASE_APP_ID      -> App ID (1:123...:android:abc...)
+#   FIREBASE_API_KEY     -> Chave de API do Android
+#   FIREBASE_SENDER_ID   -> Numero do remetente (Project number)
+#
+# A chave privada da conta de servico NAO entra aqui: ela e secret da Edge
+# Function enviar-avisos, no painel do Supabase.
+
+dev.FIREBASE_PROJECT_ID=
+dev.FIREBASE_APP_ID=
+dev.FIREBASE_API_KEY=
+dev.FIREBASE_SENDER_ID=
+
+prod.FIREBASE_PROJECT_ID=
+prod.FIREBASE_APP_ID=
+prod.FIREBASE_API_KEY=
+prod.FIREBASE_SENDER_ID=

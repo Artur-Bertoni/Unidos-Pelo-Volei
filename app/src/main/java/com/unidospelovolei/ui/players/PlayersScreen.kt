@@ -1,7 +1,10 @@
 package com.unidospelovolei.ui.players
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -37,6 +40,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
@@ -45,6 +49,7 @@ import androidx.compose.ui.unit.sp
 import com.unidospelovolei.domain.model.Genero
 import com.unidospelovolei.domain.model.Player
 import com.unidospelovolei.domain.model.PlayerPerformance
+import com.unidospelovolei.domain.model.Regime
 import com.unidospelovolei.ui.components.CampoBusca
 import com.unidospelovolei.ui.components.CampoTexto
 import com.unidospelovolei.ui.components.Cartao
@@ -59,6 +64,7 @@ import com.unidospelovolei.ui.theme.VoleiColors
 @Composable
 fun PlayersScreen(
     estado: PlayersUiState,
+    isAdmin: Boolean,
     onVoltar: () -> Unit,
     onBuscar: (String) -> Unit,
     onFiltrar: (FiltroPresenca) -> Unit,
@@ -78,12 +84,14 @@ fun PlayersScreen(
         modifier = modifier.fillMaxSize(),
         containerColor = VoleiColors.Fundo,
         floatingActionButton = {
-            FloatingActionButton(
-                onClick = { criando = true },
-                containerColor = VoleiColors.Verde,
-                contentColor = Color.White,
-            ) {
-                Icon(Icons.Filled.Add, contentDescription = "Novo jogador")
+            if (isAdmin) {
+                FloatingActionButton(
+                    onClick = { criando = true },
+                    containerColor = VoleiColors.Verde,
+                    contentColor = Color.White,
+                ) {
+                    Icon(Icons.Filled.Add, contentDescription = "Novo jogador")
+                }
             }
         },
     ) { padding ->
@@ -134,23 +142,25 @@ fun PlayersScreen(
                         )
                     }
                 }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    BotaoPresenca(
-                        texto = "Marcar todos",
-                        icone = Icons.Filled.DoneAll,
-                        corDoIcone = VoleiColors.Verde,
-                        habilitado = estado.presentes < estado.total,
-                        onClick = onMarcarTodosPresentes,
-                        modifier = Modifier.weight(1f),
-                    )
-                    BotaoPresenca(
-                        texto = "Limpar presenças",
-                        icone = Icons.Filled.PersonOff,
-                        corDoIcone = VoleiColors.Vermelho,
-                        habilitado = estado.presentes > 0,
-                        onClick = { confirmandoLimpeza = true },
-                        modifier = Modifier.weight(1f),
-                    )
+                if (isAdmin) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        BotaoPresenca(
+                            texto = "Marcar todos",
+                            icone = Icons.Filled.DoneAll,
+                            corDoIcone = VoleiColors.Verde,
+                            habilitado = estado.presentes < estado.total,
+                            onClick = onMarcarTodosPresentes,
+                            modifier = Modifier.weight(1f),
+                        )
+                        BotaoPresenca(
+                            texto = "Limpar presenças",
+                            icone = Icons.Filled.PersonOff,
+                            corDoIcone = VoleiColors.Vermelho,
+                            habilitado = estado.presentes > 0,
+                            onClick = { confirmandoLimpeza = true },
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
                 }
             }
 
@@ -159,7 +169,7 @@ fun PlayersScreen(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 RotuloPequeno("Jogador", modifier = Modifier.weight(1f))
-                RotuloPequeno("Presente?", cor = VoleiColors.TextoSecundario)
+                if (isAdmin) RotuloPequeno("Presente?", cor = VoleiColors.TextoSecundario)
             }
 
             when {
@@ -186,7 +196,8 @@ fun PlayersScreen(
                     LinhaJogador(
                         jogador = jogador,
                         desempenho = estado.desempenho[jogador.id],
-                        onClick = { editando = jogador },
+                        isAdmin = isAdmin,
+                        onClick = { if (isAdmin) editando = jogador },
                         onAlternarPresenca = { onAlternarPresenca(jogador) },
                     )
                 }
@@ -304,6 +315,7 @@ private fun BotaoPresenca(
 private fun LinhaJogador(
     jogador: Player,
     desempenho: PlayerPerformance?,
+    isAdmin: Boolean,
     onClick: () -> Unit,
     onAlternarPresenca: () -> Unit,
     modifier: Modifier = Modifier,
@@ -339,6 +351,9 @@ private fun LinhaJogador(
                     )
                 }
                 Estrelas(nivel = jogador.skillLevel)
+                fichaResumida(jogador)?.let { ficha ->
+                    Text(ficha, color = VoleiColors.TextoTerciario, fontSize = 11.sp)
+                }
                 if (desempenho != null && desempenho.dias > 0) {
                     Text(
                         resumoDoDesempenho(desempenho),
@@ -347,17 +362,21 @@ private fun LinhaJogador(
                     )
                 }
             }
-            Switch(
-                checked = jogador.ativo,
-                onCheckedChange = { onAlternarPresenca() },
-                colors =
-                    SwitchDefaults.colors(
-                        checkedTrackColor = VoleiColors.Verde,
-                        checkedThumbColor = Color.White,
-                        uncheckedTrackColor = VoleiColors.CartaoInterno,
-                        uncheckedBorderColor = VoleiColors.Borda,
-                    ),
-            )
+            if (isAdmin) {
+                Switch(
+                    checked = jogador.ativo,
+                    onCheckedChange = { onAlternarPresenca() },
+                    colors =
+                        SwitchDefaults.colors(
+                            checkedTrackColor = VoleiColors.Verde,
+                            checkedThumbColor = Color.White,
+                            uncheckedTrackColor = VoleiColors.CartaoInterno,
+                            uncheckedBorderColor = VoleiColors.Borda,
+                        ),
+                )
+            } else if (jogador.vinculado) {
+                Selo("Tem acesso", VoleiColors.VerdeClaro, VoleiColors.SeloVitoriaFundo)
+            }
         }
     }
 }
@@ -386,6 +405,7 @@ private fun PlayerEditorDialog(
     var nivel by remember { mutableIntStateOf(jogador?.skillLevel ?: 3) }
     var genero by remember { mutableStateOf(jogador?.genero ?: Genero.MASCULINO) }
     var ativo by remember { mutableStateOf(jogador?.ativo ?: true) }
+    var regime by remember { mutableStateOf(jogador?.regime ?: Regime.MENSALISTA) }
     var confirmandoExclusao by remember { mutableStateOf(false) }
     val valido = nome.isNotBlank()
 
@@ -429,6 +449,18 @@ private fun PlayerEditorDialog(
                 )
                 Text("Gênero", color = VoleiColors.TextoSecundario, fontSize = 12.sp)
                 SeletorGenero(genero = genero, onMudar = { genero = it })
+                if (jogador != null) {
+                    Text("Cobrança", color = VoleiColors.TextoSecundario, fontSize = 12.sp)
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Regime.entries.forEach { opcao ->
+                            ChipDeRegime(
+                                rotulo = opcao.rotulo,
+                                selecionado = opcao == regime,
+                                onClick = { regime = opcao },
+                            )
+                        }
+                    }
+                }
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
@@ -461,6 +493,7 @@ private fun PlayerEditorDialog(
                                 skillLevel = nivel,
                                 genero = genero,
                                 ativo = ativo,
+                                regime = regime,
                             ),
                         )
                     }
@@ -476,3 +509,36 @@ private fun PlayerEditorDialog(
         },
     )
 }
+
+@Composable
+private fun ChipDeRegime(
+    rotulo: String,
+    selecionado: Boolean,
+    onClick: () -> Unit,
+) {
+    Box(
+        modifier =
+            Modifier
+                .clip(RoundedCornerShape(8.dp))
+                .background(if (selecionado) VoleiColors.SeloFaseFundo else VoleiColors.CartaoInterno)
+                .border(
+                    width = 1.dp,
+                    color = if (selecionado) VoleiColors.Azul else VoleiColors.Borda,
+                    shape = RoundedCornerShape(8.dp),
+                ).clickable(onClick = onClick)
+                .padding(horizontal = 10.dp, vertical = 6.dp),
+    ) {
+        Text(
+            text = rotulo,
+            color = if (selecionado) VoleiColors.SeloFaseTexto else VoleiColors.TextoSecundario,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+        )
+    }
+}
+
+private fun fichaResumida(jogador: Player): String? =
+    listOfNotNull(
+        jogador.posicao?.rotulo,
+        jogador.aniversario?.let { "aniversário $it" },
+    ).joinToString(" · ").ifBlank { null }

@@ -6,8 +6,12 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.unidospelovolei.AppContainer
+import com.unidospelovolei.ui.evolucao.EvolucaoViewModel
+import com.unidospelovolei.ui.financeiro.FinanceiroViewModel
 import com.unidospelovolei.ui.games.GamesViewModel
+import com.unidospelovolei.ui.grupo.GrupoViewModel
 import com.unidospelovolei.ui.main.MainViewModel
+import com.unidospelovolei.ui.membro.MembroViewModel
 import com.unidospelovolei.ui.players.PlayersViewModel
 import com.unidospelovolei.ui.standings.StandingsViewModel
 import com.unidospelovolei.ui.teams.TeamsViewModel
@@ -50,6 +54,32 @@ fun rememberVoleiViewModelFactory(container: AppContainer): ViewModelProvider.Fa
                     playersRepository = container.playersRepository,
                     gameDaysRepository = container.gameDaysRepository,
                 )
+            }
+            initializer {
+                MembroViewModel(
+                    authRepository = container.authRepository,
+                    profileRepository = container.profileRepository,
+                    playersRepository = container.playersRepository,
+                    gameDaysRepository = container.gameDaysRepository,
+                    membroRepository = container.membroRepository,
+                    chamadaRepository = container.chamadaRepository,
+                )
+            }
+            initializer {
+                GrupoViewModel(
+                    grupoRepository = container.grupoRepository,
+                    chamadaRepository = container.chamadaRepository,
+                    playersRepository = container.playersRepository,
+                )
+            }
+            initializer {
+                FinanceiroViewModel(
+                    financeiroRepository = container.financeiroRepository,
+                    playersRepository = container.playersRepository,
+                )
+            }
+            initializer {
+                EvolucaoViewModel(avaliacaoRepository = container.avaliacaoRepository)
             }
         }
     }

@@ -5,9 +5,14 @@ import com.powersync.DatabaseDriverFactory
 import com.powersync.PowerSyncDatabase
 import com.powersync.connector.supabase.SupabaseConnector
 import com.unidospelovolei.data.AppSchema
+import com.unidospelovolei.data.AvaliacaoRepository
 import com.unidospelovolei.data.AuthRepository
+import com.unidospelovolei.data.ChamadaRepository
+import com.unidospelovolei.data.FinanceiroRepository
 import com.unidospelovolei.data.GameDaysRepository
+import com.unidospelovolei.data.GrupoRepository
 import com.unidospelovolei.data.MatchesRepository
+import com.unidospelovolei.data.MembroRepository
 import com.unidospelovolei.data.PlayersRepository
 import com.unidospelovolei.data.ProfileRepository
 import com.unidospelovolei.data.StandingsRepository
@@ -71,6 +76,11 @@ class AppContainer(
     }
 
     val profileRepository by lazy { ProfileRepository(database) }
+    val membroRepository by lazy { MembroRepository(database) }
+    val chamadaRepository by lazy { ChamadaRepository(database) }
+    val grupoRepository by lazy { GrupoRepository(database) }
+    val financeiroRepository by lazy { FinanceiroRepository(database, supabase) }
+    val avaliacaoRepository by lazy { AvaliacaoRepository(database) }
     val playersRepository by lazy { PlayersRepository(database) }
     val teamsRepository by lazy { TeamsRepository(database) }
     val matchesRepository by lazy { MatchesRepository(database) }

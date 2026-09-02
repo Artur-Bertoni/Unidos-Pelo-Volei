@@ -1,11 +1,35 @@
 import {
+  categoriaDe,
+  fundamentoDe,
+  FUNDAMENTOS,
   generoDe,
+  papelDe,
+  posicaoDe,
+  regimeDe,
   statusDe,
+  statusPagamentoDe,
+  statusPresencaDe,
+  statusVinculoDe,
+  tipoCobrancaDe,
+  tipoEventoDe,
+  type Cobranca,
+  type ConfigFinanceiro,
+  type ConfigGrupo,
+  type Dica,
+  type Evento,
+  type Evolucao,
+  type Fundamento,
   type MatchCard,
+  type Pagamento,
+  type Pagina,
   type Player,
+  type PlayerContato,
+  type Post,
+  type Presenca,
   type Standing,
   type Team,
   type UserProfile,
+  type VinculoPedido,
 } from '../domain/models';
 
 export type Row = Record<string, unknown>;
@@ -39,12 +63,116 @@ export const booleano = (row: Row, nome: string, padrao = false): boolean => {
   return padrao;
 };
 
+export const inteiroOuNulo = (row: Row, nome: string): number | null => {
+  const valor = row[nome];
+  return typeof valor === 'number' ? valor : null;
+};
+
 export const toPlayer = (row: Row): Player => ({
   id: texto(row, 'id'),
   nome: texto(row, 'nome'),
   skillLevel: inteiro(row, 'skill_level', 3),
   genero: generoDe(textoOuNulo(row, 'genero')),
   ativo: booleano(row, 'ativo', true),
+  profileId: textoOuNulo(row, 'profile_id'),
+  posicao: posicaoDe(textoOuNulo(row, 'posicao')),
+  fotoUrl: textoOuNulo(row, 'foto_url'),
+  nascimentoDia: inteiroOuNulo(row, 'nascimento_dia'),
+  nascimentoMes: inteiroOuNulo(row, 'nascimento_mes'),
+  entrouEm: textoOuNulo(row, 'entrou_em'),
+  regime: regimeDe(textoOuNulo(row, 'regime')),
+});
+
+export const toPresenca = (row: Row): Presenca => ({
+  id: texto(row, 'id'),
+  playerId: texto(row, 'player_id'),
+  data: texto(row, 'data'),
+  status: statusPresencaDe(textoOuNulo(row, 'status')) ?? 'vou',
+  origem: textoOuNulo(row, 'origem') ?? 'atleta',
+});
+
+export const toConfigGrupo = (row: Row): ConfigGrupo => ({
+  id: texto(row, 'id'),
+  jogoHora: textoOuNulo(row, 'jogo_hora') ?? '09:00',
+  jogoLocal: textoOuNulo(row, 'jogo_local'),
+});
+
+export const toPost = (row: Row): Post => ({
+  id: texto(row, 'id'),
+  autorNome: textoOuNulo(row, 'autor_nome'),
+  titulo: texto(row, 'titulo'),
+  corpo: texto(row, 'corpo'),
+  fixado: booleano(row, 'fixado'),
+  publicadoEm: textoOuNulo(row, 'publicado_em'),
+  reacoes: inteiro(row, 'reacoes'),
+  reagi: booleano(row, 'reagi'),
+});
+
+export const toEvento = (row: Row): Evento => ({
+  id: texto(row, 'id'),
+  titulo: texto(row, 'titulo'),
+  descricao: textoOuNulo(row, 'descricao'),
+  tipo: tipoEventoDe(textoOuNulo(row, 'tipo')),
+  inicio: texto(row, 'inicio'),
+  local: textoOuNulo(row, 'local'),
+});
+
+export const toPagina = (row: Row): Pagina => ({
+  id: texto(row, 'id'),
+  slug: texto(row, 'slug'),
+  categoria: categoriaDe(textoOuNulo(row, 'categoria')),
+  titulo: texto(row, 'titulo'),
+  corpo: texto(row, 'corpo'),
+  ordem: inteiro(row, 'ordem'),
+});
+
+export const toConfigFinanceiro = (row: Row): ConfigFinanceiro => ({
+  id: texto(row, 'id'),
+  pixChave: textoOuNulo(row, 'pix_chave'),
+  pixNome: textoOuNulo(row, 'pix_nome'),
+  pixCidade: textoOuNulo(row, 'pix_cidade'),
+  mensalidadeCentavos: inteiro(row, 'mensalidade_centavos'),
+  diariaCentavos: inteiro(row, 'diaria_centavos'),
+});
+
+export const toCobranca = (row: Row): Cobranca => ({
+  id: texto(row, 'id'),
+  titulo: texto(row, 'titulo'),
+  tipo: tipoCobrancaDe(textoOuNulo(row, 'tipo')),
+  valorCentavos: inteiro(row, 'valor_centavos'),
+  competencia: textoOuNulo(row, 'competencia'),
+  venceEm: textoOuNulo(row, 'vence_em'),
+});
+
+export const toPagamento = (row: Row): Pagamento => ({
+  id: texto(row, 'id'),
+  cobrancaId: texto(row, 'cobranca_id'),
+  playerId: texto(row, 'player_id'),
+  valorCentavos: inteiro(row, 'valor_centavos'),
+  status: statusPagamentoDe(textoOuNulo(row, 'status')),
+  pagoEm: textoOuNulo(row, 'pago_em'),
+  observacao: textoOuNulo(row, 'observacao'),
+});
+
+export const toEvolucao = (row: Row): Evolucao => {
+  const medias: Partial<Record<Fundamento, number>> = {};
+  FUNDAMENTOS.forEach((fundamento) => {
+    const valor = inteiroOuNulo(row, `${fundamento}_media`);
+    if (valor !== null) medias[fundamento] = valor;
+  });
+  return {
+    playerId: texto(row, 'player_id'),
+    totalAvaliacoes: inteiro(row, 'total_avaliacoes'),
+    medias,
+  };
+};
+
+export const toDica = (row: Row): Dica => ({
+  id: texto(row, 'id'),
+  fundamento: fundamentoDe(textoOuNulo(row, 'atributo')) ?? 'atitude',
+  faixaMax: inteiroOuNulo(row, 'faixa_max') ?? 5,
+  titulo: texto(row, 'titulo'),
+  texto: texto(row, 'texto'),
 });
 
 export const toTeam = (row: Row, prefixo = ''): Team => ({
@@ -81,9 +209,32 @@ export const toStanding = (row: Row): Standing => ({
   pontosPro: inteiro(row, 'pontos_pro'),
 });
 
-export const toUserProfile = (row: Row): UserProfile => ({
+export const toUserProfile = (row: Row): UserProfile => {
+  const gravado = textoOuNulo(row, 'papel');
+  const legado = booleano(row, 'is_admin') ? 'diretoria' : 'atleta';
+  const resolvido = papelDe(gravado ?? legado);
+  return {
+    id: texto(row, 'id'),
+    email: textoOuNulo(row, 'email'),
+    nome: textoOuNulo(row, 'nome'),
+    papel: resolvido,
+    isAdmin: resolvido === 'diretoria',
+  };
+};
+
+export const toVinculoPedido = (row: Row): VinculoPedido => ({
   id: texto(row, 'id'),
-  email: textoOuNulo(row, 'email'),
-  nome: textoOuNulo(row, 'nome'),
-  isAdmin: booleano(row, 'is_admin'),
+  profileId: texto(row, 'profile_id'),
+  playerId: texto(row, 'player_id'),
+  profileNome: textoOuNulo(row, 'profile_nome'),
+  status: statusVinculoDe(textoOuNulo(row, 'status')),
+  criadoEm: textoOuNulo(row, 'criado_em'),
+});
+
+export const toPlayerContato = (row: Row): PlayerContato => ({
+  id: texto(row, 'id'),
+  playerId: texto(row, 'player_id'),
+  telefone: textoOuNulo(row, 'telefone'),
+  contatoEmergencia: textoOuNulo(row, 'contato_emergencia'),
+  nascimentoAno: inteiroOuNulo(row, 'nascimento_ano'),
 });

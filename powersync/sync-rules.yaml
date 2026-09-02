@@ -12,7 +12,40 @@ streams:
       - SELECT * FROM matches
       - SELECT * FROM game_days
       - SELECT * FROM player_day_stats
+      - SELECT * FROM vinculo_pedidos
+      - SELECT * FROM config_grupo
+      - SELECT * FROM presencas
+      - SELECT * FROM avisos
+
+  grupo:
+    auto_subscribe: true
+    queries:
+      - SELECT * FROM posts
+      - SELECT * FROM post_reacoes
+      - SELECT * FROM eventos
+      - SELECT * FROM paginas
+      - SELECT * FROM config_financeiro
+      - SELECT * FROM cobrancas
+      - SELECT * FROM dicas
 
   meu_perfil:
     auto_subscribe: true
     query: SELECT * FROM profiles WHERE id = auth.user_id()
+
+  meus_contatos:
+    auto_subscribe: true
+    query: SELECT * FROM player_contatos WHERE profile_id = auth.user_id()
+
+  meus_dispositivos:
+    auto_subscribe: true
+    query: SELECT * FROM dispositivos WHERE profile_id = auth.user_id()
+
+  meu_financeiro:
+    auto_subscribe: true
+    query: SELECT * FROM pagamentos WHERE profile_id = auth.user_id()
+
+  minha_evolucao:
+    auto_subscribe: true
+    queries:
+      - SELECT * FROM player_evolucao WHERE profile_id = auth.user_id()
+      - SELECT * FROM avaliacao_registros WHERE profile_id = auth.user_id()

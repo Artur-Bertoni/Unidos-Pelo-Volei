@@ -19,13 +19,14 @@ export async function criarJogador(
 export async function atualizarJogador(player: Player): Promise<void> {
   await db.execute(
     `UPDATE players
-     SET nome = ?, skill_level = ?, genero = ?, ativo = ?, updated_at = ?
+     SET nome = ?, skill_level = ?, genero = ?, ativo = ?, regime = ?, updated_at = ?
      WHERE id = ?`,
     [
       player.nome.trim(),
       player.skillLevel,
       player.genero,
       player.ativo ? 1 : 0,
+      player.regime,
       agoraIso(),
       player.id,
     ],
@@ -52,6 +53,8 @@ export async function excluirJogador(playerId: string): Promise<void> {
   await db.writeTransaction(async (tx) => {
     await tx.execute('DELETE FROM team_players WHERE player_id = ?', [playerId]);
     await tx.execute('DELETE FROM player_day_stats WHERE player_id = ?', [playerId]);
+    await tx.execute('DELETE FROM player_contatos WHERE player_id = ?', [playerId]);
+    await tx.execute('DELETE FROM vinculo_pedidos WHERE player_id = ?', [playerId]);
     await tx.execute('DELETE FROM players WHERE id = ?', [playerId]);
   });
 }

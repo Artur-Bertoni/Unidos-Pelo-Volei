@@ -2,6 +2,7 @@ interface Ambiente {
   supabaseUrl: string;
   supabaseAnonKey: string;
   powersyncUrl: string;
+  vapidPublicKey: string;
   nome: string;
 }
 
@@ -11,6 +12,7 @@ export const env: Ambiente = {
   supabaseUrl: ler(import.meta.env.VITE_SUPABASE_URL),
   supabaseAnonKey: ler(import.meta.env.VITE_SUPABASE_ANON_KEY),
   powersyncUrl: ler(import.meta.env.VITE_POWERSYNC_URL).replace(/\/+$/, ''),
+  vapidPublicKey: ler(import.meta.env.VITE_VAPID_PUBLIC_KEY),
   nome: ler(import.meta.env.VITE_ENVIRONMENT) || (import.meta.env.DEV ? 'dev' : 'prod'),
 };
 

@@ -1,9 +1,15 @@
 import { useState } from 'react';
 import {
+  aniversarioDe,
+  REGIMES,
+  rotuloDaPosicao,
+  regimeDe,
+  rotuloDoRegime,
   saldoDoDesempenho,
   type Genero,
   type Player,
   type PlayerPerformance,
+  type Regime,
 } from '../../domain/models';
 import {
   CampoBusca,
@@ -74,6 +80,7 @@ export const JogadoresScreen = ({
   onVoltar,
   onBuscar,
   onFiltrar,
+  isAdmin,
   onAlternarPresenca,
   onMarcarTodosPresentes,
   onLimparPresencas,
@@ -93,6 +100,7 @@ export const JogadoresScreen = ({
   onVoltar: () => void;
   onBuscar: (texto: string) => void;
   onFiltrar: (filtro: FiltroPresenca) => void;
+  isAdmin: boolean;
   onAlternarPresenca: (jogador: Player) => void;
   onMarcarTodosPresentes: () => void;
   onLimparPresencas: () => void;
@@ -140,6 +148,7 @@ export const JogadoresScreen = ({
             </button>
           ))}
         </div>
+        {isAdmin && (
         <div className="linha" style={{ gap: 8 }}>
           <button
             type="button"
@@ -164,11 +173,12 @@ export const JogadoresScreen = ({
             Limpar presenças
           </button>
         </div>
+        )}
       </div>
 
       <div className="linha-entre" style={{ padding: '14px 20px 0 16px', flex: 'none' }}>
         <RotuloPequeno>Jogador</RotuloPequeno>
-        <RotuloPequeno cor="var(--texto-secundario)">Presente?</RotuloPequeno>
+        {isAdmin && <RotuloPequeno cor="var(--texto-secundario)">Presente?</RotuloPequeno>}
       </div>
 
       <div className="conteudo">
@@ -188,16 +198,19 @@ export const JogadoresScreen = ({
               key={jogador.id}
               jogador={jogador}
               desempenho={desempenho.get(jogador.id)}
-              onClick={() => setEditando(jogador)}
+              isAdmin={isAdmin}
+              onClick={() => { if (isAdmin) setEditando(jogador); }}
               onAlternarPresenca={() => onAlternarPresenca(jogador)}
             />
           ))}
         </div>
       </div>
 
-      <button type="button" className="fab" aria-label="Novo jogador" onClick={() => setCriando(true)}>
-        <IconeMais tamanho={24} />
-      </button>
+      {isAdmin && (
+        <button type="button" className="fab" aria-label="Novo jogador" onClick={() => setCriando(true)}>
+          <IconeMais tamanho={24} />
+        </button>
+      )}
 
       {confirmandoLimpeza && (
         <DialogoConfirmacao
@@ -244,14 +257,24 @@ export const JogadoresScreen = ({
   );
 };
 
+const fichaResumida = (jogador: Player): string =>
+  [
+    jogador.posicao ? rotuloDaPosicao(jogador.posicao) : null,
+    aniversarioDe(jogador) ? `aniversário ${aniversarioDe(jogador)}` : null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+
 const LinhaJogador = ({
   jogador,
   desempenho,
+  isAdmin,
   onClick,
   onAlternarPresenca,
 }: {
   jogador: Player;
   desempenho: PlayerPerformance | undefined;
+  isAdmin: boolean;
   onClick: () => void;
   onAlternarPresenca: () => void;
 }) => (
@@ -275,17 +298,28 @@ const LinhaJogador = ({
           />
         </div>
         <Estrelas nivel={jogador.skillLevel} />
+        {fichaResumida(jogador) && (
+          <span className="subtitulo" style={{ fontSize: 11, color: 'var(--texto-terciario)' }}>
+            {fichaResumida(jogador)}
+          </span>
+        )}
         {desempenho && desempenho.dias > 0 && (
           <span className="subtitulo" style={{ fontSize: 11 }}>
             {resumoDoDesempenho(desempenho)}
           </span>
         )}
       </button>
-      <Interruptor
-        ligado={jogador.ativo}
-        onMudar={onAlternarPresenca}
-        descricao={`${jogador.nome} presente hoje`}
-      />
+      {isAdmin ? (
+        <Interruptor
+          ligado={jogador.ativo}
+          onMudar={onAlternarPresenca}
+          descricao={`${jogador.nome} presente hoje`}
+        />
+      ) : (
+        jogador.profileId !== null && (
+          <Selo texto="Tem acesso" corTexto="var(--verde-claro)" corFundo="var(--selo-vitoria-fundo)" />
+        )
+      )}
     </div>
   </Cartao>
 );
@@ -307,6 +341,7 @@ const PlayerEditorDialog = ({
   const [nivel, setNivel] = useState(jogador?.skillLevel ?? 3);
   const [genero, setGenero] = useState<Genero>(jogador?.genero ?? 'masculino');
   const [ativo, setAtivo] = useState(jogador?.ativo ?? true);
+  const [regime, setRegime] = useState<Regime>(regimeDe(jogador?.regime));
   const [confirmandoExclusao, setConfirmandoExclusao] = useState(false);
   const valido = nome.trim().length > 0;
 
@@ -338,7 +373,7 @@ const PlayerEditorDialog = ({
             style={{ color: valido ? 'var(--verde)' : 'var(--texto-terciario)' }}
             onClick={() =>
               jogador
-                ? onSalvarExistente({ ...jogador, nome, skillLevel: nivel, genero, ativo })
+                ? onSalvarExistente({ ...jogador, nome, skillLevel: nivel, genero, ativo, regime })
                 : onSalvarNovo(nome, nivel, genero, ativo)
             }
           >
@@ -356,6 +391,24 @@ const PlayerEditorDialog = ({
         <span className="campo-rotulo">Gênero</span>
         <SeletorGenero genero={genero} onMudar={setGenero} />
       </div>
+      {jogador && (
+        <div className="campo">
+          <span className="campo-rotulo">Cobrança</span>
+          <div className="linha" style={{ gap: 6 }}>
+            {REGIMES.map((opcao) => (
+              <button
+                key={opcao}
+                type="button"
+                className="chip"
+                aria-pressed={regime === opcao}
+                onClick={() => setRegime(opcao)}
+              >
+                {rotuloDoRegime(opcao)}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
       <div className="linha-entre">
         <span className="subtitulo" style={{ fontSize: 13 }}>
           Presente hoje

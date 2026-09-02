@@ -11,9 +11,12 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
+      strategies: 'injectManifest',
+      srcDir: 'src',
+      filename: 'sw.ts',
       registerType: 'autoUpdate',
       includeAssets: ['logo-upv.png'],
-      workbox: {
+      injectManifest: {
         globPatterns: ['**/*.{js,css,html,png,svg,wasm}'],
         maximumFileSizeToCacheInBytes: 8 * 1024 * 1024,
       },

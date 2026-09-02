@@ -1,6 +1,13 @@
 import { useRef, useState } from 'react';
 import { encerrarDia, lerElencosPassados } from './data/gameDays';
 import {
+  cancelarPedido,
+  decidirPedido,
+  pedirVinculo,
+  salvarContato,
+  salvarFicha,
+} from './data/membro';
+import {
   apagarResultados,
   atualizarPlacar,
   finalizarPartida,
@@ -24,7 +31,14 @@ import {
   lerTodosOsTimes,
   substituirElencos,
 } from './data/teams';
-import type { ResumoDoDia, Team, TeamRoster } from './domain/models';
+import type {
+  Evento,
+  Pagina,
+  ResumoDoDia,
+  StatusPagamento,
+  Team,
+  TeamRoster,
+} from './domain/models';
 import { generateSchedule } from './domain/roundRobin';
 import {
   distribute,
@@ -32,14 +46,31 @@ import {
   JOGADORES_POR_TIME,
   type ElencoPassado,
 } from './domain/teamDraft';
+import {
+  alternarReacao,
+  definirStatusDoPagamento,
+  enviarAvaliacao,
+  excluirEvento,
+  excluirPost,
+  gerarDiaria,
+  gerarMensalidade,
+  proximoSabado,
+  publicarPost,
+  responderChamada,
+  salvarConfigFinanceiro,
+  salvarEvento,
+  salvarPagina,
+  trazerConfirmados,
+} from './data/grupo';
 import { chavesFaltando, configurado, env } from './lib/env';
+import { supabase } from './lib/supabase';
 import { entrarComGoogle, sair } from './lib/supabase';
 import {
   AppHeader,
   Aviso,
   Carregando,
 } from './ui/components/Componentes';
-import { IconeGrupos, IconeTrofeu, IconeVolei } from './ui/components/Icons';
+import { IconeGrupos, IconePessoa, IconeTrofeu, IconeVolei } from './ui/components/Icons';
 import {
   useAcao,
   useClassificacao,
@@ -50,14 +81,47 @@ import {
   useHistoricoDoTime,
   useJogadores,
   useJogadoresAtivos,
+  useMeuContato,
+  useMeuJogador,
+  useMeuPedido,
   usePartida,
+  useAvaliacoesPendentes,
+  useCobrancas,
+  useConfigFinanceiro,
+  useConfigGrupo,
+  useDicas,
+  useEventos,
+  useEvolucao,
+  useMeuExtrato,
+  usePaginas,
+  usePedidosPendentes,
   usePerfil,
+  usePosts,
+  usePresencas,
   useRodadas,
   useSessao,
   useSinal,
   useTodosOsTimes,
 } from './ui/hooks';
 import { ClassificacaoScreen } from './ui/screens/Classificacao';
+import { AprovacoesScreen, EuScreen, type PedidoNaFila } from './ui/screens/Eu';
+import {
+  AvaliacaoScreen,
+  CartaoDaEvolucao,
+  CartaoDoExtrato,
+  ConfigFinanceiroDialogo,
+  PainelFinanceiroScreen,
+  type LinhaDoPainel,
+} from './ui/screens/Financeiro';
+import {
+  EventoDialogo,
+  GrupoScreen,
+  PaginaScreen,
+  PostDialogo,
+  marcosDe,
+  resumoDaChamada,
+  type SecaoDoGrupo,
+} from './ui/screens/Grupo';
 import { JogadoresScreen, filtrarJogadores, type FiltroPresenca } from './ui/screens/Jogadores';
 import { JogosScreen } from './ui/screens/Jogos';
 import { ConfiguracaoPendenteScreen, LoginScreen } from './ui/screens/Login';
@@ -69,11 +133,15 @@ const PESO_ELENCO_ATUAL = 1.5;
 const PESO_PREVIA_RECENTE = 1.5;
 const PREVIAS_LEMBRADAS = 3;
 
-type Aba = 'jogos' | 'classificacao' | 'times';
+type Aba = 'social' | 'jogos' | 'classificacao' | 'times' | 'eu';
 type Destino =
   | { tipo: 'abas' }
   | { tipo: 'jogadores' }
   | { tipo: 'distribuicao' }
+  | { tipo: 'aprovacoes' }
+  | { tipo: 'painel-financeiro' }
+  | { tipo: 'avaliacao' }
+  | { tipo: 'pagina'; pagina: Pagina }
   | { tipo: 'partida'; matchId: string };
 
 const subtituloDoFormato = (times: number, quadras: number): string => {
@@ -130,13 +198,14 @@ function Home({ usuarioId }: { usuarioId: string }) {
   const sinal = useSinal();
   const formato = useFormato();
 
-  const [aba, setAba] = useState<Aba>('jogos');
+  const [aba, setAba] = useState<Aba>('social');
   const [destino, setDestino] = useState<Destino>({ tipo: 'abas' });
   const [historicoDoTime, setHistoricoDoTime] = useState<Team | null>(null);
   const [editandoTime, setEditandoTime] = useState<Team | null>(null);
   const [criandoTime, setCriandoTime] = useState(false);
   const [aviso, setAviso] = useState<string | null>(null);
   const [previa, setPrevia] = useState<TeamRoster[] | null>(null);
+  const [buscaDeNome, setBuscaDeNome] = useState('');
   const previasRecentes = useRef<string[][][]>([]);
 
   const { salvando, erro, limparErro, executar } = useAcao();
@@ -146,6 +215,76 @@ function Home({ usuarioId }: { usuarioId: string }) {
   const { times, carregando: carregandoTimes } = useTodosOsTimes();
   const elencos = useElencos();
   const presentes = useJogadoresAtivos();
+
+  const { jogadores: todosOsJogadores } = useJogadores();
+  const desempenho = useDesempenho();
+  const meuJogador = useMeuJogador(usuarioId);
+  const meuPedido = useMeuPedido(usuarioId);
+  const meuContato = useMeuContato(meuJogador?.id);
+  const pendentes = usePedidosPendentes();
+
+  const jogadoresPorId = new Map(todosOsJogadores.map((jogador) => [jogador.id, jogador]));
+  const termoDeBusca = buscaDeNome.trim().toLowerCase();
+  const candidatos = todosOsJogadores
+    .filter((jogador) => jogador.profileId === null)
+    .filter((jogador) => termoDeBusca === '' || jogador.nome.toLowerCase().includes(termoDeBusca));
+  const fila: PedidoNaFila[] = pendentes.map((pedido) => ({
+    pedido,
+    jogador: jogadoresPorId.get(pedido.playerId),
+  }));
+
+  const [secaoDoGrupo, setSecaoDoGrupo] = useState<SecaoDoGrupo>('mural');
+  const [criandoPost, setCriandoPost] = useState(false);
+  const [eventoEmEdicao, setEventoEmEdicao] = useState<Evento | null>(null);
+  const [criandoEvento, setCriandoEvento] = useState(false);
+  const [configurandoFinanceiro, setConfigurandoFinanceiro] = useState(false);
+  const [painel, setPainel] = useState<LinhaDoPainel[]>([]);
+  const [carregandoPainel, setCarregandoPainel] = useState(false);
+
+  const sabado = proximoSabado();
+  const configGrupo = useConfigGrupo();
+  const presencas = usePresencas(sabado);
+  const posts = usePosts(usuarioId);
+  const eventos = useEventos();
+  const paginas = usePaginas();
+  const configFinanceiro = useConfigFinanceiro();
+  const cobrancas = useCobrancas();
+  const extrato = useMeuExtrato();
+  const evolucao = useEvolucao();
+  const dicas = useDicas();
+  const avaliacoesPendentes = useAvaliacoesPendentes(meuJogador?.id);
+
+  const minhaResposta =
+    presencas.find((presenca) => presenca.playerId === meuJogador?.id)?.status ?? null;
+  const marcos = marcosDe(todosOsJogadores);
+  const resumo = resumoDaChamada(presencas, todosOsJogadores.length);
+
+  const carregarPainel = (): Promise<void> =>
+    executar(async () => {
+      setCarregandoPainel(true);
+      try {
+        const { data, error } = await supabase.from('pagamentos').select();
+        if (error) throw new Error('Não foi possível carregar o financeiro do grupo. Precisa de internet.');
+        const porCobranca = new Map(cobrancas.map((cobranca) => [cobranca.id, cobranca]));
+        setPainel(
+          (data ?? [])
+            .map((linha): LinhaDoPainel => ({
+              pagamentoId: String(linha.id),
+              nome: jogadoresPorId.get(String(linha.player_id))?.nome ?? 'Jogador removido',
+              cobranca: porCobranca.get(String(linha.cobranca_id))?.titulo ?? 'Cobrança',
+              valorCentavos: Number(linha.valor_centavos),
+              status: String(linha.status) as StatusPagamento,
+            }))
+            .sort(
+              (a, b) =>
+                Number(a.status !== 'pendente') - Number(b.status !== 'pendente') ||
+                a.nome.localeCompare(b.nome),
+            ),
+        );
+      } finally {
+        setCarregandoPainel(false);
+      }
+    });
 
   const homensPresentes = presentes.filter((j) => j.genero === 'masculino').length;
   const mulheresPresentes = presentes.filter((j) => j.genero === 'feminino').length;
@@ -187,7 +326,11 @@ function Home({ usuarioId }: { usuarioId: string }) {
   if (destino.tipo === 'jogadores') {
     return (
       <div className="app">
-        <TelaDeJogadores onVoltar={() => setDestino({ tipo: 'abas' })} executar={executar} />
+        <TelaDeJogadores
+          isAdmin={isAdmin}
+          onVoltar={() => setDestino({ tipo: 'abas' })}
+          executar={executar}
+        />
         {mensagemVisivel && (
           <Aviso
             mensagem={mensagemVisivel}
@@ -223,6 +366,159 @@ function Home({ usuarioId }: { usuarioId: string }) {
         {mensagemVisivel && (
           <Aviso mensagem={mensagemVisivel} onFechar={() => { limparErro(); setAviso(null); }} />
         )}
+      </div>
+    );
+  }
+
+  if (destino.tipo === 'aprovacoes') {
+    return (
+      <div className="app">
+        <AprovacoesScreen
+          fila={fila}
+          salvando={salvando}
+          onVoltar={() => setDestino({ tipo: 'abas' })}
+          onDecidir={(pedido, aprovado) =>
+            void executar(() => decidirPedido(pedido, aprovado, usuarioId))
+          }
+        />
+        {mensagemVisivel && (
+          <Aviso
+            mensagem={mensagemVisivel}
+            onFechar={() => {
+              limparErro();
+              setAviso(null);
+            }}
+          />
+        )}
+      </div>
+    );
+  }
+
+  if (destino.tipo === 'painel-financeiro') {
+    return (
+      <div className="app">
+        <PainelFinanceiroScreen
+          linhas={painel}
+          carregando={carregandoPainel}
+          salvando={salvando}
+          onVoltar={() => setDestino({ tipo: 'abas' })}
+          onRecarregar={() => void carregarPainel()}
+          onDefinirStatus={(pagamentoId, status) =>
+            void executar(async () => {
+              await definirStatusDoPagamento(pagamentoId, status, usuarioId);
+              setPainel((atual) =>
+                atual.map((linha) =>
+                  linha.pagamentoId === pagamentoId ? { ...linha, status } : linha,
+                ),
+              );
+            })
+          }
+          onGerarMensalidade={() =>
+            void executar(async () => {
+              const valor = configFinanceiro?.mensalidadeCentavos ?? 0;
+              if (valor <= 0) throw new Error('Defina o valor da mensalidade antes de gerar.');
+              const quantos = await gerarMensalidade(valor, usuarioId);
+              setAviso(
+                quantos === 0
+                  ? 'A mensalidade deste mês já tinha sido gerada.'
+                  : `Mensalidade gerada para ${quantos} mensalistas.`,
+              );
+            })
+          }
+          onGerarDiaria={() =>
+            void executar(async () => {
+              const valor = configFinanceiro?.diariaCentavos ?? 0;
+              if (valor <= 0) throw new Error('Defina o valor da diária antes de gerar.');
+              const quantos = await gerarDiaria(valor, usuarioId);
+              setAviso(
+                quantos === 0
+                  ? 'Nenhum diarista presente hoje, ou a diária de hoje já foi gerada.'
+                  : `Diária gerada para ${quantos} diaristas presentes.`,
+              );
+            })
+          }
+          onConfigurar={() => setConfigurandoFinanceiro(true)}
+        />
+        {configurandoFinanceiro && (
+          <ConfigFinanceiroDialogo
+            config={configFinanceiro}
+            onSalvar={(chave, nome, cidade, mensalidade, diaria) => {
+              if (configFinanceiro) {
+                void executar(() =>
+                  salvarConfigFinanceiro(
+                    configFinanceiro.id,
+                    chave,
+                    nome,
+                    cidade,
+                    mensalidade,
+                    diaria,
+                  ),
+                );
+              }
+              setConfigurandoFinanceiro(false);
+            }}
+            onFechar={() => setConfigurandoFinanceiro(false)}
+          />
+        )}
+        {mensagemVisivel && (
+          <Aviso
+            mensagem={mensagemVisivel}
+            onFechar={() => {
+              limparErro();
+              setAviso(null);
+            }}
+          />
+        )}
+      </div>
+    );
+  }
+
+  if (destino.tipo === 'avaliacao') {
+    return (
+      <div className="app">
+        <AvaliacaoScreen
+          pendentes={avaliacoesPendentes}
+          salvando={salvando}
+          onVoltar={() => setDestino({ tipo: 'abas' })}
+          onEnviar={(pendente, notas) =>
+            void executar(async () => {
+              if (!meuJogador) return;
+              await enviarAvaliacao(
+                pendente.dayId,
+                meuJogador.id,
+                pendente.avaliadoPlayerId,
+                notas,
+              );
+              setAviso(`Avaliação de ${pendente.avaliadoNome} enviada. Ela é anônima.`);
+            })
+          }
+        />
+        {mensagemVisivel && (
+          <Aviso
+            mensagem={mensagemVisivel}
+            onFechar={() => {
+              limparErro();
+              setAviso(null);
+            }}
+          />
+        )}
+      </div>
+    );
+  }
+
+  if (destino.tipo === 'pagina') {
+    const atual = paginas.find((pagina) => pagina.id === destino.pagina.id) ?? destino.pagina;
+    return (
+      <div className="app">
+        <PaginaScreen
+          pagina={atual}
+          isAdmin={isAdmin}
+          salvando={salvando}
+          onVoltar={() => setDestino({ tipo: 'abas' })}
+          onSalvar={(titulo, corpo) =>
+            void executar(() => salvarPagina(atual.id, titulo, corpo, usuarioId))
+          }
+        />
       </div>
     );
   }
@@ -327,9 +623,118 @@ function Home({ usuarioId }: { usuarioId: string }) {
             }}
           />
         )}
+
+        {aba === 'social' && (
+          <GrupoScreen
+            secao={secaoDoGrupo}
+            isAdmin={isAdmin}
+            posts={posts}
+            eventos={eventos}
+            marcos={marcos}
+            paginas={paginas}
+            membros={todosOsJogadores}
+            presencas={presencas}
+            resumo={resumo}
+            dataDoSabado={sabado}
+            salvando={salvando}
+            onSecao={setSecaoDoGrupo}
+            onNovoPost={() => setCriandoPost(true)}
+            onExcluirPost={(postId) => void executar(() => excluirPost(postId))}
+            onReagir={(postId) => void executar(() => alternarReacao(postId, usuarioId))}
+            onNovoEvento={() => setCriandoEvento(true)}
+            onEditarEvento={setEventoEmEdicao}
+            onExcluirEvento={(eventoId) => void executar(() => excluirEvento(eventoId))}
+            onAbrirPagina={(pagina) => setDestino({ tipo: 'pagina', pagina })}
+            onResponderPor={(playerId, status) =>
+              void executar(() => responderChamada(playerId, sabado, status, false, usuarioId))
+            }
+            onTrazerConfirmados={() =>
+              void executar(async () => {
+                const quantos = await trazerConfirmados(sabado);
+                setAviso(
+                  quantos === 0
+                    ? 'Ninguém confirmou presença para este sábado ainda.'
+                    : `${quantos} confirmados viraram presença na lista de hoje.`,
+                );
+              })
+            }
+          />
+        )}
+
+        {aba === 'eu' && (
+          <EuScreen
+            perfil={perfil}
+            dataDoSabado={sabado}
+            jogoHora={configGrupo?.jogoHora ?? null}
+            jogoLocal={configGrupo?.jogoLocal ?? null}
+            minhaResposta={minhaResposta}
+            onResponderChamada={(status) =>
+              void executar(async () => {
+                if (!meuJogador) return;
+                await responderChamada(meuJogador.id, sabado, status, true, usuarioId);
+              })
+            }
+            extras={
+              <>
+                <CartaoDoExtrato
+                  extrato={extrato}
+                  config={configFinanceiro}
+                  isAdmin={isAdmin}
+                  onAbrirPainel={() => {
+                    void carregarPainel();
+                    setDestino({ tipo: 'painel-financeiro' });
+                  }}
+                />
+                <CartaoDaEvolucao
+                  evolucao={evolucao}
+                  dicas={dicas}
+                  pendentes={avaliacoesPendentes}
+                  onAvaliar={() => setDestino({ tipo: 'avaliacao' })}
+                />
+              </>
+            }
+            meuJogador={meuJogador}
+            meuPedido={meuPedido}
+            meuContato={meuContato}
+            meuDesempenho={meuJogador ? desempenho.get(meuJogador.id) : undefined}
+            candidatos={candidatos}
+            fila={fila}
+            busca={buscaDeNome}
+            salvando={salvando}
+            onBuscar={setBuscaDeNome}
+            onPedirVinculo={(playerId) =>
+              void executar(async () => {
+                await pedirVinculo(usuarioId, perfil?.nome ?? perfil?.email ?? null, playerId);
+                setBuscaDeNome('');
+              })
+            }
+            onCancelarPedido={() => {
+              if (!meuPedido) return;
+              void executar(() => cancelarPedido(meuPedido.id));
+            }}
+            onSalvarFicha={(nome, posicao, dia, mes, telefone, emergencia, ano) => {
+              if (!meuJogador) return;
+              void executar(async () => {
+                await salvarFicha(meuJogador.id, nome, posicao, dia, mes);
+                await salvarContato(meuJogador.id, usuarioId, telefone, emergencia, ano);
+              });
+            }}
+            onAbrirAprovacoes={() => setDestino({ tipo: 'aprovacoes' })}
+          />
+        )}
       </div>
 
       <nav className="abas" role="tablist">
+        <button
+          type="button"
+          role="tab"
+          className="aba"
+          aria-selected={aba === 'social'}
+          onClick={() => setAba('social')}
+        >
+          <IconeGrupos />
+          Social
+        </button>
         <button
           type="button"
           role="tab"
@@ -360,7 +765,48 @@ function Home({ usuarioId }: { usuarioId: string }) {
           <IconeGrupos />
           Times
         </button>
+        <button
+          type="button"
+          role="tab"
+          className="aba"
+          aria-selected={aba === 'eu'}
+          onClick={() => setAba('eu')}
+        >
+          <IconePessoa tamanho={22} />
+          Eu
+        </button>
       </nav>
+
+      {criandoPost && (
+        <PostDialogo
+          salvando={salvando}
+          onSalvar={(titulo, corpo, fixado) => {
+            void executar(() =>
+              publicarPost(usuarioId, perfil?.nome ?? null, titulo, corpo, fixado),
+            );
+            setCriandoPost(false);
+          }}
+          onFechar={() => setCriandoPost(false)}
+        />
+      )}
+
+      {(criandoEvento || eventoEmEdicao !== null) && (
+        <EventoDialogo
+          evento={eventoEmEdicao}
+          salvando={salvando}
+          onSalvar={(id, titulo, descricao, tipo, inicio, local) => {
+            void executar(() =>
+              salvarEvento(id, titulo, descricao, tipo, inicio, local, usuarioId),
+            );
+            setCriandoEvento(false);
+            setEventoEmEdicao(null);
+          }}
+          onFechar={() => {
+            setCriandoEvento(false);
+            setEventoEmEdicao(null);
+          }}
+        />
+      )}
 
       {historicoDoTime && (
         <HistoricoDoTime time={historicoDoTime} onFechar={() => setHistoricoDoTime(null)} />
@@ -461,9 +907,11 @@ function TelaDePlacar({
 }
 
 function TelaDeJogadores({
+  isAdmin,
   onVoltar,
   executar,
 }: {
+  isAdmin: boolean;
   onVoltar: () => void;
   executar: (acao: () => Promise<void>) => Promise<void>;
 }) {
@@ -479,6 +927,7 @@ function TelaDeJogadores({
       jogadores={filtrarJogadores(jogadores, busca, filtro)}
       desempenho={desempenho}
       carregando={carregando}
+      isAdmin={isAdmin}
       total={jogadores.length}
       presentes={presentes.length}
       homensPresentes={presentes.filter((j) => j.genero === 'masculino').length}

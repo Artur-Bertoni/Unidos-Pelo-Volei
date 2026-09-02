@@ -96,14 +96,14 @@ fun TeamsScreen(
                         }
                     }
                 }
-                if (isAdmin) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        BotaoAcao(
-                            texto = "Jogadores",
-                            icone = Icons.Filled.Group,
-                            onClick = onAbrirJogadores,
-                            modifier = Modifier.weight(1f),
-                        )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    BotaoAcao(
+                        texto = "Jogadores",
+                        icone = Icons.Filled.Group,
+                        onClick = onAbrirJogadores,
+                        modifier = Modifier.weight(1f),
+                    )
+                    if (isAdmin) {
                         BotaoAcao(
                             texto = "Distribuir",
                             icone = Icons.Filled.Shuffle,

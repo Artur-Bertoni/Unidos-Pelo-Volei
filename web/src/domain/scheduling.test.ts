@@ -16,6 +16,16 @@ const times = (quantidade: number): Team[] =>
     ordem: i + 1,
   }));
 
+const semFicha = {
+  profileId: null,
+  posicao: null,
+  fotoUrl: null,
+  nascimentoDia: null,
+  nascimentoMes: null,
+  entrouEm: null,
+  regime: 'mensalista',
+} as const;
+
 const jogadores = (niveis: number[], genero: Genero = 'masculino', prefixo = 'p'): Player[] =>
   niveis.map((nivel, indice) => ({
     id: `${prefixo}${indice}`,
@@ -23,6 +33,7 @@ const jogadores = (niveis: number[], genero: Genero = 'masculino', prefixo = 'p'
     skillLevel: nivel,
     genero,
     ativo: true,
+    ...semFicha,
   }));
 
 const grupoMisto = (homens: number, mulheres: number): Player[] => [
@@ -84,7 +95,7 @@ describe('TeamDraft', () => {
   it('sorteio ignora jogadores inativos', () => {
     const comInativo: Player[] = [
       ...grupoMisto(5, 4),
-      { id: 'x', nome: 'Fora', skillLevel: 5, genero: 'masculino', ativo: false },
+      { id: 'x', nome: 'Fora', skillLevel: 5, genero: 'masculino', ativo: false, ...semFicha },
     ];
 
     const elencos = distribute(comInativo, times(3), undefined, new KotlinRandom(1));
