@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Unidos Pelo Vôlei</title>
+<meta name="description" content="App que organiza os sábados de vôlei do grupo Unidos Pelo Vôlei: presença, sorteio de times equilibrados, chaveamento e classificação.">
+<style>
+  :root {
+    color-scheme: light dark;
+    --ground: #f4f6f7;
+    --surface: #ffffff;
+    --ink: #131f27;
+    --ink-2: #4d616a;
+    --line: #d3dee2;
+    --accent: #145f80;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ground: #0d1721;
+      --surface: #14212c;
+      --ink: #e8eff2;
+      --ink-2: #9db1bc;
+      --line: #263b48;
+      --accent: #58b6de;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font: 17px/1.65 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  main { max-width: 680px; margin: 0 auto; padding: 56px 24px 80px; }
+  h1 { font-size: clamp(30px, 6vw, 42px); line-height: 1.1; letter-spacing: -.02em; margin: 0 0 8px; }
+  .sub { color: var(--ink-2); font-size: 19px; margin: 0 0 40px; }
+  h2 { font-size: 20px; margin: 40px 0 12px; letter-spacing: -.01em; }
+  p { margin: 0 0 14px; }
+  ul { margin: 0 0 14px; padding-left: 22px; color: var(--ink-2); }
+  li { margin-bottom: 6px; }
+  a { color: var(--accent); }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 20px 24px;
+    margin-top: 32px;
+  }
+  .card p:last-child { margin-bottom: 0; }
+  footer {
+    border-top: 1px solid var(--line);
+    margin-top: 56px;
+    padding-top: 20px;
+    color: var(--ink-2);
+    font-size: 15px;
+  }
+</style>
+</head>
+<body>
+<main>
+  <h1>Unidos Pelo Vôlei</h1>
+  <p class="sub">O aplicativo que organiza os sábados de vôlei do nosso grupo.</p>
+
+  <p>O Unidos Pelo Vôlei substitui o controle no papel que os organizadores levavam
+  para a quadra. Ele registra quem apareceu no dia, sorteia times equilibrados,
+  monta o chaveamento das partidas e mantém a classificação atualizada enquanto os
+  jogos acontecem.</p>
+
+  <h2>O que ele faz</h2>
+  <ul>
+    <li>Marca a presença de quem chegou, direto na listagem de jogadores.</li>
+    <li>Sorteia times equilibrando nível de habilidade e cotas de gênero, evitando repetir as mesmas duplas toda semana.</li>
+    <li>Monta o chaveamento em trios por quadra e acompanha os resultados rodada a rodada.</li>
+    <li>Encerra o dia arquivando o desempenho de cada jogador no histórico.</li>
+    <li>Funciona sem internet na quadra: o aparelho sincroniza sozinho quando a conexão volta.</li>
+  </ul>
+
+  <h2>Para quem é</h2>
+  <p>Para os organizadores e participantes do grupo Unidos Pelo Vôlei. Não é um app
+  aberto ao público: quem entra sem permissão de administrador apenas acompanha os
+  times e a classificação, sem poder alterar nada.</p>
+
+  <div class="card">
+    <h2 style="margin-top:0">Privacidade</h2>
+    <p>O app usa o login com o Google para identificar quem organiza o jogo. Não há
+    anúncios, rastreamento de comportamento nem compartilhamento de dados com
+    terceiros.</p>
+    <p><a href="../privacidade/">Leia a Política de Privacidade completa</a><br>
+    <a href="../exclusao/">Como excluir sua conta e seus dados</a></p>
+  </div>
+
+  <footer>
+    <p>Contato: <a href="mailto:arturbsantos120204@gmail.com">arturbsantos120204@gmail.com</a><br>
+    Código-fonte: <a href="https://github.com/Artur-Bertoni/Unidos-Pelo-Volei">github.com/Artur-Bertoni/Unidos-Pelo-Volei</a></p>
+  </footer>
+</main>
+</body>
+</html>

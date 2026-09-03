@@ -41,6 +41,7 @@ vezes.
 - [Aplicação web](#aplicação-web)
   - [Rodando a web localmente](#rodando-a-web-localmente)
   - [Publicando a web](#publicando-a-web)
+  - [Páginas públicas](#páginas-públicas)
 - [As cinco abas](#as-cinco-abas)
 - [Quem é quem no app](#quem-é-quem-no-app)
 - [Confirmação de presença e lembretes](#confirmação-de-presença-e-lembretes)
@@ -852,6 +853,34 @@ deploy, não uma mudança de configuração no servidor.
 
 Depois do primeiro deploy, volte ao Supabase e acrescente o domínio publicado às
 *Redirect URLs*, e ao Google Cloud em *Domínios autorizados* se ainda não estiver lá.
+
+### Páginas públicas
+
+A landing, a política de privacidade e a página de exclusão de conta são HTML
+estático em `web/public/`. Saem no mesmo deploy da web, sem build próprio, e ficam
+na mesma origem do app:
+
+| Página | Caminho publicado | Onde é exigida |
+| --- | --- | --- |
+| Landing | `/sobre/` | *App Homepage* na tela de consentimento do Google |
+| Privacidade | `/privacidade/` | ficha da Play Store e tela de consentimento |
+| Exclusão de conta | `/exclusao/` | formulário de Segurança dos Dados da Play Store |
+
+A raiz `/` é o app, que abre na tela de login — por isso a landing mora em `/sobre/`
+e não na raiz: o Google exige que a homepage seja legível sem autenticação.
+
+As três ficam fora do precache do service worker, pela `globIgnores` em
+[`web/vite.config.ts`](web/vite.config.ts). Sem isso elas entrariam no pacote que
+todo mundo baixa na primeira visita, e um ajuste no texto da política só chegaria
+às pessoas no próximo update do worker.
+
+Nenhuma dessas URLs aparece no código do app Android: elas vivem só em campos de
+formulário do Play Console e do Google Cloud. Mudar o endereço delas é edição de
+configuração, não release nova.
+
+> A cópia antiga em `docs/`, servida pelo GitHub Pages, continua no ar de propósito:
+> a ficha já aprovada na loja aponta para lá enquanto a revisão dos links novos não
+> sai. Depois que a revisão aprovar, `docs/` pode ser apagada.
 
 ---
 

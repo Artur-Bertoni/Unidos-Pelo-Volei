@@ -18,6 +18,7 @@ export default defineConfig({
       includeAssets: ['logo-upv.png'],
       injectManifest: {
         globPatterns: ['**/*.{js,css,html,png,svg,wasm}'],
+        globIgnores: ['sobre/**', 'privacidade/**', 'exclusao/**'],
         maximumFileSizeToCacheInBytes: 8 * 1024 * 1024,
       },
       manifest: {
