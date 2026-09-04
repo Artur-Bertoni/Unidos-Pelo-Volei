@@ -139,6 +139,7 @@ fun BarraDeAbas(
     abaAtual: AbaPrincipal,
     onSelecionar: (AbaPrincipal) -> Unit,
     modifier: Modifier = Modifier,
+    abasComAviso: Set<AbaPrincipal> = emptySet(),
 ) {
     Column(modifier = modifier) {
         HorizontalDivider(color = VoleiColors.Borda, thickness = 1.dp)
@@ -150,7 +151,13 @@ fun BarraDeAbas(
                 NavigationBarItem(
                     selected = aba == abaAtual,
                     onClick = { onSelecionar(aba) },
-                    icon = { Icon(aba.icone, contentDescription = null, modifier = Modifier.size(22.dp)) },
+                    icon = {
+                        IconeComAviso(
+                            icone = aba.icone,
+                            comAviso = aba in abasComAviso,
+                            descricao = if (aba in abasComAviso) "${aba.rotulo}, tem novidade" else null,
+                        )
+                    },
                     label = {
                         Text(
                             aba.rotulo.uppercase(),
@@ -169,6 +176,31 @@ fun BarraDeAbas(
                         ),
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun IconeComAviso(
+    icone: ImageVector,
+    comAviso: Boolean,
+    descricao: String?,
+    modifier: Modifier = Modifier,
+) {
+    Box(modifier = modifier.size(26.dp), contentAlignment = Alignment.Center) {
+        Icon(icone, contentDescription = descricao, modifier = Modifier.size(22.dp))
+        if (comAviso) {
+            Box(
+                modifier =
+                    Modifier
+                        .align(Alignment.TopEnd)
+                        .size(9.dp)
+                        .clip(CircleShape)
+                        .background(VoleiColors.FundoCabecalho)
+                        .padding(1.dp)
+                        .clip(CircleShape)
+                        .background(VoleiColors.VerdeClaro),
+            )
         }
     }
 }

@@ -4,6 +4,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.unidospelovolei.data.AuthRepository
 import com.unidospelovolei.data.ChamadaRepository
+import com.unidospelovolei.data.ContaDoGrupo
+import com.unidospelovolei.data.ContasRepository
 import com.unidospelovolei.data.GameDaysRepository
 import com.unidospelovolei.data.MembroRepository
 import com.unidospelovolei.data.PlayersRepository
@@ -12,7 +14,7 @@ import com.unidospelovolei.domain.model.ConfigGrupo
 import com.unidospelovolei.domain.model.Player
 import com.unidospelovolei.domain.model.PlayerContato
 import com.unidospelovolei.domain.model.PlayerPerformance
-import com.unidospelovolei.domain.model.Posicao
+import com.unidospelovolei.domain.model.Regime
 import com.unidospelovolei.domain.model.StatusPresenca
 import com.unidospelovolei.domain.model.StatusVinculo
 import com.unidospelovolei.domain.model.UserProfile
@@ -23,6 +25,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
@@ -72,11 +75,17 @@ class MembroViewModel(
     gameDaysRepository: GameDaysRepository,
     private val membroRepository: MembroRepository,
     private val chamadaRepository: ChamadaRepository,
+    private val contasRepository: ContasRepository,
 ) : ViewModel() {
     private val sabado = ChamadaRepository.proximoSabado()
     private val busca = MutableStateFlow("")
     private val salvando = MutableStateFlow(false)
     private val erro = MutableStateFlow<String?>(null)
+    private val contas = MutableStateFlow<List<ContaDoGrupo>>(emptyList())
+    private val carregandoContas = MutableStateFlow(false)
+
+    val contasDoGrupo: StateFlow<List<ContaDoGrupo>> = contas.asStateFlow()
+    val buscandoContas: StateFlow<Boolean> = carregandoContas.asStateFlow()
 
     private val usuarioId =
         authRepository.sessionStatus.map { status ->
@@ -189,14 +198,34 @@ class MembroViewModel(
         executar { membroRepository.decidir(pedido, aprovado, perfil.id) }
     }
 
+    fun carregarContas() {
+        if (carregandoContas.value) return
+        viewModelScope.launch {
+            carregandoContas.value = true
+            runCatching { contasRepository.listar() }
+                .onSuccess { contas.value = it }
+                .onFailure {
+                    erro.value = "Não foi possível listar as contas. Precisa de internet."
+                }
+            carregandoContas.value = false
+        }
+    }
+
+    fun vincularManualmente(
+        playerId: String,
+        profileId: String,
+    ) = executar { playersRepository.vincular(playerId, profileId) }
+
+    fun desvincular(playerId: String) = executar { playersRepository.vincular(playerId, null) }
+
     fun salvarFicha(
         nome: String,
-        posicao: Posicao?,
         nascimentoDia: Int?,
         nascimentoMes: Int?,
         telefone: String?,
         contatoEmergencia: String?,
         nascimentoAno: Int?,
+        regime: Regime,
     ) {
         val jogador = estado.value.meuJogador ?: return
         val perfil = estado.value.profile ?: return
@@ -204,9 +233,9 @@ class MembroViewModel(
             playersRepository.salvarFicha(
                 playerId = jogador.id,
                 nome = nome,
-                posicao = posicao,
                 nascimentoDia = nascimentoDia,
                 nascimentoMes = nascimentoMes,
+                regime = regime,
             )
             membroRepository.salvarContato(
                 playerId = jogador.id,

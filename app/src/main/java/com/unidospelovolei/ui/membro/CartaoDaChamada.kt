@@ -41,7 +41,7 @@ fun CartaoDaChamada(
             RotuloPequeno("Sábado $diaEMes")
 
             Text(
-                text = if (minhaResposta == null) "Você vai jogar?" else "Você respondeu: ${minhaResposta.rotulo}",
+                text = "Você vai jogar?",
                 color = VoleiColors.TextoPrimario,
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold,
@@ -51,6 +51,14 @@ fun CartaoDaChamada(
                 .joinToString(" · ")
                 .takeIf { it.isNotBlank() }
                 ?.let { Text(it, color = VoleiColors.TextoSecundario, fontSize = 12.sp) }
+
+            if (minhaResposta != null) {
+                Text(
+                    text = "Você respondeu: ${minhaResposta.rotulo}. Pode trocar quando quiser.",
+                    color = VoleiColors.TextoTerciario,
+                    fontSize = 12.sp,
+                )
+            }
 
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 StatusPresenca.entries.forEach { opcao ->

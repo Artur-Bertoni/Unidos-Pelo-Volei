@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -19,6 +20,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -38,6 +40,7 @@ fun AprovacoesScreen(
     salvando: Boolean,
     onVoltar: () -> Unit,
     onDecidir: (VinculoPedido, Boolean) -> Unit,
+    onAbrirVinculos: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Scaffold(
@@ -69,12 +72,18 @@ fun AprovacoesScreen(
                         fontSize = 12.sp,
                     )
                 }
+                Spacer(modifier = Modifier.weight(1f))
+                TextButton(onClick = onAbrirVinculos) {
+                    Text("Vincular à mão", color = VoleiColors.Azul, fontSize = 13.sp)
+                }
             }
 
             if (fila.isEmpty()) {
                 EstadoVazio(
                     titulo = "Nenhum pedido na fila",
-                    descricao = "Quando alguém entrar e escolher o próprio nome, o pedido aparece aqui.",
+                    descricao =
+                        "Quando alguém entrar e escolher o próprio nome, o pedido aparece aqui. " +
+                            "Você também pode ligar jogador e conta na mão, em Vincular à mão.",
                     modifier = Modifier.fillMaxWidth(),
                 )
                 return@Column

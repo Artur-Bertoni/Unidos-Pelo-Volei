@@ -6,6 +6,7 @@ import {
   pedirVinculo,
   salvarContato,
   salvarFicha,
+  vincularJogador,
 } from './data/membro';
 import {
   apagarResultados,
@@ -63,6 +64,7 @@ import {
   trazerConfirmados,
 } from './data/grupo';
 import { chavesFaltando, configurado, env } from './lib/env';
+import { enviarImagemDoMural } from './lib/mural';
 import { supabase } from './lib/supabase';
 import { entrarComGoogle, sair } from './lib/supabase';
 import {
@@ -125,6 +127,8 @@ import {
 import { JogadoresScreen, filtrarJogadores, type FiltroPresenca } from './ui/screens/Jogadores';
 import { JogosScreen } from './ui/screens/Jogos';
 import { ConfiguracaoPendenteScreen, LoginScreen } from './ui/screens/Login';
+import { jaViuOTour, marcarTourComoVisto, TourScreen } from './ui/screens/Tour';
+import { VinculosScreen, type ContaDoGrupo } from './ui/screens/Vinculos';
 import { PlacarScreen } from './ui/screens/Placar';
 import { SorteioScreen } from './ui/screens/Sorteio';
 import { TeamEditorDialog, TeamHistoryDialog, TimesScreen } from './ui/screens/Times';
@@ -139,6 +143,7 @@ type Destino =
   | { tipo: 'jogadores' }
   | { tipo: 'distribuicao' }
   | { tipo: 'aprovacoes' }
+  | { tipo: 'vinculos' }
   | { tipo: 'painel-financeiro' }
   | { tipo: 'avaliacao' }
   | { tipo: 'pagina'; pagina: Pagina }
@@ -189,16 +194,37 @@ function Raiz() {
     );
   }
 
-  return <Home usuarioId={session.user.id} />;
+  return <ComTour usuarioId={session.user.id} />;
 }
 
-function Home({ usuarioId }: { usuarioId: string }) {
+function ComTour({ usuarioId }: { usuarioId: string }) {
+  const [mostrarTour, setMostrarTour] = useState(() => !jaViuOTour());
+  const [veioDoTour, setVeioDoTour] = useState(false);
+
+  if (mostrarTour) {
+    return (
+      <div className="app">
+        <TourScreen
+          onConcluir={() => {
+            marcarTourComoVisto();
+            setVeioDoTour(true);
+            setMostrarTour(false);
+          }}
+        />
+      </div>
+    );
+  }
+
+  return <Home usuarioId={usuarioId} abaInicial={veioDoTour ? 'eu' : 'social'} />;
+}
+
+function Home({ usuarioId, abaInicial }: { usuarioId: string; abaInicial: Aba }) {
   const perfil = usePerfil(usuarioId);
   const isAdmin = perfil?.isAdmin === true;
   const sinal = useSinal();
   const formato = useFormato();
 
-  const [aba, setAba] = useState<Aba>('social');
+  const [aba, setAba] = useState<Aba>(abaInicial);
   const [destino, setDestino] = useState<Destino>({ tipo: 'abas' });
   const [historicoDoTime, setHistoricoDoTime] = useState<Team | null>(null);
   const [editandoTime, setEditandoTime] = useState<Team | null>(null);
@@ -240,6 +266,8 @@ function Home({ usuarioId }: { usuarioId: string }) {
   const [configurandoFinanceiro, setConfigurandoFinanceiro] = useState(false);
   const [painel, setPainel] = useState<LinhaDoPainel[]>([]);
   const [carregandoPainel, setCarregandoPainel] = useState(false);
+  const [contas, setContas] = useState<ContaDoGrupo[]>([]);
+  const [carregandoContas, setCarregandoContas] = useState(false);
 
   const sabado = proximoSabado();
   const configGrupo = useConfigGrupo();
@@ -258,6 +286,31 @@ function Home({ usuarioId }: { usuarioId: string }) {
     presencas.find((presenca) => presenca.playerId === meuJogador?.id)?.status ?? null;
   const marcos = marcosDe(todosOsJogadores);
   const resumo = resumoDaChamada(presencas, todosOsJogadores.length);
+
+  const carregarContas = (): Promise<void> =>
+    executar(async () => {
+      setCarregandoContas(true);
+      try {
+        const { data, error } = await supabase.from('profiles').select();
+        if (error) throw new Error('Não foi possível listar as contas. Precisa de internet.');
+        const nomeDe = (conta: ContaDoGrupo): string =>
+          (conta.nome ?? conta.email ?? '').toLowerCase();
+        setContas(
+          (data ?? [])
+            .map(
+              (linha): ContaDoGrupo => ({
+                id: String(linha.id),
+                nome: linha.nome === null ? null : String(linha.nome),
+                email: linha.email === null ? null : String(linha.email),
+                isAdmin: Boolean(linha.is_admin),
+              }),
+            )
+            .sort((a, b) => nomeDe(a).localeCompare(nomeDe(b))),
+        );
+      } finally {
+        setCarregandoContas(false);
+      }
+    });
 
   const carregarPainel = (): Promise<void> =>
     executar(async () => {
@@ -380,6 +433,35 @@ function Home({ usuarioId }: { usuarioId: string }) {
           onDecidir={(pedido, aprovado) =>
             void executar(() => decidirPedido(pedido, aprovado, usuarioId))
           }
+          onAbrirVinculos={() => setDestino({ tipo: 'vinculos' })}
+        />
+        {mensagemVisivel && (
+          <Aviso
+            mensagem={mensagemVisivel}
+            onFechar={() => {
+              limparErro();
+              setAviso(null);
+            }}
+          />
+        )}
+      </div>
+    );
+  }
+
+  if (destino.tipo === 'vinculos') {
+    return (
+      <div className="app">
+        <VinculosScreen
+          jogadores={todosOsJogadores}
+          contas={contas}
+          carregandoContas={carregandoContas}
+          salvando={salvando}
+          onVoltar={() => setDestino({ tipo: 'abas' })}
+          onCarregarContas={() => void carregarContas()}
+          onVincular={(playerId, profileId) =>
+            void executar(() => vincularJogador(playerId, profileId))
+          }
+          onDesvincular={(playerId) => void executar(() => vincularJogador(playerId, null))}
         />
         {mensagemVisivel && (
           <Aviso
@@ -640,7 +722,9 @@ function Home({ usuarioId }: { usuarioId: string }) {
             onSecao={setSecaoDoGrupo}
             onNovoPost={() => setCriandoPost(true)}
             onExcluirPost={(postId) => void executar(() => excluirPost(postId))}
-            onReagir={(postId) => void executar(() => alternarReacao(postId, usuarioId))}
+            onReagir={(postId, emoji) =>
+              void executar(() => alternarReacao(postId, usuarioId, emoji))
+            }
             onNovoEvento={() => setCriandoEvento(true)}
             onEditarEvento={setEventoEmEdicao}
             onExcluirEvento={(eventoId) => void executar(() => excluirEvento(eventoId))}
@@ -712,10 +796,10 @@ function Home({ usuarioId }: { usuarioId: string }) {
               if (!meuPedido) return;
               void executar(() => cancelarPedido(meuPedido.id));
             }}
-            onSalvarFicha={(nome, posicao, dia, mes, telefone, emergencia, ano) => {
+            onSalvarFicha={(nome, dia, mes, telefone, emergencia, ano, regime) => {
               if (!meuJogador) return;
               void executar(async () => {
-                await salvarFicha(meuJogador.id, nome, posicao, dia, mes);
+                await salvarFicha(meuJogador.id, nome, dia, mes, regime);
                 await salvarContato(meuJogador.id, usuarioId, telefone, emergencia, ano);
               });
             }}
@@ -772,7 +856,24 @@ function Home({ usuarioId }: { usuarioId: string }) {
           aria-selected={aba === 'eu'}
           onClick={() => setAba('eu')}
         >
-          <IconePessoa tamanho={22} />
+          <span style={{ position: 'relative', display: 'flex' }}>
+            <IconePessoa tamanho={22} />
+            {avaliacoesPendentes.length > 0 && (
+              <span
+                aria-label="Tem companheiro esperando a sua nota"
+                style={{
+                  position: 'absolute',
+                  top: -1,
+                  right: -3,
+                  width: 9,
+                  height: 9,
+                  borderRadius: '50%',
+                  background: 'var(--verde-claro)',
+                  border: '1px solid var(--fundo-cabecalho)',
+                }}
+              />
+            )}
+          </span>
           Eu
         </button>
       </nav>
@@ -780,10 +881,19 @@ function Home({ usuarioId }: { usuarioId: string }) {
       {criandoPost && (
         <PostDialogo
           salvando={salvando}
-          onSalvar={(titulo, corpo, fixado) => {
-            void executar(() =>
-              publicarPost(usuarioId, perfil?.nome ?? null, titulo, corpo, fixado),
-            );
+          onSalvar={(titulo, corpo, fixado, imagem, emoji) => {
+            void executar(async () => {
+              const imagemUrl = imagem === null ? null : await enviarImagemDoMural(imagem);
+              await publicarPost(
+                usuarioId,
+                perfil?.nome ?? null,
+                titulo,
+                corpo,
+                fixado,
+                imagemUrl,
+                emoji,
+              );
+            });
             setCriandoPost(false);
           }}
           onFechar={() => setCriandoPost(false)}
@@ -809,7 +919,11 @@ function Home({ usuarioId }: { usuarioId: string }) {
       )}
 
       {historicoDoTime && (
-        <HistoricoDoTime time={historicoDoTime} onFechar={() => setHistoricoDoTime(null)} />
+        <HistoricoDoTime
+          time={historicoDoTime}
+          isAdmin={isAdmin}
+          onFechar={() => setHistoricoDoTime(null)}
+        />
       )}
 
       {(criandoTime || editandoTime) && (
@@ -851,10 +965,26 @@ function Home({ usuarioId }: { usuarioId: string }) {
   );
 }
 
-function HistoricoDoTime({ time, onFechar }: { time: Team; onFechar: () => void }) {
+function HistoricoDoTime({
+  time,
+  isAdmin,
+  onFechar,
+}: {
+  time: Team;
+  isAdmin: boolean;
+  onFechar: () => void;
+}) {
   const elenco = useElencoDoTime(time.id);
   const partidas = useHistoricoDoTime(time.id);
-  return <TeamHistoryDialog time={time} elenco={elenco} partidas={partidas} onFechar={onFechar} />;
+  return (
+    <TeamHistoryDialog
+      time={time}
+      isAdmin={isAdmin}
+      elenco={elenco}
+      partidas={partidas}
+      onFechar={onFechar}
+    />
+  );
 }
 
 function TelaDePlacar({

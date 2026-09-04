@@ -1,10 +1,10 @@
 import {
   categoriaDe,
+  EMOJI_PADRAO,
   fundamentoDe,
   FUNDAMENTOS,
   generoDe,
   papelDe,
-  posicaoDe,
   regimeDe,
   statusDe,
   statusPagamentoDe,
@@ -75,7 +75,6 @@ export const toPlayer = (row: Row): Player => ({
   genero: generoDe(textoOuNulo(row, 'genero')),
   ativo: booleano(row, 'ativo', true),
   profileId: textoOuNulo(row, 'profile_id'),
-  posicao: posicaoDe(textoOuNulo(row, 'posicao')),
   fotoUrl: textoOuNulo(row, 'foto_url'),
   nascimentoDia: inteiroOuNulo(row, 'nascimento_dia'),
   nascimentoMes: inteiroOuNulo(row, 'nascimento_mes'),
@@ -104,6 +103,8 @@ export const toPost = (row: Row): Post => ({
   corpo: texto(row, 'corpo'),
   fixado: booleano(row, 'fixado'),
   publicadoEm: textoOuNulo(row, 'publicado_em'),
+  imagemUrl: textoOuNulo(row, 'imagem_url'),
+  emoji: textoOuNulo(row, 'emoji')?.trim() || EMOJI_PADRAO,
   reacoes: inteiro(row, 'reacoes'),
   reagi: booleano(row, 'reagi'),
 });

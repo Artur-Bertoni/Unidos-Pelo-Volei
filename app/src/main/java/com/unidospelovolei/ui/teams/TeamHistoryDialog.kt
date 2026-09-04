@@ -43,6 +43,7 @@ import com.unidospelovolei.ui.theme.VoleiColors
 @Composable
 fun TeamHistoryDialog(
     time: Team,
+    isAdmin: Boolean,
     elenco: List<Player>,
     partidas: List<MatchCard>,
     onFechar: () -> Unit,
@@ -101,7 +102,7 @@ fun TeamHistoryDialog(
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
                     item {
-                        SecaoElenco(elenco = elenco)
+                        SecaoElenco(elenco = elenco, isAdmin = isAdmin)
                     }
                     item {
                         RotuloPequeno("Agenda de jogos")
@@ -127,6 +128,7 @@ fun TeamHistoryDialog(
 @Composable
 private fun SecaoElenco(
     elenco: List<Player>,
+    isAdmin: Boolean,
     modifier: Modifier = Modifier,
 ) {
     Cartao(modifier = modifier.fillMaxWidth()) {
@@ -143,8 +145,8 @@ private fun SecaoElenco(
                 if (elenco.isNotEmpty()) {
                     Text(
                         "${elenco.count { it.genero == Genero.MASCULINO }}H / " +
-                            "${elenco.count { it.genero == Genero.FEMININO }}M • " +
-                            "força ${elenco.sumOf { it.skillLevel }}",
+                            "${elenco.count { it.genero == Genero.FEMININO }}M" +
+                            if (isAdmin) " • força ${elenco.sumOf { it.skillLevel }}" else "",
                         color = VoleiColors.VerdeClaro,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
@@ -177,11 +179,13 @@ private fun SecaoElenco(
                             corTexto = VoleiColors.SeloFaseTexto,
                             corFundo = VoleiColors.SeloFaseFundo,
                         )
-                        Text(
-                            "nível ${jogador.skillLevel}",
-                            color = VoleiColors.TextoTerciario,
-                            fontSize = 11.sp,
-                        )
+                        if (isAdmin) {
+                            Text(
+                                "nível ${jogador.skillLevel}",
+                                color = VoleiColors.TextoTerciario,
+                                fontSize = 11.sp,
+                            )
+                        }
                     }
                 }
             }
@@ -213,7 +217,7 @@ private fun LinhaHistorico(
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
                 RotuloPequeno(
-                    "Fase ${partida.fase} • Rodada ${partida.roundNumero} • Quadra ${partida.quadra}",
+                    "Rodada ${partida.roundNumero} • Quadra ${partida.quadra}",
                 )
                 if (finalizada) {
                     SeloResultado(venceu = partida.winnerId == timeId)

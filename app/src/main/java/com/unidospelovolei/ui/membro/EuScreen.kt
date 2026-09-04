@@ -20,6 +20,7 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Cake
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.HowToReg
+import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.Button
@@ -75,7 +76,7 @@ fun EuScreen(
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        if (estado.isAdmin && estado.fila.isNotEmpty()) {
+        if (estado.isAdmin) {
             item {
                 CartaoDaFila(quantidade = estado.fila.size, onAbrir = onAbrirAprovacoes)
             }
@@ -139,9 +140,7 @@ fun EuScreen(
                     item {
                         EstadoVazio(
                             titulo = "Nenhum nome disponível",
-                            descricao =
-                                "Todos os jogadores da lista já têm dono. " +
-                                    "Fale com a diretoria para cadastrarem você.",
+                            descricao = "Todos os jogadores da lista já têm dono.",
                             modifier = Modifier.fillMaxWidth(),
                         )
                     }
@@ -154,6 +153,7 @@ fun EuScreen(
                         )
                     }
                 }
+                item { RecadoDaDiretoria() }
             }
         }
     }
@@ -179,13 +179,23 @@ private fun CartaoDaFila(
             )
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = if (quantidade == 1) "1 pedido aguardando" else "$quantidade pedidos aguardando",
+                    text =
+                        when (quantidade) {
+                            0 -> "Contas e jogadores"
+                            1 -> "1 pedido aguardando"
+                            else -> "$quantidade pedidos aguardando"
+                        },
                     color = VoleiColors.TextoPrimario,
                     fontSize = 15.sp,
                     fontWeight = FontWeight.Bold,
                 )
                 Text(
-                    text = "Confirme quem é quem para liberar o acesso",
+                    text =
+                        if (quantidade == 0) {
+                            "Ligue um jogador a uma conta na mão, ou desfaça um vínculo"
+                        } else {
+                            "Confirme quem é quem para liberar o acesso"
+                        },
                     color = VoleiColors.TextoSecundario,
                     fontSize = 12.sp,
                 )
@@ -197,6 +207,18 @@ private fun CartaoDaFila(
                 modifier = Modifier.size(20.dp),
             )
         }
+    }
+}
+
+@Composable
+private fun RecadoDaDiretoria(modifier: Modifier = Modifier) {
+    Cartao(modifier = modifier.fillMaxWidth(), cor = VoleiColors.CartaoInterno) {
+        Text(
+            text = "Não encontrou seu nome na lista? Entre em contato com a diretoria para adicioná-lo aqui!",
+            color = VoleiColors.TextoSecundario,
+            fontSize = 13.sp,
+            modifier = Modifier.padding(14.dp),
+        )
     }
 }
 
@@ -364,7 +386,6 @@ private fun MinhaFicha(
                             text =
                                 listOfNotNull(
                                     estado.profile?.papel?.rotulo,
-                                    jogador.posicao?.rotulo,
                                     jogador.genero.rotulo,
                                 ).joinToString(" · "),
                             color = VoleiColors.TextoSecundario,
@@ -379,6 +400,11 @@ private fun MinhaFicha(
                     )
                 }
 
+                LinhaDeDado(
+                    icone = Icons.Filled.Payments,
+                    rotulo = "Como eu pago",
+                    valor = jogador.regime.rotulo,
+                )
                 LinhaDeDado(
                     icone = Icons.Filled.Cake,
                     rotulo = "Aniversário",

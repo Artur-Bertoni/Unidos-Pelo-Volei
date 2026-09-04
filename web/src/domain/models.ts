@@ -13,23 +13,6 @@ export type MatchStatus = 'agendado' | 'finalizado';
 export const statusDe = (valor: string | null | undefined): MatchStatus =>
   valor === 'finalizado' ? 'finalizado' : 'agendado';
 
-export type Posicao = 'levantador' | 'ponteiro' | 'oposto' | 'central' | 'libero';
-
-export const POSICOES: Posicao[] = ['levantador', 'ponteiro', 'oposto', 'central', 'libero'];
-
-const ROTULOS_DE_POSICAO: Record<Posicao, string> = {
-  levantador: 'Levantador',
-  ponteiro: 'Ponteiro',
-  oposto: 'Oposto',
-  central: 'Central',
-  libero: 'Líbero',
-};
-
-export const rotuloDaPosicao = (posicao: Posicao): string => ROTULOS_DE_POSICAO[posicao];
-
-export const posicaoDe = (valor: string | null | undefined): Posicao | null =>
-  POSICOES.find((posicao) => posicao === valor) ?? null;
-
 export interface Player {
   id: string;
   nome: string;
@@ -37,7 +20,6 @@ export interface Player {
   genero: Genero;
   ativo: boolean;
   profileId: string | null;
-  posicao: Posicao | null;
   fotoUrl: string | null;
   nascimentoDia: number | null;
   nascimentoMes: number | null;
@@ -176,6 +158,8 @@ export type Regime = 'mensalista' | 'diarista' | 'isento';
 
 export const REGIMES: Regime[] = ['mensalista', 'diarista', 'isento'];
 
+export const REGIMES_DO_ATLETA: Regime[] = ['mensalista', 'diarista'];
+
 const ROTULOS_DE_REGIME: Record<Regime, string> = {
   mensalista: 'Mensalista',
   diarista: 'Diarista',
@@ -223,6 +207,10 @@ export interface ConfigGrupo {
   jogoLocal: string | null;
 }
 
+export const EMOJI_PADRAO = '👏';
+
+export const EMOJIS_DE_REACAO: string[] = ['👏', '🔥', '❤️', '😂', '👍', '🏐', '🎉', '😮'];
+
 export interface Post {
   id: string;
   autorNome: string | null;
@@ -230,32 +218,26 @@ export interface Post {
   corpo: string;
   fixado: boolean;
   publicadoEm: string | null;
+  imagemUrl: string | null;
+  emoji: string;
   reacoes: number;
   reagi: boolean;
 }
 
-export type TipoEvento = 'jogo' | 'confraternizacao' | 'amistoso' | 'campeonato' | 'outro';
+export type TipoEvento = 'jogo' | 'confraternizacao' | 'campeonato';
 
-export const TIPOS_DE_EVENTO: TipoEvento[] = [
-  'jogo',
-  'confraternizacao',
-  'amistoso',
-  'campeonato',
-  'outro',
-];
+export const TIPOS_DE_EVENTO: TipoEvento[] = ['jogo', 'confraternizacao', 'campeonato'];
 
 const ROTULOS_DE_EVENTO: Record<TipoEvento, string> = {
   jogo: 'Jogo',
   confraternizacao: 'Confraternização',
-  amistoso: 'Amistoso',
   campeonato: 'Campeonato',
-  outro: 'Outro',
 };
 
 export const rotuloDoEvento = (tipo: TipoEvento): string => ROTULOS_DE_EVENTO[tipo];
 
 export const tipoEventoDe = (valor: string | null | undefined): TipoEvento =>
-  TIPOS_DE_EVENTO.find((tipo) => tipo === valor) ?? 'outro';
+  TIPOS_DE_EVENTO.find((tipo) => tipo === valor) ?? 'jogo';
 
 export interface Evento {
   id: string;

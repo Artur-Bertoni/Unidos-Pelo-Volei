@@ -3,7 +3,10 @@ package com.unidospelovolei.ui.grupo
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.unidospelovolei.data.ChamadaRepository
+import com.unidospelovolei.data.Endereco
+import com.unidospelovolei.data.EnderecoRepository
 import com.unidospelovolei.data.GrupoRepository
+import com.unidospelovolei.data.MuralStorage
 import com.unidospelovolei.data.PlayersRepository
 import com.unidospelovolei.domain.model.CategoriaPagina
 import com.unidospelovolei.domain.model.ConfigGrupo
@@ -18,10 +21,13 @@ import com.unidospelovolei.domain.model.StatusPresenca
 import com.unidospelovolei.domain.model.TipoEvento
 import com.unidospelovolei.domain.model.TipoMarco
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
@@ -36,6 +42,16 @@ enum class SecaoDoGrupo(
     AGENDA("Agenda"),
     CHAMADA("Chamada"),
     REGRAS("Regras"),
+}
+
+data class ImagemEscolhida(
+    val bytes: ByteArray,
+    val extensao: String,
+) {
+    override fun equals(other: Any?): Boolean =
+        this === other || (other is ImagemEscolhida && extensao == other.extensao && bytes.contentEquals(other.bytes))
+
+    override fun hashCode(): Int = 31 * bytes.contentHashCode() + extensao.hashCode()
 }
 
 data class LinhaDaChamada(
@@ -64,6 +80,8 @@ data class GrupoUiState(
 class GrupoViewModel(
     private val grupoRepository: GrupoRepository,
     private val chamadaRepository: ChamadaRepository,
+    private val muralStorage: MuralStorage,
+    private val enderecoRepository: EnderecoRepository,
     playersRepository: PlayersRepository,
 ) : ViewModel() {
     private val secao = MutableStateFlow(SecaoDoGrupo.MURAL)
@@ -71,8 +89,12 @@ class GrupoViewModel(
     private val salvando = MutableStateFlow(false)
     private val erro = MutableStateFlow<String?>(null)
     private val aviso = MutableStateFlow<String?>(null)
+    private val enderecos = MutableStateFlow<List<Endereco>>(emptyList())
+    private var buscaDeEndereco: Job? = null
 
     private val sabado = ChamadaRepository.proximoSabado()
+
+    val sugestoesDeEndereco: StateFlow<List<Endereco>> = enderecos.asStateFlow()
 
     private val posts: Flow<List<Post>> =
         perfilId.flatMapLatest { id ->
@@ -145,14 +167,38 @@ class GrupoViewModel(
         corpo: String,
         fixado: Boolean,
         autorNome: String?,
+        imagem: ImagemEscolhida?,
+        emoji: String,
     ) = executar {
-        grupoRepository.publicar(perfilId.value, autorNome, titulo, corpo, fixado)
+        val url = imagem?.let { muralStorage.enviarImagem(it.bytes, it.extensao) }
+        grupoRepository.publicar(perfilId.value, autorNome, titulo, corpo, fixado, url, emoji)
     }
 
     fun excluirPost(postId: String) = executar { grupoRepository.excluirPost(postId) }
 
-    fun alternarReacao(postId: String) = executar {
-        grupoRepository.alternarReacao(postId, perfilId.value)
+    fun alternarReacao(
+        postId: String,
+        emoji: String,
+    ) = executar {
+        grupoRepository.alternarReacao(postId, perfilId.value, emoji)
+    }
+
+    fun buscarEnderecos(termo: String) {
+        buscaDeEndereco?.cancel()
+        if (termo.trim().length < EnderecoRepository.MINIMO_DE_LETRAS) {
+            enderecos.value = emptyList()
+            return
+        }
+        buscaDeEndereco =
+            viewModelScope.launch {
+                delay(ESPERA_DA_BUSCA)
+                enderecos.value = runCatching { enderecoRepository.buscar(termo) }.getOrDefault(emptyList())
+            }
+    }
+
+    fun limparEnderecos() {
+        buscaDeEndereco?.cancel()
+        enderecos.value = emptyList()
     }
 
     fun salvarEvento(
@@ -204,6 +250,10 @@ class GrupoViewModel(
     ) = executar {
         val atual = estado.value.config ?: return@executar
         chamadaRepository.salvarConfig(atual.id, jogoHora, jogoLocal)
+    }
+
+    private companion object {
+        const val ESPERA_DA_BUSCA = 350L
     }
 
     private fun executar(acao: suspend () -> Unit) {

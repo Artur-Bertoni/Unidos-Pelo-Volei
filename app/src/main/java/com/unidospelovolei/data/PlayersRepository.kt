@@ -3,7 +3,8 @@ package com.unidospelovolei.data
 import com.powersync.PowerSyncDatabase
 import com.unidospelovolei.domain.model.Genero
 import com.unidospelovolei.domain.model.Player
-import com.unidospelovolei.domain.model.Posicao
+import com.unidospelovolei.domain.model.Regime
+import com.unidospelovolei.domain.model.StatusVinculo
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -92,17 +93,17 @@ class PlayersRepository(
     suspend fun salvarFicha(
         playerId: String,
         nome: String,
-        posicao: Posicao?,
         nascimentoDia: Int?,
         nascimentoMes: Int?,
+        regime: Regime,
     ) {
         db.execute(
             """
             UPDATE players
-            SET nome = ?, posicao = ?, nascimento_dia = ?, nascimento_mes = ?, updated_at = ?
+            SET nome = ?, nascimento_dia = ?, nascimento_mes = ?, regime = ?, updated_at = ?
             WHERE id = ?
             """.trimIndent(),
-            listOf(nome.trim(), posicao?.value, nascimentoDia, nascimentoMes, agoraIso(), playerId),
+            listOf(nome.trim(), nascimentoDia, nascimentoMes, regime.value, agoraIso(), playerId),
         )
     }
 
@@ -126,6 +127,10 @@ class PlayersRepository(
                     "UPDATE players SET profile_id = NULL, updated_at = ? WHERE profile_id = ? AND id <> ?",
                     listOf(agoraIso(), profileId, playerId),
                 )
+                tx.execute(
+                    "DELETE FROM vinculo_pedidos WHERE profile_id = ? AND status = ?",
+                    listOf(profileId, StatusVinculo.PENDENTE.value),
+                )
             }
             tx.execute(
                 "UPDATE players SET profile_id = ?, updated_at = ? WHERE id = ?",
@@ -146,7 +151,7 @@ class PlayersRepository(
 
     private companion object {
         const val COLUNAS =
-            "id, nome, skill_level, genero, ativo, profile_id, posicao, foto_url, " +
+            "id, nome, skill_level, genero, ativo, profile_id, foto_url, " +
                 "nascimento_dia, nascimento_mes, entrou_em, regime"
     }
 }

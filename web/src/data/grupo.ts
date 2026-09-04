@@ -1,9 +1,10 @@
-import type {
-  CategoriaPagina,
-  NotasDaAvaliacao,
-  StatusPagamento,
-  StatusPresenca,
-  TipoEvento,
+import {
+  EMOJI_PADRAO,
+  type CategoriaPagina,
+  type NotasDaAvaliacao,
+  type StatusPagamento,
+  type StatusPresenca,
+  type TipoEvento,
 } from '../domain/models';
 import { db } from '../lib/powersync/db';
 import { agoraIso, novoId } from './mappers';
@@ -102,12 +103,27 @@ export async function publicarPost(
   titulo: string,
   corpo: string,
   fixado: boolean,
+  imagemUrl: string | null,
+  emoji: string,
 ): Promise<void> {
   const agora = agoraIso();
   await db.execute(
-    `INSERT INTO posts (id, autor_profile_id, autor_nome, titulo, corpo, fixado, publicado_em, atualizado_em)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    [novoId(), autorProfileId, autorNome, titulo.trim(), corpo.trim(), fixado ? 1 : 0, agora, agora],
+    `INSERT INTO posts (
+       id, autor_profile_id, autor_nome, titulo, corpo, imagem_url, emoji,
+       fixado, publicado_em, atualizado_em
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      novoId(),
+      autorProfileId,
+      autorNome,
+      titulo.trim(),
+      corpo.trim(),
+      imagemUrl?.trim() || null,
+      emoji.trim() || EMOJI_PADRAO,
+      fixado ? 1 : 0,
+      agora,
+      agora,
+    ],
   );
 }
 
@@ -118,7 +134,11 @@ export async function excluirPost(postId: string): Promise<void> {
   });
 }
 
-export async function alternarReacao(postId: string, profileId: string): Promise<void> {
+export async function alternarReacao(
+  postId: string,
+  profileId: string,
+  emoji: string,
+): Promise<void> {
   await db.writeTransaction(async (tx) => {
     const existente = await tx.getOptional<{ id: string }>(
       'SELECT id FROM post_reacoes WHERE post_id = ? AND profile_id = ?',
@@ -129,7 +149,7 @@ export async function alternarReacao(postId: string, profileId: string): Promise
     } else {
       await tx.execute(
         'INSERT INTO post_reacoes (id, post_id, profile_id, emoji, criado_em) VALUES (?, ?, ?, ?, ?)',
-        [novoId(), postId, profileId, '👏', agoraIso()],
+        [novoId(), postId, profileId, emoji.trim() || EMOJI_PADRAO, agoraIso()],
       );
     }
   });

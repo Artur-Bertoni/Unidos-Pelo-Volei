@@ -1,16 +1,16 @@
 import { useState, type ReactNode } from 'react';
 import {
   aniversarioDe,
-  POSICOES,
-  rotuloDaPosicao,
+  REGIMES_DO_ATLETA,
   rotuloDoGenero,
   rotuloDaPresenca,
   rotuloDoPapel,
+  rotuloDoRegime,
   STATUS_DE_PRESENCA,
   type Player,
   type PlayerContato,
   type PlayerPerformance,
-  type Posicao,
+  type Regime,
   type StatusPresenca,
   type UserProfile,
   type VinculoPedido,
@@ -51,12 +51,12 @@ interface EuProps {
   onCancelarPedido: () => void;
   onSalvarFicha: (
     nome: string,
-    posicao: Posicao | null,
     dia: number | null,
     mes: number | null,
     telefone: string | null,
     emergencia: string | null,
     ano: number | null,
+    regime: Regime,
   ) => void;
   onAbrirAprovacoes: () => void;
 }
@@ -92,14 +92,22 @@ export function EuScreen({
   return (
     <div className="conteudo">
       <div className="lista" style={{ padding: 16, gap: 12 }}>
-        {perfil?.isAdmin && fila.length > 0 && (
+        {perfil?.isAdmin && (
           <Cartao onClick={onAbrirAprovacoes}>
             <div className="linha" style={{ padding: 16, gap: 12 }}>
               <div className="coluna expandir" style={{ gap: 2 }}>
                 <span className="titulo-tela">
-                  {fila.length === 1 ? '1 pedido aguardando' : `${fila.length} pedidos aguardando`}
+                  {fila.length === 0
+                    ? 'Contas e jogadores'
+                    : fila.length === 1
+                      ? '1 pedido aguardando'
+                      : `${fila.length} pedidos aguardando`}
                 </span>
-                <span className="subtitulo">Confirme quem é quem para liberar o acesso</span>
+                <span className="subtitulo">
+                  {fila.length === 0
+                    ? 'Ligue um jogador a uma conta na mão, ou desfaça um vínculo'
+                    : 'Confirme quem é quem para liberar o acesso'}
+                </span>
               </div>
               <span className="subtitulo" aria-hidden="true">
                 ›
@@ -168,7 +176,7 @@ export function EuScreen({
             {candidatos.length === 0 ? (
               <EstadoVazio
                 titulo="Nenhum nome disponível"
-                descricao="Todos os jogadores da lista já têm dono. Fale com a diretoria para cadastrarem você."
+                descricao="Todos os jogadores da lista já têm dono."
               />
             ) : (
               candidatos.map((jogador) => (
@@ -193,6 +201,13 @@ export function EuScreen({
                 </Cartao>
               ))
             )}
+
+            <Cartao apagado>
+              <p className="subtitulo" style={{ padding: 14, margin: 0, fontSize: 13 }}>
+                Não encontrou seu nome na lista? Entre em contato com a diretoria para adicioná-lo
+                aqui!
+              </p>
+            </Cartao>
           </>
         )}
       </div>
@@ -202,8 +217,8 @@ export function EuScreen({
           jogador={meuJogador}
           contato={meuContato}
           salvando={salvando}
-          onSalvar={(nome, posicao, dia, mes, telefone, emergencia, ano) => {
-            onSalvarFicha(nome, posicao, dia, mes, telefone, emergencia, ano);
+          onSalvar={(nome, dia, mes, telefone, emergencia, ano, regime) => {
+            onSalvarFicha(nome, dia, mes, telefone, emergencia, ano, regime);
             setEditando(false);
           }}
           onFechar={() => setEditando(false)}
@@ -228,7 +243,6 @@ function MinhaFicha({
 }) {
   const subtitulo = [
     perfil ? rotuloDoPapel(perfil.papel) : null,
-    jogador.posicao ? rotuloDaPosicao(jogador.posicao) : null,
     rotuloDoGenero(jogador.genero),
   ]
     .filter((parte): parte is string => parte !== null)
@@ -256,6 +270,7 @@ function MinhaFicha({
             </button>
           </div>
 
+          <LinhaDeDado rotulo="Como eu pago" valor={rotuloDoRegime(jogador.regime as Regime)} />
           <LinhaDeDado rotulo="Aniversário" valor={aniversarioDe(jogador) ?? 'Não informado'} />
           <LinhaDeDado rotulo="Telefone" valor={contato?.telefone ?? 'Não informado'} />
           <LinhaDeDado rotulo="No grupo desde" valor={jogador.entrouEm ?? 'Não informado'} />
@@ -312,17 +327,17 @@ function FichaDialogo({
   salvando: boolean;
   onSalvar: (
     nome: string,
-    posicao: Posicao | null,
     dia: number | null,
     mes: number | null,
     telefone: string | null,
     emergencia: string | null,
     ano: number | null,
+    regime: Regime,
   ) => void;
   onFechar: () => void;
 }) {
   const [nome, setNome] = useState(jogador.nome);
-  const [posicao, setPosicao] = useState<Posicao | null>(jogador.posicao);
+  const [regime, setRegime] = useState<Regime>(jogador.regime as Regime);
   const [dia, setDia] = useState(jogador.nascimentoDia?.toString() ?? '');
   const [mes, setMes] = useState(jogador.nascimentoMes?.toString() ?? '');
   const [ano, setAno] = useState(contato?.nascimentoAno?.toString() ?? '');
@@ -351,12 +366,12 @@ function FichaDialogo({
             onClick={() =>
               onSalvar(
                 nome.trim(),
-                posicao,
                 numeroDe(dia),
                 numeroDe(mes),
                 telefone,
                 emergencia,
                 numeroDe(ano),
+                regime,
               )
             }
           >
@@ -368,20 +383,33 @@ function FichaDialogo({
       <CampoTexto valor={nome} rotulo="Nome" onMudar={setNome} />
 
       <div className="campo">
-        <span className="campo-rotulo">Posição</span>
-        <div className="linha" style={{ gap: 6, flexWrap: 'wrap' }}>
-          {POSICOES.map((opcao) => (
-            <button
-              key={opcao}
-              type="button"
-              className="chip"
-              aria-pressed={posicao === opcao}
-              onClick={() => setPosicao(posicao === opcao ? null : opcao)}
-            >
-              {rotuloDaPosicao(opcao).slice(0, 3).toUpperCase()}
-            </button>
-          ))}
-        </div>
+        <span className="campo-rotulo">Como eu pago</span>
+        {jogador.regime === 'isento' ? (
+          <span className="subtitulo" style={{ fontSize: 11 }}>
+            A diretoria te deixou isento. Fale com quem organiza para mudar.
+          </span>
+        ) : (
+          <>
+            <div className="linha" style={{ gap: 6, flexWrap: 'wrap' }}>
+              {REGIMES_DO_ATLETA.map((opcao) => (
+                <button
+                  key={opcao}
+                  type="button"
+                  className="chip"
+                  aria-pressed={regime === opcao}
+                  onClick={() => setRegime(opcao)}
+                >
+                  {rotuloDoRegime(opcao)}
+                </button>
+              ))}
+            </div>
+            <span className="subtitulo" style={{ fontSize: 11 }}>
+              {regime === 'mensalista'
+                ? 'Mensalista paga o mês inteiro e joga todo sábado.'
+                : 'Diarista paga só a diária dos sábados em que aparecer.'}
+            </span>
+          </>
+        )}
       </div>
 
       <div className="campo">
@@ -413,11 +441,13 @@ export function AprovacoesScreen({
   salvando,
   onVoltar,
   onDecidir,
+  onAbrirVinculos,
 }: {
   fila: PedidoNaFila[];
   salvando: boolean;
   onVoltar: () => void;
   onDecidir: (pedido: VinculoPedido, aprovado: boolean) => void;
+  onAbrirVinculos: () => void;
 }) {
   return (
     <div className="coluna" style={{ height: '100%' }}>
@@ -425,19 +455,22 @@ export function AprovacoesScreen({
         <button type="button" className="botao-icone" aria-label="Voltar" onClick={onVoltar}>
           <IconeVoltar />
         </button>
-        <div className="coluna">
+        <div className="coluna expandir">
           <span className="titulo-tela">Pedidos de acesso</span>
           <span className="subtitulo">
             {fila.length === 1 ? '1 aguardando' : `${fila.length} aguardando`}
           </span>
         </div>
+        <button type="button" className="botao-texto" onClick={onAbrirVinculos}>
+          Vincular à mão
+        </button>
       </div>
 
       <div className="conteudo">
         {fila.length === 0 ? (
           <EstadoVazio
             titulo="Nenhum pedido na fila"
-            descricao="Quando alguém entrar e escolher o próprio nome, o pedido aparece aqui."
+            descricao="Quando alguém entrar e escolher o próprio nome, o pedido aparece aqui. Você também pode ligar jogador e conta na mão, em Vincular à mão."
           />
         ) : (
           <div className="lista" style={{ padding: 16, gap: 12 }}>
@@ -509,14 +542,15 @@ export function CartaoDaChamada({
     <Cartao>
       <div className="coluna" style={{ padding: 16, gap: 12 }}>
         <RotuloPequeno>Sábado {diaEMes}</RotuloPequeno>
-        <strong style={{ fontSize: 18 }}>
-          {minhaResposta === null
-            ? 'Você vai jogar?'
-            : `Você respondeu: ${rotuloDaPresenca(minhaResposta)}`}
-        </strong>
+        <strong style={{ fontSize: 18 }}>Você vai jogar?</strong>
         {(jogoHora !== null || jogoLocal !== null) && (
           <span className="subtitulo" style={{ fontSize: 12 }}>
             {[jogoHora ? `às ${jogoHora}` : null, jogoLocal].filter(Boolean).join(' · ')}
+          </span>
+        )}
+        {minhaResposta !== null && (
+          <span className="subtitulo" style={{ fontSize: 12 }}>
+            {`Você respondeu: ${rotuloDaPresenca(minhaResposta)}. Pode trocar quando quiser.`}
           </span>
         )}
         <div className="linha" style={{ gap: 8 }}>

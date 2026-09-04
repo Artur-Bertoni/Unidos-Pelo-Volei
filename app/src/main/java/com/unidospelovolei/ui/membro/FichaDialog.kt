@@ -9,7 +9,9 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -26,7 +28,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.unidospelovolei.domain.model.Player
 import com.unidospelovolei.domain.model.PlayerContato
-import com.unidospelovolei.domain.model.Posicao
+import com.unidospelovolei.domain.model.Regime
 import com.unidospelovolei.ui.components.CampoTexto
 import com.unidospelovolei.ui.components.RotuloPequeno
 import com.unidospelovolei.ui.theme.VoleiColors
@@ -36,13 +38,13 @@ fun FichaDialog(
     jogador: Player,
     contato: PlayerContato?,
     salvando: Boolean,
-    onSalvar: (String, Posicao?, Int?, Int?, String?, String?, Int?) -> Unit,
+    onSalvar: (String, Int?, Int?, String?, String?, Int?, Regime) -> Unit,
     onFechar: () -> Unit,
 ) {
     var nome by remember(jogador.id) { mutableStateOf(jogador.nome) }
-    var posicao by remember(jogador.id) { mutableStateOf(jogador.posicao) }
     var dia by remember(jogador.id) { mutableStateOf(jogador.nascimentoDia?.toString().orEmpty()) }
     var mes by remember(jogador.id) { mutableStateOf(jogador.nascimentoMes?.toString().orEmpty()) }
+    var regime by remember(jogador.id) { mutableStateOf(jogador.regime) }
     var ano by remember(contato?.id) { mutableStateOf(contato?.nascimentoAno?.toString().orEmpty()) }
     var telefone by remember(contato?.id) { mutableStateOf(contato?.telefone.orEmpty()) }
     var emergencia by remember(contato?.id) { mutableStateOf(contato?.contatoEmergencia.orEmpty()) }
@@ -60,7 +62,10 @@ fun FichaDialog(
         textContentColor = VoleiColors.TextoSecundario,
         title = { Text("Minha ficha", fontWeight = FontWeight.Bold) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
                 CampoTexto(
                     valor = nome,
                     rotulo = "Nome",
@@ -68,16 +73,37 @@ fun FichaDialog(
                     modifier = Modifier.fillMaxWidth(),
                 )
 
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    RotuloPequeno("Posição")
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Posicao.entries.forEach { opcao ->
-                            ChipPosicao(
-                                rotulo = opcao.rotulo.take(3),
-                                selecionado = opcao == posicao,
-                                onClick = { posicao = if (posicao == opcao) null else opcao },
-                            )
+                if (jogador.regime == Regime.ISENTO) {
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        RotuloPequeno("Como eu pago")
+                        Text(
+                            text = "A diretoria te deixou isento. Fale com quem organiza para mudar.",
+                            color = VoleiColors.TextoTerciario,
+                            fontSize = 11.sp,
+                        )
+                    }
+                } else {
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        RotuloPequeno("Como eu pago")
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Regime.escolhiveisPeloAtleta.forEach { opcao ->
+                                ChipDeEscolha(
+                                    rotulo = opcao.rotulo,
+                                    selecionado = opcao == regime,
+                                    onClick = { regime = opcao },
+                                )
+                            }
                         }
+                        Text(
+                            text =
+                                if (regime == Regime.MENSALISTA) {
+                                    "Mensalista paga o mês inteiro e joga todo sábado."
+                                } else {
+                                    "Diarista paga só a diária dos sábados em que aparecer."
+                                },
+                            color = VoleiColors.TextoTerciario,
+                            fontSize = 11.sp,
+                        )
                     }
                 }
 
@@ -129,12 +155,12 @@ fun FichaDialog(
                 onClick = {
                     onSalvar(
                         nome.trim(),
-                        posicao,
                         dia.toIntOrNull(),
                         mes.toIntOrNull(),
                         telefone,
                         emergencia,
                         ano.toIntOrNull(),
+                        regime,
                     )
                 },
                 enabled = podeSalvar,
@@ -154,7 +180,7 @@ fun FichaDialog(
 }
 
 @Composable
-private fun ChipPosicao(
+fun ChipDeEscolha(
     rotulo: String,
     selecionado: Boolean,
     onClick: () -> Unit,
@@ -170,13 +196,13 @@ private fun ChipPosicao(
                     color = if (selecionado) VoleiColors.Azul else VoleiColors.Borda,
                     shape = RoundedCornerShape(8.dp),
                 ).clickable(onClick = onClick)
-                .padding(horizontal = 10.dp, vertical = 6.dp),
+                .padding(horizontal = 12.dp, vertical = 8.dp),
         contentAlignment = Alignment.Center,
     ) {
         Text(
-            text = rotulo.uppercase(),
+            text = rotulo,
             color = if (selecionado) VoleiColors.SeloFaseTexto else VoleiColors.TextoSecundario,
-            fontSize = 11.sp,
+            fontSize = 12.sp,
             fontWeight = FontWeight.Bold,
         )
     }

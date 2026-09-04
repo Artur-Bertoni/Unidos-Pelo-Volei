@@ -1,12 +1,22 @@
 package com.unidospelovolei.ui.grupo
 
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -21,15 +31,20 @@ import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.unidospelovolei.data.Endereco
+import com.unidospelovolei.domain.model.EMOJIS_DE_REACAO
+import com.unidospelovolei.domain.model.EMOJI_PADRAO
 import com.unidospelovolei.domain.model.Evento
 import com.unidospelovolei.domain.model.Pagina
 import com.unidospelovolei.domain.model.TipoEvento
@@ -40,12 +55,30 @@ import com.unidospelovolei.ui.theme.VoleiColors
 @Composable
 fun PostDialog(
     salvando: Boolean,
-    onSalvar: (String, String, Boolean) -> Unit,
+    onSalvar: (String, String, Boolean, ImagemEscolhida?, String) -> Unit,
     onFechar: () -> Unit,
 ) {
     var titulo by remember { mutableStateOf("") }
     var corpo by remember { mutableStateOf("") }
     var fixado by remember { mutableStateOf(false) }
+    var emoji by remember { mutableStateOf(EMOJI_PADRAO) }
+    var imagem by remember { mutableStateOf<ImagemEscolhida?>(null) }
+    var nomeDaImagem by remember { mutableStateOf<String?>(null) }
+    var falhaNaImagem by remember { mutableStateOf<String?>(null) }
+
+    val contexto = LocalContext.current
+    val escolherImagem =
+        rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri: Uri? ->
+            if (uri == null) return@rememberLauncherForActivityResult
+            val lida = runCatching { lerImagem(contexto.contentResolver, uri) }.getOrNull()
+            if (lida == null) {
+                falhaNaImagem = "Não deu para ler essa imagem. Tente outra."
+            } else {
+                falhaNaImagem = null
+                imagem = lida
+                nomeDaImagem = "Imagem de ${lida.bytes.size / 1024} KB"
+            }
+        }
 
     AlertDialog(
         onDismissRequest = onFechar,
@@ -53,11 +86,81 @@ fun PostDialog(
         titleContentColor = VoleiColors.TextoPrimario,
         title = { Text("Publicar no mural", fontWeight = FontWeight.Bold) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
                 CampoTexto(titulo, "Título", { titulo = it }, Modifier.fillMaxWidth())
                 CampoLongo(corpo, "Recado", { corpo = it })
+
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    RotuloPequeno("Imagem")
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        TextButton(
+                            onClick = {
+                                escolherImagem.launch(
+                                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly),
+                                )
+                            },
+                        ) {
+                            Text(
+                                if (imagem == null) "Anexar imagem" else "Trocar imagem",
+                                color = VoleiColors.Azul,
+                                fontSize = 13.sp,
+                            )
+                        }
+                        if (imagem != null) {
+                            TextButton(
+                                onClick = {
+                                    imagem = null
+                                    nomeDaImagem = null
+                                },
+                            ) {
+                                Text("Remover", color = VoleiColors.Vermelho, fontSize = 13.sp)
+                            }
+                        }
+                    }
+                    (falhaNaImagem ?: nomeDaImagem)?.let { aviso ->
+                        Text(
+                            text = aviso,
+                            color = if (falhaNaImagem != null) VoleiColors.Vermelho else VoleiColors.TextoTerciario,
+                            fontSize = 11.sp,
+                        )
+                    }
+                }
+
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    RotuloPequeno("Reação padrão")
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        EMOJIS_DE_REACAO.forEach { opcao ->
+                            BotaoDeEmoji(
+                                emoji = opcao,
+                                selecionado = opcao == emoji,
+                                onClick = { emoji = opcao },
+                                modifier = Modifier.weight(1f),
+                            )
+                        }
+                    }
+                    Text(
+                        text = "É o emoji que o grupo toca para reagir a este recado.",
+                        color = VoleiColors.TextoTerciario,
+                        fontSize = 11.sp,
+                    )
+                }
+
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("Fixar no topo", color = VoleiColors.TextoSecundario, fontSize = 13.sp, modifier = Modifier.weight(1f))
+                    Text(
+                        "Fixar no topo",
+                        color = VoleiColors.TextoSecundario,
+                        fontSize = 13.sp,
+                        modifier = Modifier.weight(1f),
+                    )
                     Switch(
                         checked = fixado,
                         onCheckedChange = { fixado = it },
@@ -72,11 +175,11 @@ fun PostDialog(
         },
         confirmButton = {
             TextButton(
-                onClick = { onSalvar(titulo, corpo, fixado) },
+                onClick = { onSalvar(titulo, corpo, fixado, imagem, emoji) },
                 enabled = titulo.isNotBlank() && !salvando,
             ) {
                 Text(
-                    "Publicar",
+                    if (salvando && imagem != null) "Enviando…" else "Publicar",
                     color = if (titulo.isNotBlank()) VoleiColors.VerdeClaro else VoleiColors.TextoTerciario,
                 )
             }
@@ -87,23 +190,44 @@ fun PostDialog(
     )
 }
 
+private fun lerImagem(
+    resolver: android.content.ContentResolver,
+    uri: Uri,
+): ImagemEscolhida {
+    val bytes = resolver.openInputStream(uri)?.use { it.readBytes() } ?: error("Sem acesso à imagem.")
+    val extensao =
+        when (resolver.getType(uri)) {
+            "image/png" -> "png"
+            "image/webp" -> "webp"
+            "image/gif" -> "gif"
+            else -> "jpg"
+        }
+    return ImagemEscolhida(bytes = bytes, extensao = extensao)
+}
+
 @Composable
 fun EventoDialog(
     evento: Evento?,
     salvando: Boolean,
+    sugestoes: List<Endereco>,
+    onBuscarEndereco: (String) -> Unit,
+    onLimparSugestoes: () -> Unit,
     onSalvar: (String?, String, String?, TipoEvento, String, String?) -> Unit,
     onFechar: () -> Unit,
 ) {
     var titulo by remember(evento?.id) { mutableStateOf(evento?.titulo.orEmpty()) }
     var descricao by remember(evento?.id) { mutableStateOf(evento?.descricao.orEmpty()) }
-    var data by remember(evento?.id) { mutableStateOf(evento?.inicio?.take(10).orEmpty()) }
+    var data by remember(evento?.id) { mutableStateOf(paraDiaMesAno(evento?.inicio)) }
     var hora by remember(evento?.id) { mutableStateOf(evento?.inicio?.substring(11, 16) ?: "19:00") }
     var local by remember(evento?.id) { mutableStateOf(evento?.local.orEmpty()) }
-    var tipo by remember(evento?.id) { mutableStateOf(evento?.tipo ?: TipoEvento.CONFRATERNIZACAO) }
+    var tipo by remember(evento?.id) { mutableStateOf(evento?.tipo ?: TipoEvento.JOGO) }
+    var buscandoLocal by remember(evento?.id) { mutableStateOf(false) }
 
-    val dataValida = Regex("^\\d{4}-\\d{2}-\\d{2}$").matches(data)
+    LaunchedEffect(Unit) { onLimparSugestoes() }
+
+    val dataIso = paraIso(data)
     val horaValida = Regex("^\\d{2}:\\d{2}$").matches(hora)
-    val podeSalvar = titulo.isNotBlank() && dataValida && horaValida && !salvando
+    val podeSalvar = titulo.isNotBlank() && dataIso != null && horaValida && !salvando
 
     AlertDialog(
         onDismissRequest = onFechar,
@@ -111,20 +235,82 @@ fun EventoDialog(
         titleContentColor = VoleiColors.TextoPrimario,
         title = { Text(if (evento == null) "Novo evento" else "Editar evento", fontWeight = FontWeight.Bold) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
                 CampoTexto(titulo, "Título", { titulo = it }, Modifier.fillMaxWidth())
+
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    CampoTexto(data, "Data (AAAA-MM-DD)", { data = it }, Modifier.weight(1.6f))
-                    CampoTexto(hora, "Hora", { hora = it }, Modifier.weight(1f))
+                    CampoTexto(
+                        valor = data,
+                        rotulo = "Data (dd/mm/aaaa)",
+                        onMudar = { data = mascaraDeData(it) },
+                        modifier = Modifier.weight(1.6f),
+                    )
+                    CampoTexto(
+                        valor = hora,
+                        rotulo = "Hora",
+                        onMudar = { hora = mascaraDeHora(it) },
+                        modifier = Modifier.weight(1f),
+                    )
                 }
-                CampoTexto(local, "Local", { local = it }, Modifier.fillMaxWidth())
+                if (data.isNotBlank() && dataIso == null) {
+                    Text("Data inválida. Use dd/mm/aaaa.", color = VoleiColors.Vermelho, fontSize = 11.sp)
+                }
+
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    CampoTexto(
+                        valor = local,
+                        rotulo = "Local",
+                        onMudar = {
+                            local = it
+                            buscandoLocal = true
+                            onBuscarEndereco(it)
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    if (buscandoLocal && sugestoes.isNotEmpty()) {
+                        Column(
+                            modifier =
+                                Modifier
+                                    .fillMaxWidth()
+                                    .heightIn(max = 160.dp)
+                                    .verticalScroll(rememberScrollState())
+                                    .border(1.dp, VoleiColors.Borda, RoundedCornerShape(10.dp)),
+                        ) {
+                            sugestoes.forEach { sugestao ->
+                                Text(
+                                    text = sugestao.descricao,
+                                    color = VoleiColors.TextoSecundario,
+                                    fontSize = 12.sp,
+                                    modifier =
+                                        Modifier
+                                            .fillMaxWidth()
+                                            .clickable {
+                                                local = sugestao.descricao
+                                                buscandoLocal = false
+                                                onLimparSugestoes()
+                                            }.padding(horizontal = 10.dp, vertical = 8.dp),
+                                )
+                            }
+                        }
+                    }
+                    Text(
+                        text = "Digite o endereço e toque em uma sugestão do mapa.",
+                        color = VoleiColors.TextoTerciario,
+                        fontSize = 11.sp,
+                    )
+                }
+
                 CampoLongo(descricao, "Descrição", { descricao = it })
+
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     RotuloPequeno("Tipo")
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         TipoEvento.entries.forEach { opcao ->
-                            ChipSimples(
-                                rotulo = opcao.rotulo.take(6),
+                            ChipDeTipo(
+                                rotulo = opcao.rotulo,
                                 selecionado = opcao == tipo,
                                 onClick = { tipo = opcao },
                             )
@@ -135,16 +321,62 @@ fun EventoDialog(
         },
         confirmButton = {
             TextButton(
-                onClick = { onSalvar(evento?.id, titulo, descricao, tipo, "${data}T$hora:00Z", local) },
+                onClick = {
+                    onLimparSugestoes()
+                    onSalvar(evento?.id, titulo, descricao, tipo, "${dataIso}T$hora:00Z", local)
+                },
                 enabled = podeSalvar,
             ) {
                 Text("Salvar", color = if (podeSalvar) VoleiColors.VerdeClaro else VoleiColors.TextoTerciario)
             }
         },
         dismissButton = {
-            TextButton(onClick = onFechar) { Text("Cancelar", color = VoleiColors.TextoSecundario) }
+            TextButton(
+                onClick = {
+                    onLimparSugestoes()
+                    onFechar()
+                },
+            ) { Text("Cancelar", color = VoleiColors.TextoSecundario) }
         },
     )
+}
+
+internal fun mascaraDeData(entrada: String): String {
+    val digitos = entrada.filter(Char::isDigit).take(8)
+    return buildString {
+        digitos.forEachIndexed { indice, caractere ->
+            if (indice == 2 || indice == 4) append('/')
+            append(caractere)
+        }
+    }
+}
+
+internal fun mascaraDeHora(entrada: String): String {
+    val digitos = entrada.filter(Char::isDigit).take(4)
+    return buildString {
+        digitos.forEachIndexed { indice, caractere ->
+            if (indice == 2) append(':')
+            append(caractere)
+        }
+    }
+}
+
+internal fun paraIso(diaMesAno: String): String? {
+    val partes = diaMesAno.split("/")
+    if (partes.size != 3) return null
+    val dia = partes[0].toIntOrNull() ?: return null
+    val mes = partes[1].toIntOrNull() ?: return null
+    val ano = partes[2].toIntOrNull() ?: return null
+    if (partes[2].length != 4 || dia !in 1..31 || mes !in 1..12) return null
+    return runCatching { java.time.LocalDate.of(ano, mes, dia) }
+        .getOrNull()
+        ?.toString()
+}
+
+internal fun paraDiaMesAno(iso: String?): String {
+    val data = iso?.take(10)?.split("-") ?: return ""
+    if (data.size != 3) return ""
+    return "${data[2]}/${data[1]}/${data[0]}"
 }
 
 @Composable
@@ -258,15 +490,52 @@ fun TextoFormatado(corpo: String) {
 }
 
 @Composable
-private fun ChipSimples(
+private fun BotaoDeEmoji(
+    emoji: String,
+    selecionado: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier =
+            modifier
+                .border(
+                    width = if (selecionado) 2.dp else 1.dp,
+                    color = if (selecionado) VoleiColors.Verde else VoleiColors.Borda,
+                    shape = RoundedCornerShape(8.dp),
+                ).background(
+                    color = if (selecionado) VoleiColors.SeloVitoriaFundo else VoleiColors.CartaoInterno,
+                    shape = RoundedCornerShape(8.dp),
+                ).clickable(onClick = onClick)
+                .padding(vertical = 8.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(emoji, fontSize = 17.sp)
+    }
+}
+
+@Composable
+private fun ChipDeTipo(
     rotulo: String,
     selecionado: Boolean,
     onClick: () -> Unit,
 ) {
-    TextButton(onClick = onClick) {
+    Box(
+        modifier =
+            Modifier
+                .border(
+                    width = 1.dp,
+                    color = if (selecionado) VoleiColors.Verde else VoleiColors.Borda,
+                    shape = RoundedCornerShape(8.dp),
+                ).background(
+                    color = if (selecionado) VoleiColors.SeloVitoriaFundo else VoleiColors.CartaoInterno,
+                    shape = RoundedCornerShape(8.dp),
+                ).clickable(onClick = onClick)
+                .padding(horizontal = 10.dp, vertical = 7.dp),
+    ) {
         Text(
             rotulo,
-            color = if (selecionado) VoleiColors.VerdeClaro else VoleiColors.TextoTerciario,
+            color = if (selecionado) VoleiColors.VerdeClaro else VoleiColors.TextoSecundario,
             fontSize = 12.sp,
             fontWeight = FontWeight.Bold,
         )

@@ -12,6 +12,7 @@ import com.unidospelovolei.domain.model.Cobranca
 import com.unidospelovolei.domain.model.ConfigFinanceiro
 import com.unidospelovolei.domain.model.ConfigGrupo
 import com.unidospelovolei.domain.model.Dica
+import com.unidospelovolei.domain.model.EMOJI_PADRAO
 import com.unidospelovolei.domain.model.Evento
 import com.unidospelovolei.domain.model.Evolucao
 import com.unidospelovolei.domain.model.Fundamento
@@ -23,7 +24,6 @@ import com.unidospelovolei.domain.model.Pagina
 import com.unidospelovolei.domain.model.Papel
 import com.unidospelovolei.domain.model.Player
 import com.unidospelovolei.domain.model.PlayerContato
-import com.unidospelovolei.domain.model.Posicao
 import com.unidospelovolei.domain.model.Post
 import com.unidospelovolei.domain.model.Presenca
 import com.unidospelovolei.domain.model.Regime
@@ -57,7 +57,6 @@ internal fun SqlCursor.toPlayer(): Player =
         genero = Genero.from(getStringOptional("genero")),
         ativo = bool("ativo", true),
         profileId = getStringOptional("profile_id"),
-        posicao = Posicao.from(getStringOptional("posicao")),
         fotoUrl = getStringOptional("foto_url"),
         nascimentoDia = intOrNull("nascimento_dia"),
         nascimentoMes = intOrNull("nascimento_mes"),
@@ -100,6 +99,8 @@ internal fun SqlCursor.toPost(): Post =
         corpo = getStringOptional("corpo").orEmpty(),
         fixado = bool("fixado"),
         publicadoEm = getStringOptional("publicado_em"),
+        imagemUrl = getStringOptional("imagem_url"),
+        emoji = getStringOptional("emoji")?.ifBlank { null } ?: EMOJI_PADRAO,
         reacoes = int("reacoes"),
         reagi = bool("reagi"),
     )

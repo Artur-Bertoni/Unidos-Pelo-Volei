@@ -13,22 +13,6 @@ enum class Genero(
     }
 }
 
-enum class Posicao(
-    val value: String,
-    val rotulo: String,
-) {
-    LEVANTADOR("levantador", "Levantador"),
-    PONTEIRO("ponteiro", "Ponteiro"),
-    OPOSTO("oposto", "Oposto"),
-    CENTRAL("central", "Central"),
-    LIBERO("libero", "Líbero"),
-    ;
-
-    companion object {
-        fun from(value: String?): Posicao? = entries.firstOrNull { it.value == value }
-    }
-}
-
 data class Player(
     val id: String,
     val nome: String,
@@ -36,7 +20,6 @@ data class Player(
     val genero: Genero,
     val ativo: Boolean,
     val profileId: String? = null,
-    val posicao: Posicao? = null,
     val fotoUrl: String? = null,
     val nascimentoDia: Int? = null,
     val nascimentoMes: Int? = null,
@@ -213,6 +196,8 @@ enum class Regime(
     ;
 
     companion object {
+        val escolhiveisPeloAtleta: List<Regime> = listOf(MENSALISTA, DIARISTA)
+
         fun from(value: String?): Regime = entries.firstOrNull { it.value == value } ?: MENSALISTA
     }
 }
@@ -262,6 +247,20 @@ data class ConfigGrupo(
     val jogoLocal: String?,
 )
 
+const val EMOJI_PADRAO: String = "👏"
+
+val EMOJIS_DE_REACAO: List<String> =
+    listOf(
+        "👏",
+        "🔥",
+        "❤️",
+        "😂",
+        "👍",
+        "🏐",
+        "🎉",
+        "😮",
+    )
+
 data class Post(
     val id: String,
     val autorNome: String?,
@@ -269,6 +268,8 @@ data class Post(
     val corpo: String,
     val fixado: Boolean,
     val publicadoEm: String?,
+    val imagemUrl: String? = null,
+    val emoji: String = EMOJI_PADRAO,
     val reacoes: Int = 0,
     val reagi: Boolean = false,
 )
@@ -279,13 +280,11 @@ enum class TipoEvento(
 ) {
     JOGO("jogo", "Jogo"),
     CONFRATERNIZACAO("confraternizacao", "Confraternização"),
-    AMISTOSO("amistoso", "Amistoso"),
     CAMPEONATO("campeonato", "Campeonato"),
-    OUTRO("outro", "Outro"),
     ;
 
     companion object {
-        fun from(value: String?): TipoEvento = entries.firstOrNull { it.value == value } ?: OUTRO
+        fun from(value: String?): TipoEvento = entries.firstOrNull { it.value == value } ?: JOGO
     }
 }
 

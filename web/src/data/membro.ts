@@ -1,4 +1,4 @@
-import type { Posicao, VinculoPedido } from '../domain/models';
+import type { Regime, VinculoPedido } from '../domain/models';
 import { db } from '../lib/powersync/db';
 import { agoraIso, novoId } from './mappers';
 
@@ -54,16 +54,40 @@ export async function decidirPedido(
 export async function salvarFicha(
   playerId: string,
   nome: string,
-  posicao: Posicao | null,
   nascimentoDia: number | null,
   nascimentoMes: number | null,
+  regime: Regime,
 ): Promise<void> {
   await db.execute(
     `UPDATE players
-     SET nome = ?, posicao = ?, nascimento_dia = ?, nascimento_mes = ?, updated_at = ?
+     SET nome = ?, nascimento_dia = ?, nascimento_mes = ?, regime = ?, updated_at = ?
      WHERE id = ?`,
-    [nome.trim(), posicao, nascimentoDia, nascimentoMes, agoraIso(), playerId],
+    [nome.trim(), nascimentoDia, nascimentoMes, regime, agoraIso(), playerId],
   );
+}
+
+export async function vincularJogador(
+  playerId: string,
+  profileId: string | null,
+): Promise<void> {
+  const agora = agoraIso();
+  await db.writeTransaction(async (tx) => {
+    if (profileId !== null) {
+      await tx.execute(
+        'UPDATE players SET profile_id = NULL, updated_at = ? WHERE profile_id = ? AND id <> ?',
+        [agora, profileId, playerId],
+      );
+      await tx.execute('DELETE FROM vinculo_pedidos WHERE profile_id = ? AND status = ?', [
+        profileId,
+        'pendente',
+      ]);
+    }
+    await tx.execute('UPDATE players SET profile_id = ?, updated_at = ? WHERE id = ?', [
+      profileId,
+      agora,
+      playerId,
+    ]);
+  });
 }
 
 const limpar = (valor: string | null): string | null => {

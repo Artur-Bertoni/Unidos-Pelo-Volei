@@ -97,9 +97,12 @@ fun GamesScreen(
             }
         }
 
+        val mostrarFase = estado.rodadas.map { it.round.fase }.toSet().size < estado.rodadas.size
+
         items(estado.rodadas, key = { it.round.id }) { rodada ->
             CartaoRodada(
                 rodada = rodada,
+                mostrarFase = mostrarFase,
                 expandida = expandida == rodada.round.numero,
                 onAlternar = {
                     expandida = if (expandida == rodada.round.numero) null else rodada.round.numero
@@ -132,9 +135,9 @@ private fun CartaoChaveamento(
                 fontWeight = FontWeight.Bold,
             )
             Text(
-                "Cada quadra recebe um trio, que joga entre si nas três rodadas da fase " +
-                    "(A×B, A×C, B×C). Depois os times trocam de quadra até todos jogarem " +
-                    "contra todos, e ninguém joga mais de duas partidas seguidas.",
+                "Toda rodada enche todas as quadras: dois times por quadra, nenhuma parada. " +
+                    "As rodadas seguem até todos jogarem contra todos, revezando quem folga " +
+                    "para ninguém emendar partida demais.",
                 color = VoleiColors.TextoSecundario,
                 fontSize = 12.sp,
             )
@@ -251,6 +254,7 @@ private fun CartaoEncerrarDia(
 @Composable
 private fun CartaoRodada(
     rodada: RoundSchedule,
+    mostrarFase: Boolean,
     expandida: Boolean,
     onAlternar: () -> Unit,
     onAbrirPartida: (String) -> Unit,
@@ -281,7 +285,7 @@ private fun CartaoRodada(
                             fontWeight = FontWeight.Black,
                             letterSpacing = 0.5.sp,
                         )
-                        SeloFase(rodada.round.fase)
+                        if (mostrarFase) SeloFase(rodada.round.fase)
                     }
                     if (rodada.folgam.isNotEmpty()) {
                         Row(

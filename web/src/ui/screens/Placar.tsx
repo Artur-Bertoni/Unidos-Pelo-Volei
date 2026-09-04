@@ -48,7 +48,7 @@ export const PlacarScreen = ({
       ) : (
         <div className="coluna" style={{ padding: 16, gap: 16, alignItems: 'center' }}>
           <RotuloPequeno>
-            {`Fase ${partida.fase} • Rodada ${partida.roundNumero} • Quadra ${partida.quadra}`}
+            {`Rodada ${partida.roundNumero} • Quadra ${partida.quadra}`}
           </RotuloPequeno>
 
           {partida.status === 'finalizado' && (

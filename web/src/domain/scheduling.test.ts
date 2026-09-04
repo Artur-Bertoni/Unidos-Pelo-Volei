@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Genero, Player, Team, TeamRoster } from './models';
 import { forcaTotal, homensDo, mulheresDo } from './models';
 import { KotlinRandom } from './random';
-import { generateSchedule } from './roundRobin';
+import { generateSchedule, TIMES_POR_QUADRA, type ScheduledRound } from './roundRobin';
 import type { ElencoPassado } from './teamDraft';
 import { distribute, HistoricoDeDuplas } from './teamDraft';
 
@@ -18,7 +18,6 @@ const times = (quantidade: number): Team[] =>
 
 const semFicha = {
   profileId: null,
-  posicao: null,
   fotoUrl: null,
   nascimentoDia: null,
   nascimentoMes: null,
@@ -138,68 +137,71 @@ describe('TeamDraft', () => {
   });
 });
 
+const quadrasCheias = (quantidade: number, quadras: number): number =>
+  Math.min(quadras, Math.floor(quantidade / TIMES_POR_QUADRA));
+
+const confrontosDe = (equipes: Team[]): Set<string> => {
+  const todos = new Set<string>();
+  for (let i = 0; i < equipes.length; i++) {
+    for (let j = i + 1; j < equipes.length; j++) todos.add(parDe(equipes[i].id, equipes[j].id));
+  }
+  return todos;
+};
+
+const confrontosJogados = (rodadas: ScheduledRound[]): string[] =>
+  rodadas.flatMap((r) => r.matches).map((p) => parDe(p.teamA.id, p.teamB.id));
+
+const jogouNaRodada = (rodada: ScheduledRound, teamId: string): boolean =>
+  rodada.matches.some((p) => p.teamA.id === teamId || p.teamB.id === teamId);
+
 describe('RoundRobinScheduler', () => {
-  it('cada quadra recebe um trio que joga A-B, A-C e B-C na fase', () => {
-    const rodadas = generateSchedule(times(9), 3, new KotlinRandom(4));
+  it('toda rodada enche todas as quadras', () => {
+    const casos: [number, number][] = [
+      [4, 1],
+      [5, 2],
+      [6, 3],
+      [7, 3],
+      [8, 3],
+      [9, 3],
+      [10, 3],
+      [12, 4],
+      [15, 5],
+    ];
 
-    const porFaseEQuadra = new Map<string, { a: string; b: string }[]>();
-    rodadas.forEach((rodada) => {
-      rodada.matches.forEach((partida) => {
-        const chave = `${rodada.fase}-${partida.quadra}`;
-        const lista = porFaseEQuadra.get(chave) ?? [];
-        lista.push({ a: partida.teamA.id, b: partida.teamB.id });
-        porFaseEQuadra.set(chave, lista);
-      });
-    });
+    casos.forEach(([n, quadras]) => {
+      const rodadas = generateSchedule(times(n), quadras, new KotlinRandom(n));
+      const porRodada = quadrasCheias(n, quadras);
+      const caso = `${n} times em ${quadras} quadras`;
 
-    porFaseEQuadra.forEach((partidas, chave) => {
-      const confrontos = new Set(partidas.map((p) => parDe(p.a, p.b)));
-      const trio = new Set(partidas.flatMap((p) => [p.a, p.b]));
-
-      expect(trio.size, chave).toBe(3);
-      expect(partidas.length, chave).toBe(3);
-
-      const membros = [...trio];
-      const todosOsPares = new Set<string>();
-      for (let i = 0; i < membros.length; i++) {
-        for (let j = i + 1; j < membros.length; j++) todosOsPares.add(parDe(membros[i], membros[j]));
-      }
-      expect(confrontos, chave).toEqual(todosOsPares);
-    });
-  });
-
-  it('nenhum time joga mais de dois jogos seguidos', () => {
-    const rodadas = generateSchedule(times(9), 3, new KotlinRandom(4));
-
-    times(9).forEach((time) => {
-      let seguidos = 0;
+      expect(rodadas.length, caso).toBeGreaterThan(0);
       rodadas.forEach((rodada) => {
-        const jogou = rodada.matches.some((p) => p.teamA.id === time.id || p.teamB.id === time.id);
-        seguidos = jogou ? seguidos + 1 : 0;
-        expect(seguidos, `${time.nome} jogou ${seguidos} seguidos`).toBeLessThanOrEqual(2);
+        expect(rodada.matches.length, `${caso}, rodada ${rodada.numero}`).toBe(porRodada);
+        expect(
+          rodada.matches.map((p) => p.quadra).sort((a, b) => a - b),
+          `${caso}, rodada ${rodada.numero}`,
+        ).toEqual(Array.from({ length: porRodada }, (_, i) => i + 1));
       });
     });
   });
 
-  it('o trio que chega cansado entra uma rodada depois', () => {
+  it('nove times em tres quadras jogam doze rodadas com seis times em cada uma', () => {
     const rodadas = generateSchedule(times(9), 3, new KotlinRandom(4));
 
-    const porFase = new Map<number, number>();
-    rodadas.forEach((rodada) => porFase.set(rodada.fase, (porFase.get(rodada.fase) ?? 0) + 1));
-
-    const fases = [...porFase.keys()].sort((a, b) => a - b);
-    expect(fases.map((fase) => porFase.get(fase))).toEqual([3, 3, 3, 4]);
-    expect(rodadas).toHaveLength(13);
-    expect(rodadas.map((r) => r.numero)).toEqual(Array.from({ length: 13 }, (_, i) => i + 1));
+    expect(rodadas).toHaveLength(12);
+    expect(rodadas.map((r) => r.numero)).toEqual(Array.from({ length: 12 }, (_, i) => i + 1));
+    rodadas.forEach((rodada) => {
+      expect(rodada.matches.length, `rodada ${rodada.numero}`).toBe(3);
+      expect(rodada.folgam.length, `rodada ${rodada.numero}`).toBe(3);
+    });
   });
 
-  it('chaveamento de 9 times em 3 quadras cobre o round-robin completo', () => {
-    const rodadas = generateSchedule(times(9), 3, new KotlinRandom(4));
-
-    const confrontos = rodadas.flatMap((r) => r.matches).map((p) => parDe(p.teamA.id, p.teamB.id));
+  it('chaveamento de 9 times em 3 quadras cobre o round-robin completo sem repetir', () => {
+    const equipes = times(9);
+    const rodadas = generateSchedule(equipes, 3, new KotlinRandom(4));
+    const confrontos = confrontosJogados(rodadas);
 
     expect(confrontos).toHaveLength(36);
-    expect(new Set(confrontos).size).toBe(36);
+    expect(new Set(confrontos)).toEqual(confrontosDe(equipes));
     expect(new Set(rodadas.map((r) => r.fase)).size).toBe(4);
   });
 
@@ -210,7 +212,6 @@ describe('RoundRobinScheduler', () => {
       const jogando = rodada.matches.flatMap((p) => [p.teamA.id, p.teamB.id]);
       expect(new Set(jogando).size).toBe(jogando.length);
       expect(jogando.length + rodada.folgam.length).toBe(9);
-      expect(rodada.matches.length).toBeLessThanOrEqual(3);
     });
   });
 
@@ -222,7 +223,7 @@ describe('RoundRobinScheduler', () => {
     expect(rodadas.reduce((soma, r) => soma + r.matches.length, 0)).toBe(15);
   });
 
-  it('todo confronto acontece e ninguem passa de dois jogos seguidos', () => {
+  it('todo confronto acontece em todos os formatos', () => {
     const casos: [number, number][] = [
       [4, 1],
       [5, 2],
@@ -237,26 +238,67 @@ describe('RoundRobinScheduler', () => {
     casos.forEach(([n, quadras]) => {
       const equipes = times(n);
       const rodadas = generateSchedule(equipes, quadras, new KotlinRandom(n));
+      expect(new Set(confrontosJogados(rodadas)), `${n} times em ${quadras} quadras`).toEqual(
+        confrontosDe(equipes),
+      );
+    });
+  });
+
+  it('quando o total de confrontos divide certo ninguem joga duas vezes o mesmo adversario', () => {
+    const casos: [number, number][] = [
+      [4, 1],
+      [5, 2],
+      [6, 3],
+      [7, 3],
+      [9, 3],
+      [10, 3],
+      [15, 5],
+    ];
+
+    casos.forEach(([n, quadras]) => {
+      const rodadas = generateSchedule(times(n), quadras, new KotlinRandom(n));
+      const confrontos = confrontosJogados(rodadas);
       const caso = `${n} times em ${quadras} quadras`;
 
-      const jogados = new Set(
-        rodadas.flatMap((r) => r.matches).map((p) => parDe(p.teamA.id, p.teamB.id)),
-      );
-      const todos = new Set<string>();
-      for (let i = 0; i < equipes.length; i++) {
-        for (let j = i + 1; j < equipes.length; j++) todos.add(parDe(equipes[i].id, equipes[j].id));
-      }
-      expect(jogados, caso).toEqual(todos);
-      expect(rodadas.every((r) => r.matches.length <= quadras), caso).toBe(true);
+      expect(new Set(confrontos).size, caso).toBe(confrontos.length);
+      expect(confrontos.length, caso).toBe((n * (n - 1)) / 2);
+    });
+  });
 
-      equipes.forEach((time) => {
-        let seguidos = 0;
-        rodadas.forEach((rodada) => {
-          const jogou = rodada.matches.some((p) => p.teamA.id === time.id || p.teamB.id === time.id);
-          seguidos = jogou ? seguidos + 1 : 0;
-          expect(seguidos, `${caso}: ${time.nome} jogou ${seguidos} seguidos`).toBeLessThanOrEqual(2);
-        });
+  it('com sobra de confrontos a ultima rodada enche a quadra com uma revanche', () => {
+    const equipes = times(8);
+    const rodadas = generateSchedule(equipes, 3, new KotlinRandom(8));
+    const confrontos = confrontosJogados(rodadas);
+
+    expect(rodadas.every((r) => r.matches.length === 3)).toBe(true);
+    expect(new Set(confrontos)).toEqual(confrontosDe(equipes));
+    expect(confrontos.length).toBe(rodadas.length * 3);
+    expect(confrontos.length).toBeGreaterThan(new Set(confrontos).size);
+  });
+
+  it('quem folga sempre volta antes de cansar quando o formato permite', () => {
+    const rodadas = generateSchedule(times(10), 3, new KotlinRandom(10));
+
+    times(10).forEach((time) => {
+      let seguidos = 0;
+      rodadas.forEach((rodada) => {
+        seguidos = jogouNaRodada(rodada, time.id) ? seguidos + 1 : 0;
+        expect(seguidos, `${time.nome} jogou ${seguidos} seguidos`).toBeLessThanOrEqual(2);
       });
+    });
+  });
+
+  it('todo time joga a mesma quantidade de jogos em cada fase', () => {
+    const equipes = times(9);
+    const rodadas = generateSchedule(equipes, 3, new KotlinRandom(4));
+    const fases = new Set(rodadas.map((r) => r.fase));
+
+    fases.forEach((fase) => {
+      const daFase = rodadas.filter((r) => r.fase === fase);
+      const jogos = equipes.map(
+        (time) => daFase.filter((rodada) => jogouNaRodada(rodada, time.id)).length,
+      );
+      expect(new Set(jogos), `fase ${fase}`).toEqual(new Set([2]));
     });
   });
 
@@ -264,6 +306,11 @@ describe('RoundRobinScheduler', () => {
     const rodadas = generateSchedule(times(4), 5, new KotlinRandom(1));
 
     expect(rodadas.reduce((soma, r) => soma + r.matches.length, 0)).toBe(6);
-    expect(rodadas.every((r) => r.matches.length <= 2)).toBe(true);
+    expect(rodadas.every((r) => r.matches.length === 2)).toBe(true);
+  });
+
+  it('menos de dois times nao gera rodada', () => {
+    expect(generateSchedule(times(1), 3)).toHaveLength(0);
+    expect(generateSchedule(times(9), 0)).toHaveLength(0);
   });
 });

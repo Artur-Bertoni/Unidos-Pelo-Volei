@@ -57,6 +57,7 @@ import com.unidospelovolei.ui.membro.AprovacoesScreen
 import com.unidospelovolei.ui.membro.EuScreen
 import com.unidospelovolei.ui.membro.FichaDialog
 import com.unidospelovolei.ui.membro.MembroViewModel
+import com.unidospelovolei.ui.membro.VinculosScreen
 import com.unidospelovolei.ui.players.PlayersScreen
 import com.unidospelovolei.ui.players.PlayersViewModel
 import com.unidospelovolei.ui.standings.StandingsScreen
@@ -68,6 +69,8 @@ import com.unidospelovolei.ui.teams.TeamHistoryViewModel
 import com.unidospelovolei.ui.teams.TeamsScreen
 import com.unidospelovolei.ui.teams.TeamsViewModel
 import com.unidospelovolei.ui.theme.VoleiColors
+import com.unidospelovolei.ui.tour.Tour
+import com.unidospelovolei.ui.tour.TourScreen
 
 private sealed interface Destino {
     data object Abas : Destino
@@ -77,6 +80,8 @@ private sealed interface Destino {
     data object Distribuicao : Destino
 
     data object Aprovacoes : Destino
+
+    data object Vinculos : Destino
 
     data object PainelFinanceiro : Destino
 
@@ -127,12 +132,28 @@ fun AppRoot(
                 modifier = modifier,
             )
 
-        else ->
-            HomeScreen(
-                container = container,
-                mainViewModel = mainViewModel,
-                modifier = modifier,
-            )
+        else -> {
+            var mostrarTour by rememberSaveable { mutableStateOf(!Tour.jaViu(contexto)) }
+            var veioDoTour by rememberSaveable { mutableStateOf(false) }
+
+            if (mostrarTour) {
+                TourScreen(
+                    onConcluir = {
+                        Tour.marcarComoVisto(contexto)
+                        veioDoTour = true
+                        mostrarTour = false
+                    },
+                    modifier = modifier,
+                )
+            } else {
+                HomeScreen(
+                    container = container,
+                    mainViewModel = mainViewModel,
+                    abaInicial = if (veioDoTour) AbaPrincipal.EU else AbaPrincipal.SOCIAL,
+                    modifier = modifier,
+                )
+            }
+        }
     }
 }
 
@@ -140,6 +161,7 @@ fun AppRoot(
 private fun HomeScreen(
     container: AppContainer,
     mainViewModel: MainViewModel,
+    abaInicial: AbaPrincipal,
     modifier: Modifier = Modifier,
 ) {
     val factory = rememberVoleiViewModelFactory(container)
@@ -163,6 +185,10 @@ private fun HomeScreen(
     val financeiro by financeiroViewModel.estado.collectAsStateWithLifecycle()
     val evolucao by evolucaoViewModel.estado.collectAsStateWithLifecycle()
 
+    val contas by membroViewModel.contasDoGrupo.collectAsStateWithLifecycle()
+    val carregandoContas by membroViewModel.buscandoContas.collectAsStateWithLifecycle()
+    val sugestoesDeEndereco by grupoViewModel.sugestoesDeEndereco.collectAsStateWithLifecycle()
+
     val perfilId = membro.profile?.id
     val meuPlayerId = membro.meuJogador?.id
 
@@ -176,7 +202,7 @@ private fun HomeScreen(
 
     RegistroDePush(container = container, perfilId = perfilId)
 
-    var aba by rememberSaveable { mutableStateOf(AbaPrincipal.SOCIAL) }
+    var aba by rememberSaveable { mutableStateOf(abaInicial) }
     var destino by remember { mutableStateOf<Destino>(Destino.Abas) }
     var historicoDoTime by remember { mutableStateOf<Team?>(null) }
     var editandoTime by remember { mutableStateOf<Team?>(null) }
@@ -259,6 +285,22 @@ private fun HomeScreen(
                 salvando = membro.salvando,
                 onVoltar = { destino = Destino.Abas },
                 onDecidir = membroViewModel::decidir,
+                onAbrirVinculos = { destino = Destino.Vinculos },
+                modifier = modifier,
+            )
+            return
+        }
+
+        is Destino.Vinculos -> {
+            VinculosScreen(
+                jogadores = grupo.membros,
+                contas = contas,
+                carregandoContas = carregandoContas,
+                salvando = membro.salvando,
+                onVoltar = { destino = Destino.Abas },
+                onCarregarContas = membroViewModel::carregarContas,
+                onVincular = membroViewModel::vincularManualmente,
+                onDesvincular = membroViewModel::desvincular,
                 modifier = modifier,
             )
             return
@@ -343,7 +385,14 @@ private fun HomeScreen(
                 onSair = mainViewModel::sair,
             )
         },
-        bottomBar = { BarraDeAbas(abaAtual = aba, onSelecionar = { aba = it }) },
+        bottomBar = {
+            BarraDeAbas(
+                abaAtual = aba,
+                onSelecionar = { aba = it },
+                abasComAviso =
+                    if (evolucao.pendentes.isNotEmpty()) setOf(AbaPrincipal.EU) else emptySet(),
+            )
+        },
     ) { padding ->
         Box(modifier = Modifier.fillMaxSize().padding(padding)) {
             when (aba) {
@@ -419,8 +468,8 @@ private fun HomeScreen(
     if (criandoPost) {
         PostDialog(
             salvando = grupo.salvando,
-            onSalvar = { titulo, corpo, fixado ->
-                grupoViewModel.publicar(titulo, corpo, fixado, membro.profile?.nome)
+            onSalvar = { titulo, corpo, fixado, imagem, emoji ->
+                grupoViewModel.publicar(titulo, corpo, fixado, membro.profile?.nome, imagem, emoji)
                 criandoPost = false
             },
             onFechar = { criandoPost = false },
@@ -431,6 +480,9 @@ private fun HomeScreen(
         EventoDialog(
             evento = editandoEvento,
             salvando = grupo.salvando,
+            sugestoes = sugestoesDeEndereco,
+            onBuscarEndereco = grupoViewModel::buscarEnderecos,
+            onLimparSugestoes = grupoViewModel::limparEnderecos,
             onSalvar = { id, titulo, descricao, tipo, inicio, local ->
                 grupoViewModel.salvarEvento(id, titulo, descricao, tipo, inicio, local)
                 criandoEvento = false
@@ -449,8 +501,8 @@ private fun HomeScreen(
             jogador = meuJogador,
             contato = membro.meuContato,
             salvando = membro.salvando,
-            onSalvar = { nome, posicao, dia, mes, telefone, emergencia, ano ->
-                membroViewModel.salvarFicha(nome, posicao, dia, mes, telefone, emergencia, ano)
+            onSalvar = { nome, dia, mes, telefone, emergencia, ano, regime ->
+                membroViewModel.salvarFicha(nome, dia, mes, telefone, emergencia, ano, regime)
                 editandoFicha = false
             },
             onFechar = { editandoFicha = false },
@@ -461,6 +513,7 @@ private fun HomeScreen(
         HistoricoDoTime(
             container = container,
             time = time,
+            isAdmin = estado.isAdmin,
             onFechar = { historicoDoTime = null },
         )
     }
@@ -521,6 +574,7 @@ private fun PartidaScreen(
 private fun HistoricoDoTime(
     container: AppContainer,
     time: Team,
+    isAdmin: Boolean,
     onFechar: () -> Unit,
 ) {
     val factory =
@@ -540,6 +594,7 @@ private fun HistoricoDoTime(
 
     TeamHistoryDialog(
         time = time,
+        isAdmin = isAdmin,
         elenco = detalhe.elenco,
         partidas = detalhe.partidas,
         onFechar = onFechar,

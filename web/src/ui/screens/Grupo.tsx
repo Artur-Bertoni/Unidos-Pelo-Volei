@@ -1,5 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { buscarEnderecos, MINIMO_DE_LETRAS } from '../../lib/enderecos';
 import {
+  EMOJI_PADRAO,
+  EMOJIS_DE_REACAO,
   rotuloDaCategoria,
   rotuloDaPresenca,
   rotuloDoEvento,
@@ -99,7 +102,7 @@ interface GrupoProps {
   onSecao: (secao: SecaoDoGrupo) => void;
   onNovoPost: () => void;
   onExcluirPost: (postId: string) => void;
-  onReagir: (postId: string) => void;
+  onReagir: (postId: string, emoji: string) => void;
   onNovoEvento: () => void;
   onEditarEvento: (evento: Evento) => void;
   onExcluirEvento: (eventoId: string) => void;
@@ -181,6 +184,20 @@ export function GrupoScreen({
                     )}
                   </div>
                   {post.corpo !== '' && <p className="subtitulo">{post.corpo}</p>}
+                  {post.imagemUrl !== null && (
+                    <img
+                      src={post.imagemUrl}
+                      alt={`Imagem do recado ${post.titulo}`}
+                      loading="lazy"
+                      style={{
+                        width: '100%',
+                        maxHeight: 320,
+                        objectFit: 'cover',
+                        borderRadius: 12,
+                        background: 'var(--cartao-interno)',
+                      }}
+                    />
+                  )}
                   <div className="linha-entre">
                     <span className="subtitulo" style={{ fontSize: 11 }}>
                       {post.autorNome ?? 'Diretoria'}
@@ -189,9 +206,9 @@ export function GrupoScreen({
                       type="button"
                       className="chip"
                       aria-pressed={post.reagi}
-                      onClick={() => onReagir(post.id)}
+                      onClick={() => onReagir(post.id, post.emoji)}
                     >
-                      {post.reacoes > 0 ? `👏 ${post.reacoes}` : '👏'}
+                      {post.reacoes > 0 ? `${post.emoji} ${post.reacoes}` : post.emoji}
                     </button>
                   </div>
                 </div>
@@ -210,7 +227,7 @@ export function GrupoScreen({
             {eventos.length === 0 && (
               <EstadoVazio
                 titulo="Nada marcado"
-                descricao="O sábado é toda semana. Aqui entram confraternização, amistoso e campeonato."
+                descricao="O sábado é toda semana. Aqui entram jogo, confraternização e campeonato."
               />
             )}
             {eventos.map((evento) => (
@@ -384,12 +401,20 @@ export function PostDialogo({
   onFechar,
 }: {
   salvando: boolean;
-  onSalvar: (titulo: string, corpo: string, fixado: boolean) => void;
+  onSalvar: (
+    titulo: string,
+    corpo: string,
+    fixado: boolean,
+    imagem: File | null,
+    emoji: string,
+  ) => void;
   onFechar: () => void;
 }) {
   const [titulo, setTitulo] = useState('');
   const [corpo, setCorpo] = useState('');
   const [fixado, setFixado] = useState(false);
+  const [emoji, setEmoji] = useState(EMOJI_PADRAO);
+  const [imagem, setImagem] = useState<File | null>(null);
 
   return (
     <Dialogo
@@ -404,9 +429,9 @@ export function PostDialogo({
             type="button"
             className="botao-texto"
             disabled={titulo.trim() === '' || salvando}
-            onClick={() => onSalvar(titulo, corpo, fixado)}
+            onClick={() => onSalvar(titulo, corpo, fixado, imagem, emoji)}
           >
-            Publicar
+            {salvando && imagem !== null ? 'Enviando…' : 'Publicar'}
           </button>
         </>
       }
@@ -421,6 +446,43 @@ export function PostDialogo({
           onChange={(e) => setCorpo(e.target.value)}
         />
       </label>
+
+      <label className="campo">
+        <span className="campo-rotulo">Imagem</span>
+        <input
+          type="file"
+          className="campo-entrada"
+          accept="image/jpeg,image/png,image/webp,image/gif"
+          onChange={(e) => setImagem(e.target.files?.[0] ?? null)}
+        />
+        {imagem !== null && (
+          <span className="subtitulo" style={{ fontSize: 11 }}>
+            {`${imagem.name} · ${Math.round(imagem.size / 1024)} KB`}
+          </span>
+        )}
+      </label>
+
+      <div className="campo">
+        <span className="campo-rotulo">Reação padrão</span>
+        <div className="linha" style={{ gap: 4, flexWrap: 'wrap' }}>
+          {EMOJIS_DE_REACAO.map((opcao) => (
+            <button
+              key={opcao}
+              type="button"
+              className="chip"
+              aria-pressed={emoji === opcao}
+              style={{ fontSize: 17 }}
+              onClick={() => setEmoji(opcao)}
+            >
+              {opcao}
+            </button>
+          ))}
+        </div>
+        <span className="subtitulo" style={{ fontSize: 11 }}>
+          É o emoji que o grupo toca para reagir a este recado.
+        </span>
+      </div>
+
       <div className="linha-entre">
         <span className="subtitulo">Fixar no topo</span>
         <button
@@ -435,6 +497,43 @@ export function PostDialogo({
     </Dialogo>
   );
 }
+
+const soDigitos = (valor: string, maximo: number): string =>
+  valor.replace(/\D/g, '').slice(0, maximo);
+
+export const mascaraDeData = (entrada: string): string =>
+  soDigitos(entrada, 8)
+    .split('')
+    .map((caractere, indice) => (indice === 2 || indice === 4 ? `/${caractere}` : caractere))
+    .join('');
+
+export const mascaraDeHora = (entrada: string): string =>
+  soDigitos(entrada, 4)
+    .split('')
+    .map((caractere, indice) => (indice === 2 ? `:${caractere}` : caractere))
+    .join('');
+
+export const paraIso = (diaMesAno: string): string | null => {
+  const partes = diaMesAno.split('/');
+  if (partes.length !== 3 || partes[2].length !== 4) return null;
+
+  const dia = Number(partes[0]);
+  const mes = Number(partes[1]);
+  const ano = Number(partes[2]);
+  if (!Number.isInteger(dia) || !Number.isInteger(mes) || !Number.isInteger(ano)) return null;
+  if (dia < 1 || dia > 31 || mes < 1 || mes > 12) return null;
+
+  const data = new Date(Date.UTC(ano, mes - 1, dia));
+  if (data.getUTCFullYear() !== ano || data.getUTCMonth() !== mes - 1 || data.getUTCDate() !== dia) {
+    return null;
+  }
+  return `${partes[2]}-${partes[1].padStart(2, '0')}-${partes[0].padStart(2, '0')}`;
+};
+
+export const paraDiaMesAno = (iso: string | undefined): string => {
+  const partes = iso?.slice(0, 10).split('-');
+  return partes?.length === 3 ? `${partes[2]}/${partes[1]}/${partes[0]}` : '';
+};
 
 export function EventoDialogo({
   evento,
@@ -456,14 +555,42 @@ export function EventoDialogo({
 }) {
   const [titulo, setTitulo] = useState(evento?.titulo ?? '');
   const [descricao, setDescricao] = useState(evento?.descricao ?? '');
-  const [data, setData] = useState(evento?.inicio.slice(0, 10) ?? '');
+  const [data, setData] = useState(paraDiaMesAno(evento?.inicio));
   const [hora, setHora] = useState(evento?.inicio.slice(11, 16) ?? '19:00');
   const [local, setLocal] = useState(evento?.local ?? '');
-  const [tipo, setTipo] = useState<TipoEvento>(evento?.tipo ?? 'confraternizacao');
+  const [tipo, setTipo] = useState<TipoEvento>(evento?.tipo ?? 'jogo');
+  const [sugestoes, setSugestoes] = useState<string[]>([]);
+  const [mostrarSugestoes, setMostrarSugestoes] = useState(false);
+  const cancelar = useRef<AbortController | null>(null);
+  const espera = useRef<number | undefined>(undefined);
 
-  const dataValida = /^\d{4}-\d{2}-\d{2}$/.test(data);
+  useEffect(
+    () => () => {
+      cancelar.current?.abort();
+      window.clearTimeout(espera.current);
+    },
+    [],
+  );
+
+  const procurarEndereco = (termo: string): void => {
+    cancelar.current?.abort();
+    window.clearTimeout(espera.current);
+    if (termo.trim().length < MINIMO_DE_LETRAS) {
+      setSugestoes([]);
+      return;
+    }
+    const controlador = new AbortController();
+    cancelar.current = controlador;
+    espera.current = window.setTimeout(() => {
+      buscarEnderecos(termo, controlador.signal)
+        .then(setSugestoes)
+        .catch(() => setSugestoes([]));
+    }, 350);
+  };
+
+  const dataIso = paraIso(data);
   const horaValida = /^\d{2}:\d{2}$/.test(hora);
-  const podeSalvar = titulo.trim() !== '' && dataValida && horaValida && !salvando;
+  const podeSalvar = titulo.trim() !== '' && dataIso !== null && horaValida && !salvando;
 
   return (
     <Dialogo
@@ -479,7 +606,7 @@ export function EventoDialogo({
             className="botao-texto"
             disabled={!podeSalvar}
             onClick={() =>
-              onSalvar(evento?.id ?? null, titulo, descricao, tipo, `${data}T${hora}:00Z`, local)
+              onSalvar(evento?.id ?? null, titulo, descricao, tipo, `${dataIso}T${hora}:00Z`, local)
             }
           >
             Salvar
@@ -490,13 +617,68 @@ export function EventoDialogo({
       <CampoTexto valor={titulo} rotulo="Título" onMudar={setTitulo} />
       <div className="linha" style={{ gap: 8 }}>
         <div className="expandir">
-          <CampoTexto valor={data} rotulo="Data (AAAA-MM-DD)" onMudar={setData} />
+          <CampoTexto
+            valor={data}
+            rotulo="Data (dd/mm/aaaa)"
+            onMudar={(valor) => setData(mascaraDeData(valor))}
+          />
         </div>
         <div className="expandir">
-          <CampoTexto valor={hora} rotulo="Hora" onMudar={setHora} />
+          <CampoTexto
+            valor={hora}
+            rotulo="Hora"
+            onMudar={(valor) => setHora(mascaraDeHora(valor))}
+          />
         </div>
       </div>
-      <CampoTexto valor={local} rotulo="Local" onMudar={setLocal} />
+      {data !== '' && dataIso === null && (
+        <span className="subtitulo" style={{ fontSize: 11, color: 'var(--vermelho)' }}>
+          Data inválida. Use dd/mm/aaaa.
+        </span>
+      )}
+
+      <div className="campo">
+        <CampoTexto
+          valor={local}
+          rotulo="Local"
+          onMudar={(valor) => {
+            setLocal(valor);
+            setMostrarSugestoes(true);
+            procurarEndereco(valor);
+          }}
+        />
+        {mostrarSugestoes && sugestoes.length > 0 && (
+          <div
+            className="coluna"
+            style={{
+              maxHeight: 160,
+              overflowY: 'auto',
+              border: '1px solid var(--borda)',
+              borderRadius: 10,
+            }}
+          >
+            {sugestoes.map((sugestao) => (
+              <button
+                key={sugestao}
+                type="button"
+                className="subtitulo"
+                style={{ padding: '8px 10px', textAlign: 'left', fontSize: 12 }}
+                onClick={() => {
+                  setLocal(sugestao);
+                  setSugestoes([]);
+                  setMostrarSugestoes(false);
+                }}
+              >
+                {sugestao}
+              </button>
+            ))}
+          </div>
+        )}
+        <span className="subtitulo" style={{ fontSize: 11 }}>
+          Digite o endereço e toque em uma sugestão do mapa.
+        </span>
+      </div>
+
       <CampoTexto valor={descricao} rotulo="Descrição" onMudar={setDescricao} />
       <div className="campo">
         <span className="campo-rotulo">Tipo</span>
@@ -509,7 +691,7 @@ export function EventoDialogo({
               aria-pressed={tipo === opcao}
               onClick={() => setTipo(opcao)}
             >
-              {rotuloDoEvento(opcao).slice(0, 6)}
+              {rotuloDoEvento(opcao)}
             </button>
           ))}
         </div>

@@ -98,7 +98,7 @@ fun MatchScoreScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             RotuloPequeno(
-                "Fase ${partida.fase} • Rodada ${partida.roundNumero} • Quadra ${partida.quadra}",
+                "Rodada ${partida.roundNumero} • Quadra ${partida.quadra}",
             )
 
             if (partida.status == MatchStatus.FINALIZADO) {

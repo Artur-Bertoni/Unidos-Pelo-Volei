@@ -291,7 +291,6 @@ export function useElencos(): TeamRoster[] {
           genero: generoDe(textoOuNulo(linha, 'player_genero')),
           ativo: booleano(linha, 'player_ativo', true),
           profileId: null,
-          posicao: null,
           fotoUrl: null,
           nascimentoDia: null,
           nascimentoMes: null,

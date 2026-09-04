@@ -133,16 +133,16 @@ fun PlayersScreen(
                     dica = "Buscar jogador pelo nome",
                     modifier = Modifier.fillMaxWidth(),
                 )
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FiltroPresenca.entries.forEach { opcao ->
-                        ChipFiltro(
-                            rotulo = opcao.rotulo,
-                            selecionado = opcao == estado.filtro,
-                            onClick = { onFiltrar(opcao) },
-                        )
-                    }
-                }
                 if (isAdmin) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        FiltroPresenca.entries.forEach { opcao ->
+                            ChipFiltro(
+                                rotulo = opcao.rotulo,
+                                selecionado = opcao == estado.filtro,
+                                onClick = { onFiltrar(opcao) },
+                            )
+                        }
+                    }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         BotaoPresenca(
                             texto = "Marcar todos",
@@ -350,7 +350,7 @@ private fun LinhaJogador(
                         corFundo = VoleiColors.SeloFaseFundo,
                     )
                 }
-                Estrelas(nivel = jogador.skillLevel)
+                if (isAdmin) Estrelas(nivel = jogador.skillLevel)
                 fichaResumida(jogador)?.let { ficha ->
                     Text(ficha, color = VoleiColors.TextoTerciario, fontSize = 11.sp)
                 }
@@ -538,7 +538,4 @@ private fun ChipDeRegime(
 }
 
 private fun fichaResumida(jogador: Player): String? =
-    listOfNotNull(
-        jogador.posicao?.rotulo,
-        jogador.aniversario?.let { "aniversário $it" },
-    ).joinToString(" · ").ifBlank { null }
+    jogador.aniversario?.let { "aniversário $it" }

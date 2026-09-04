@@ -3,6 +3,7 @@ package com.unidospelovolei.data
 import com.powersync.PowerSyncDatabase
 import com.powersync.db.getString
 import com.unidospelovolei.domain.model.CategoriaPagina
+import com.unidospelovolei.domain.model.EMOJI_PADRAO
 import com.unidospelovolei.domain.model.Evento
 import com.unidospelovolei.domain.model.Pagina
 import com.unidospelovolei.domain.model.Post
@@ -16,7 +17,8 @@ class GrupoRepository(
         db.watch(
             """
             SELECT
-                p.id, p.autor_nome, p.titulo, p.corpo, p.fixado, p.publicado_em,
+                p.id, p.autor_nome, p.titulo, p.corpo, p.imagem_url, p.emoji,
+                p.fixado, p.publicado_em,
                 (SELECT COUNT(*) FROM post_reacoes r WHERE r.post_id = p.id) AS reacoes,
                 (SELECT COUNT(*) FROM post_reacoes r WHERE r.post_id = p.id AND r.profile_id = ?) AS reagi
             FROM posts p
@@ -49,13 +51,16 @@ class GrupoRepository(
         titulo: String,
         corpo: String,
         fixado: Boolean,
+        imagemUrl: String?,
+        emoji: String,
     ) {
         val agora = agoraIso()
         db.execute(
             """
             INSERT INTO posts (
-                id, autor_profile_id, autor_nome, titulo, corpo, fixado, publicado_em, atualizado_em
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                id, autor_profile_id, autor_nome, titulo, corpo, imagem_url, emoji,
+                fixado, publicado_em, atualizado_em
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """.trimIndent(),
             listOf(
                 novoId(),
@@ -63,6 +68,8 @@ class GrupoRepository(
                 autorNome,
                 titulo.trim(),
                 corpo.trim(),
+                imagemUrl?.trim()?.ifBlank { null },
+                emoji.ifBlank { EMOJI_PADRAO },
                 if (fixado) 1 else 0,
                 agora,
                 agora,
@@ -80,6 +87,7 @@ class GrupoRepository(
     suspend fun alternarReacao(
         postId: String,
         profileId: String,
+        emoji: String,
     ) {
         db.writeTransactionAsync { tx ->
             val existente =
@@ -93,7 +101,7 @@ class GrupoRepository(
             if (existente == null) {
                 tx.execute(
                     "INSERT INTO post_reacoes (id, post_id, profile_id, emoji, criado_em) VALUES (?, ?, ?, ?, ?)",
-                    listOf(novoId(), postId, profileId, "👏", agoraIso()),
+                    listOf(novoId(), postId, profileId, emoji.ifBlank { EMOJI_PADRAO }, agoraIso()),
                 )
             } else {
                 tx.execute("DELETE FROM post_reacoes WHERE id = ?", listOf(existente))

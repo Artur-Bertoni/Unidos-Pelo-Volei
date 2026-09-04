@@ -1,10 +1,10 @@
 export const DIAS_NO_HISTORICO = 12;
 
-const PLAYER_COLUNAS = `id, nome, skill_level, genero, ativo, profile_id, posicao,
-         foto_url, nascimento_dia, nascimento_mes, entrou_em`;
+const PLAYER_COLUNAS = `id, nome, skill_level, genero, ativo, profile_id,
+         foto_url, nascimento_dia, nascimento_mes, entrou_em, regime`;
 
 const PLAYER_COLUNAS_P = `p.id, p.nome, p.skill_level, p.genero, p.ativo, p.profile_id,
-         p.posicao, p.foto_url, p.nascimento_dia, p.nascimento_mes, p.entrou_em`;
+         p.foto_url, p.nascimento_dia, p.nascimento_mes, p.entrou_em, p.regime`;
 
 export const PLAYERS_SQL = `
   SELECT ${PLAYER_COLUNAS}
@@ -123,7 +123,7 @@ export const PRESENCAS_SQL = `
 
 export const POSTS_SQL = `
   SELECT
-      p.id, p.autor_nome, p.titulo, p.corpo, p.fixado, p.publicado_em,
+      p.id, p.autor_nome, p.titulo, p.corpo, p.imagem_url, p.emoji, p.fixado, p.publicado_em,
       (SELECT COUNT(*) FROM post_reacoes r WHERE r.post_id = p.id) AS reacoes,
       (SELECT COUNT(*) FROM post_reacoes r WHERE r.post_id = p.id AND r.profile_id = ?) AS reagi
   FROM posts p

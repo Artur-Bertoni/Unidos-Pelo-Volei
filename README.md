@@ -59,27 +59,29 @@ vezes.
 
 | # | Funcionalidade | Onde fica |
 |---|---|---|
-| 1 | CRUD de jogadores com nível de habilidade em estrelas de 1 a 5 e gênero | aba **TIMES** → botão **Jogadores** (só diretoria edita) |
-| 2 | Presença do dia: busca pelo nome, filtro de presentes/ausentes, chave **Presente?** na linha, **Marcar todos** e **Limpar presenças** | aba **TIMES** → botão **Jogadores** |
+| 1 | CRUD de jogadores com nível de habilidade em estrelas de 1 a 5 e gênero — o nível **só a diretoria vê e edita** | aba **TIMES** → botão **Jogadores** |
+| 2 | Presença do dia: busca pelo nome, filtro de presentes/ausentes, chave **Presente?** na linha, **Marcar todos** e **Limpar presenças** — tudo só para a diretoria | aba **TIMES** → botão **Jogadores** |
 | 3 | Gestão de times coloridos (nome, cor, sigla de 2 letras), com ativar/desativar o time do dia, **Ajustar** ao tanto de gente e excluir | aba **TIMES** → **Novo time** / lápis / chave no cartão |
 | 4 | Sorteio dos times mirando 2 homens e 2 mulheres, equilibrando a força e evitando repetir duplas | aba **TIMES** → **Distribuir** |
-| 5 | Geração do chaveamento round-robin com folgas, agrupado em fases | aba **JOGOS** → **Gerar chaveamento** |
+| 5 | Chaveamento round-robin em que **toda rodada enche todas as quadras**, sem quadra ociosa | aba **JOGOS** → **Gerar chaveamento** |
 | 6 | Placar ao vivo por partida, digitado ou ponto a ponto, com vencedor marcado automaticamente | aba **JOGOS** → toque em uma partida |
 | 7 | Classificação geral com V, S e PP e desempate na ordem correta | aba **CLASSIFICAÇÃO** |
-| 8 | Elenco vinculado e histórico de jogos por time (fase, rodada, quadra, placar, resultado) | aba **TIMES** → toque em um time |
+| 8 | Elenco vinculado e histórico de jogos por time (rodada, quadra, placar, resultado); nível e força do time **só para a diretoria** | aba **TIMES** → toque em um time |
 | 9 | Encerrar o dia: guarda o desempenho e a presença de quem veio, desfaz os times, apaga o chaveamento e zera as presenças | aba **JOGOS** → **Encerrar dia** |
 | 10 | Login com Google; usuário comum só lê, admin edita | tela inicial |
 | 11 | Funciona offline e sincroniza ao reconectar | em todo o app |
-| 12 | Cada pessoa vira dona da própria ficha: escolhe o nome na lista e a diretoria confirma | aba **EU** |
-| 13 | Ficha do membro com posição, aniversário, telefone e contato de emergência | aba **EU** → lápis |
+| 12 | Cada pessoa vira dona da própria ficha: escolhe o nome na lista e a diretoria confirma — ou a diretoria liga jogador e conta na mão | aba **EU** |
+| 13 | Ficha do membro com aniversário, telefone e contato de emergência | aba **EU** → lápis |
+| 13b | Cada um escolhe como paga: **Mensalista** ou **Diarista** | aba **EU** → lápis |
 | 14 | Confirmação antecipada do sábado (**Vou / Talvez / Não vou**), pela pessoa ou pela diretoria | aba **EU** e aba **SOCIAL** → **Chamada** |
 | 15 | **Trazer confirmados**: quem respondeu que vem vira presença na lista de hoje | aba **SOCIAL** → **Chamada** (só diretoria) |
 | 16 | Lembrete por notificação na sexta à noite e no sábado de manhã | push no Android e no PWA |
-| 17 | Mural de recados da diretoria, com reação do grupo — é a tela que abre | aba **SOCIAL** → **Mural** |
+| 17 | Mural de recados da diretoria, com imagem anexada e emoji de reação escolhido por publicação — é a tela que abre | aba **SOCIAL** → **Mural** |
 | 18 | Agenda de eventos, mais aniversários e tempo de casa calculados sozinhos | aba **SOCIAL** → **Agenda** |
-| 19 | Páginas de regras do vôlei, regras do grupo e campeonatos, editáveis pela diretoria | aba **SOCIAL** → **Regras** |
+| 19 | Páginas de regras do vôlei de areia em quarteto, regras do grupo e campeonatos, editáveis pela diretoria | aba **SOCIAL** → **Regras** |
 | 20 | Mensalidade e diária, extrato pessoal e Pix Copia e Cola | aba **EU**; painel do grupo só para a diretoria |
-| 21 | Avaliação anônima entre companheiros de time e painel de evolução com dicas | aba **EU** → **Avaliar agora** |
+| 21 | Avaliação anônima entre companheiros de time e painel de evolução com dicas; bolinha verde na aba **EU** quando alguém espera a sua nota | aba **EU** → **Avaliar agora** |
+| 22 | Mini tour no primeiro login, terminando na tela de pedir vínculo a um jogador | primeira entrada |
 
 O indicador **Online / Conectando / Offline** no cabeçalho mostra o estado do sync.
 
@@ -136,39 +138,47 @@ tentativas fica a de menor custo. Por isso dois toques em **Sortear de novo**
 dão times diferentes, e o sorteio de amanhã não repete o de hoje.
 
 **Chaveamento** ([`RoundRobinScheduler.kt`](app/src/main/java/com/unidospelovolei/domain/scheduling/RoundRobinScheduler.kt)):
-o chaveamento é organizado **por quadra**. Cada quadra recebe um trio, que joga
-entre si nas três rodadas da fase: A×B, A×C, B×C. Assim cada time joga dois jogos
-e descansa um dentro da fase. Terminada a fase, os trios são refeitos e os times
-trocam de quadra, até todos terem jogado contra todos.
+a regra que manda é **nenhuma quadra parada**. Toda rodada tem exatamente uma
+partida por quadra selecionada, ou seja, `2 × quadras` times em jogo — com 3
+quadras são sempre 6 times na areia e o resto folgando. As rodadas se sucedem
+até fechar o round-robin completo.
 
 Com 9 times e 3 quadras:
 
 ```
-Fase 1   quadra 1: 1,2,3     quadra 2: 4,5,6     quadra 3: 7,8,9
-  rodada 1   1 x 2               4 x 5               7 x 8
-  rodada 2   1 x 3               4 x 6               7 x 9
-  rodada 3   2 x 3               5 x 6               8 x 9
+rodada 1   quadra 1: 1 x 2   quadra 2: 3 x 4   quadra 3: 5 x 6   folgam 7, 8, 9
+rodada 2   quadra 1: 7 x 8   quadra 2: 9 x 1   quadra 3: 2 x 3   folgam 4, 5, 6
+...
+rodada 12  a última quadra fecha o 36º confronto
 ```
 
-Duas regras guiam a formação dos trios de cada fase: não repetir confronto (uma
-busca com backtracking procura uma partição em que todo par ainda é inédito) e
-não deixar ninguém jogar três seguidos.
+São 36 confrontos e 3 por rodada: 12 rodadas exatas, todas cheias, nenhum
+confronto repetido. Cada time joga 8 partidas e folga 4.
 
-A segunda regra tem um detalhe que não é óbvio. O time que joga as rodadas 2 e 3
-da fase chega na fase seguinte com dois jogos seguidos nas costas e precisa
-esperar. Se os três de um trio chegarem cansados, esse trio **entra uma rodada
-depois** — a quadra dele fica vazia na primeira rodada da fase e ele joga nas
-três seguintes. Sem esse atraso, as duas regras seriam incompatíveis: a de
-descanso congela os times em três classes fixas, e times da mesma classe nunca
-poderiam se enfrentar, deixando 9 dos 36 confrontos impossíveis.
+Cada rodada é montada escolhendo `quadras` confrontos que não compartilham time.
+Os candidatos são ordenados por, nesta ordem:
 
-O resultado com 9 times e 3 quadras é 13 rodadas, 36 confrontos (round-robin
-completo, nenhum repetido) em 4 fases, e ninguém joga mais de duas partidas
-seguidas. Há testes cobrindo isso e mais sete combinações de times e quadras.
+1. *Confronto inédito primeiro.* Fechar o round-robin vem antes de tudo.
+2. *Quem já jogou demais seguido vai para o fim da fila.* O limite de partidas
+   emendadas sai da própria aritmética do formato: com `n` times e `q` quadras,
+   `n − 2q` folgam por rodada, então dá para alternar a cada
+   `⌈2q ÷ (n − 2q)⌉` jogos. Com 9 times e 3 quadras isso dá 2.
+3. *Confronto menos repetido, depois quem está descansado há mais tempo, depois
+   quem ainda tem mais adversários pela frente.* O último critério é o que evita
+   o beco sem saída no fim, quando sobram confrontos que dividem os mesmos times.
 
-Quando todos os times cabem em quadra ao mesmo tempo (times ≤ 2 × quadras), o
-chaveamento troca os trios por duplas: todo mundo joga todas as rodadas e
-ninguém espera. É o round-robin clássico.
+Uma busca com backtracking pega o melhor conjunto que cabe na rodada, e a geração
+inteira é repetida 12 vezes com sorteios diferentes: fica a tentativa com menos
+revanches, menos rodadas e sequências mais curtas.
+
+Quando a conta não fecha redonda — 8 times em 3 quadras dão 28 confrontos, e 28
+não divide por 3 — a última rodada completa a quadra que sobraria vazia com uma
+**revanche** de quem menos se repetiu. Quadra parada, nunca.
+
+O selo **Fase** agrupa rodadas em que todo time joga a mesma quantidade de vezes
+(`n ÷ mdc(n, 2q)` rodadas). Com 9 times e 3 quadras são 4 fases de 3 rodadas, com
+2 jogos por time em cada. Quando a fase tem uma rodada só — porque todo mundo
+joga toda rodada — o selo some, que aí ele não diria nada.
 
 A habilidade **não** entra no chaveamento, apenas na formação dos times.
 
@@ -256,7 +266,9 @@ com.unidospelovolei
 │   │   ├── 20260901150000_presenca_e_avisos.sql confirmação do sábado e push
 │   │   ├── 20260901160000_mural_agenda_regras.sql mural, agenda e páginas
 │   │   ├── 20260901170000_financeiro.sql       cobranças, pagamentos e Pix
-│   │   └── 20260901180000_avaliacao.sql        avaliação anônima e evolução
+│   │   ├── 20260901180000_avaliacao.sql        avaliação anônima e evolução
+│   │   ├── 20260904120000_areia_quarteto_vinculo_e_mural.sql  quarteto, vínculo manual e mural com imagem
+│   │   └── 20260904130000_regras_do_volei_unidos.sql  as regras como o grupo joga
 │   └── seed.sql                      zera os dados e recria 9 times e 38 jogadores
 │   └── functions/
 │       └── enviar-avisos/            Edge Function que dispara os lembretes
@@ -329,6 +341,8 @@ com.unidospelovolei
 9. `supabase/migrations/20260901160000_mural_agenda_regras.sql`
 10. `supabase/migrations/20260901170000_financeiro.sql`
 11. `supabase/migrations/20260901180000_avaliacao.sql`
+12. `supabase/migrations/20260904120000_areia_quarteto_vinculo_e_mural.sql`
+13. `supabase/migrations/20260904130000_regras_do_volei_unidos.sql`
 
 E, se quiser dados de exemplo, `supabase/seed.sql`.
 
@@ -402,6 +416,28 @@ O que cada migration faz:
   `public.player_performance` e a `publication` recriada com as tabelas novas.
 - **presenca_do_dia** — torna `player_day_stats.team_id` opcional, para o "Encerrar
   dia" também guardar quem estava presente sem ter entrado em nenhum time.
+- **identidade** — `profiles.papel`, `players.profile_id`, `vinculo_pedidos`,
+  `player_contatos` e os triggers que aplicam o vínculo e protegem a ficha.
+- **presenca_e_avisos** — `presencas`, `config_grupo`, `dispositivos` e `avisos`.
+- **mural_agenda_regras** — `posts`, `post_reacoes`, `eventos` e `paginas`.
+- **financeiro** — `players.regime`, `config_financeiro`, `cobrancas` e `pagamentos`.
+- **avaliacao** — `avaliacoes` (só insert), `avaliacao_registros`,
+  `player_evolucao` e `dicas`.
+- **areia_quarteto_vinculo_e_mural** — derruba `players.posicao`; deixa o atleta
+  escolher o próprio regime, menos a isenção; reduz os tipos de evento a
+  `jogo`/`confraternizacao`/`campeonato` (migrando `amistoso` e `outro`); acrescenta
+  `posts.imagem_url` e `posts.emoji`; cria o bucket `mural` no Storage com as
+  policies de leitura pública e escrita da diretoria; e reescreve a página de regras
+  para o vôlei de areia em quarteto.
+- **regras_do_volei_unidos** — troca a página de regras pelas regras como o grupo
+  realmente joga: set único até 15, bloqueio **não** contando como toque e a regra da
+  bola no teto e na corda de aço do ginásio.
+
+> A migration nova **derruba uma coluna** (`players.posicao`). Depois de aplicá-la,
+> recarregue o schema na instância do PowerSync (**Deploy sync rules** ou o restart da
+> instância) para a replicação parar de enviar a coluna que não existe mais. Os
+> clientes já não a declaram no schema local, então o SQLite de cada aparelho se
+> ajusta sozinho na primeira abertura.
 
 ### 3. Credenciais OAuth no Google Cloud
 
@@ -890,10 +926,37 @@ O app abre no **SOCIAL**, no mural: é a primeira coisa que todo mundo vê, e é
 diretoria fala com o grupo. As outras quatro são **JOGOS** (chaveamento e placar),
 **CLASSIFICAÇÃO**, **TIMES** e **EU**.
 
+A aba **EU** ganha uma **bolinha verde** no ícone quando tem companheiro de time
+esperando a sua nota. É o único aviso desse tipo no app, e ele some sozinho quando a
+fila de avaliações zera.
+
+### O primeiro login
+
+Quem entra pela primeira vez não cai direto nas abas: passa por um **mini tour** de
+seis telas, uma por aba, terminando no convite para achar o próprio nome na lista de
+jogadores. O último botão leva direto para a aba **EU**, já na tela de pedir vínculo,
+e ali tem o recado: *"Não encontrou seu nome na lista? Entre em contato com a
+diretoria para adicioná-lo aqui!"*.
+
+O tour é marcado como visto no armazenamento local do aparelho — `SharedPreferences`
+no Android, `localStorage` na web — e não em `profiles`. É preferência de
+dispositivo, não dado do grupo: não vale uma coluna no banco nem uma volta no sync, e
+reinstalar o app mostrando o tour de novo é comportamento aceitável.
+
 A lista de **Jogadores**, dentro de TIMES, é a lista única do grupo: todo mundo abre
-e vê nome, nível, posição e aniversário de cada um. Só a diretoria enxerga a chave
-**Presente?**, o botão de criar e a edição — para o atleta ela é uma ficha de leitura,
-com um selo indicando quem já tem acesso ao app.
+e vê nome, gênero e aniversário de cada um. O **nível de habilidade em estrelas é só
+da diretoria** — o atleta não vê o dos outros nem o próprio, e nem sabe que existe
+uma escala. Também são só da diretoria a chave **Presente?**, os filtros
+**Todos / Presentes / Ausentes**, os botões de presença em massa, o botão de criar e a
+edição. Para o atleta a lista é leitura, com um selo indicando quem já tem acesso ao app.
+
+A mesma régua vale no cartão do time e na janela de detalhes dele: a **força do time**
+e o **nível de cada jogador do elenco** aparecem só para quem é diretoria.
+
+> O nível continua descendo para o aparelho de todo mundo pelo sync — a lista de
+> jogadores é uma stream só. O que muda é que nenhuma tela do app mostra o nível
+> para o atleta. Se um dia isso precisar virar segredo de verdade, o caminho é
+> separar `skill_level` numa stream de sync exclusiva da diretoria.
 
 ## Quem é quem no app
 
@@ -931,7 +994,18 @@ sobem pelo PowerSync, que aplica tudo via Postgrest sob a RLS, então não há c
 chamar função privilegiada de dentro do app — e fazer pela tabela mantém a aprovação
 funcionando offline, como o resto.
 
-Para pré-vincular quem a diretoria já conhece, sem passar pela fila:
+O caminho da fila não é o único. Em **EU → Contas e jogadores → Vincular à mão** a
+diretoria vê a lista inteira de jogadores e liga qualquer um a qualquer conta que já
+tenha entrado no app pelo menos uma vez, sem esperar o atleta achar o próprio nome.
+O mesmo botão **desvincula**: a conta perde o acesso à ficha, ao extrato e às
+avaliações daquele jogador, e o jogador continua no grupo, agora sem dono.
+
+A lista de contas dessa tela vem do Postgrest na hora (`profiles` só sincroniza o
+seu próprio perfil), então ela precisa de internet — é a mesma escolha já feita para
+o painel financeiro do grupo. Vincular à mão limpa o pedido pendente daquela conta,
+para ninguém ficar preso na fila depois de já estar resolvido.
+
+Se preferir o SQL direto, ele continua valendo:
 
 ```sql
 update public.players p
@@ -942,7 +1016,13 @@ where f.email = 'fulano@gmail.com' and p.nome = 'Fulano';
 
 O atleta pode editar a própria ficha, mas não tudo: um trigger recusa mudança em
 `skill_level`, `genero`, `ativo`, `entrou_em` e `profile_id` para quem não é
-diretoria. Nome, posição, foto e aniversário são dele.
+diretoria, e recusa entrar ou sair do regime `isento` — isenção é concessão da
+diretoria. Nome, foto, aniversário e a escolha entre **Mensalista** e **Diarista** são
+dele.
+
+Não existe mais campo de **posição** na ficha. O grupo joga quarteto na areia, onde
+não há rodízio de posição em quadra: levantador, ponteiro e líbero são vocabulário
+de sexteto e saíram do app e do banco.
 
 Telefone, contato de emergência e o **ano** de nascimento ficam em
 `player_contatos`, tabela à parte que só sincroniza para o dono. O dia e o mês do
@@ -1016,9 +1096,28 @@ aparelho. Para ligar:
 
 ## Mural, agenda e regras
 
-O mural é da diretoria: só ela publica, o grupo lê e reage. A agenda guarda o que
-foge da rotina — confraternização, amistoso, campeonato —, porque o sábado é toda
-semana e não faz sentido cadastrar 52 vezes.
+O mural é da diretoria: só ela publica, o grupo lê e reage. Cada publicação pode
+levar uma **imagem** e escolhe o **emoji de reação** do grupo — 👏 é o padrão, mas dá
+para trocar por 🔥, 🏐, 🎉 e mais alguns. O emoji fica gravado no post, então o botão
+de reagir muda de cara de recado para recado.
+
+As imagens vão para o bucket `mural` do Supabase Storage: leitura pública, escrita só
+para a diretoria, 5 MB e JPG/PNG/WEBP/GIF. Elas **não** passam pelo PowerSync — o
+upload precisa de internet e a foto é baixada por URL na hora de exibir. É o mesmo
+raciocínio do painel financeiro: o sync carrega linha de banco, não arquivo. Offline,
+o recado aparece com o texto e a imagem fica com um aviso no lugar.
+
+A agenda guarda o que foge da rotina, em três tipos: **Jogo**, **Confraternização** e
+**Campeonato**. O sábado é toda semana e não faz sentido cadastrar 52 vezes. A data é
+digitada em **dd/mm/aaaa**, com máscara e validação de calendário antes de virar o
+`timestamptz`, e o campo **Local** busca endereços enquanto se digita.
+
+> O autocomplete de endereço usa o [Photon](https://photon.komoot.io), geocoder
+> aberto sobre dados do OpenStreetMap: sem chave, sem billing e sem cadastro, com
+> 350 ms de espera entre a tecla e a busca. O campo continua sendo texto livre, então
+> trocar por Google Places depois é mexer só em
+> [`EnderecoRepository.kt`](app/src/main/java/com/unidospelovolei/data/EnderecoRepository.kt)
+> e [`enderecos.ts`](web/src/lib/enderecos.ts) — nada no banco muda.
 
 Aniversário e tempo de casa **não são eventos cadastrados**. Saem por consulta de
 `players.entrou_em` e do dia e mês de nascimento, então mudam de ano sozinhos e
@@ -1036,6 +1135,12 @@ O grupo cobra dos dois jeitos, e cada atleta tem um `regime` na ficha:
 mês** e o app cria uma cobrança com uma linha de pagamento para cada mensalista;
 **Gerar diária de hoje** faz o mesmo para os diaristas que estão presentes. Gerar
 duas vezes a mesma competência não duplica nada.
+
+**Quem escolhe o regime é o próprio atleta**, na ficha em EU: dois botões,
+Mensalista ou Diarista, e o texto embaixo explica o que cada um significa. O RLS
+deixa: a policy de dono já permitia o `update` na própria linha, e o trigger que
+protege a ficha ganhou uma regra só para `isento` — entrar ou sair da isenção
+continua sendo decisão da diretoria, porque isso é perdão de dívida, não preferência.
 
 **Todo valor é inteiro em centavos.** R$ 25,50 é gravado como `2550`, e nenhum
 número quebrado encosta em dinheiro — erro de arredondamento em cobrança de grupo de
@@ -1100,9 +1205,11 @@ TypeScript reproduz o `kotlin.random.Random`, então as asserções de valor exa
 Cobrem os dois algoritmos do domínio
 ([`SchedulingTest.kt`](app/src/test/java/com/unidospelovolei/domain/SchedulingTest.kt)):
 cotas de gênero, equilíbrio de força, variação entre dois sorteios e afastamento de
-duplas já repetidas; round-robin completo com 9 times em 3 quadras, ausência de time
-repetido na mesma rodada, agrupamento das fases e os casos de número par de times e
-de quadras sobrando.
+duplas já repetidas; e, no chaveamento, **toda rodada com todas as quadras cheias** em
+nove combinações de times e quadras, as 12 rodadas exatas de 9 times em 3 quadras,
+round-robin completo sem confronto repetido quando a conta divide, a revanche que
+fecha a última rodada quando não divide, o teto de jogos emendados no formato que
+permite, e os casos de número par de times e de quadras sobrando.
 
 ---
 
@@ -1146,8 +1253,8 @@ Coisas visíveis no protótipo web ou que costumam ser pedidas, mas que **não**
 aqui porque não constam do escopo descrito:
 
 - **Exportar resultados** (o botão verde de exportar planilha do protótipo).
-- Foto no mural e na ficha: as tabelas já têm a coluna, mas o Supabase Storage não
-  está ligado, então nada de imagem sobe ainda.
+- Foto na ficha do jogador: a coluna `players.foto_url` existe, mas só o mural usa o
+  Supabase Storage por enquanto.
 - Múltiplos campeonatos ou temporadas em paralelo: `rounds`, `matches` e
   `standings` continuam assumindo um único campeonato em andamento. A aba de
   campeonatos é conteúdo, não gestão.

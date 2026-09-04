@@ -40,6 +40,7 @@ import com.unidospelovolei.domain.model.Post
 import com.unidospelovolei.domain.model.StatusPresenca
 import com.unidospelovolei.domain.model.TipoMarco
 import com.unidospelovolei.ui.components.Cartao
+import com.unidospelovolei.ui.components.ImagemRemota
 import com.unidospelovolei.ui.components.EstadoVazio
 import com.unidospelovolei.ui.components.RotuloPequeno
 import com.unidospelovolei.ui.components.Selo
@@ -52,7 +53,7 @@ fun GrupoScreen(
     onSecao: (SecaoDoGrupo) -> Unit,
     onNovoPost: () -> Unit,
     onExcluirPost: (String) -> Unit,
-    onReagir: (String) -> Unit,
+    onReagir: (String, String) -> Unit,
     onNovoEvento: () -> Unit,
     onEditarEvento: (Evento) -> Unit,
     onExcluirEvento: (String) -> Unit,
@@ -145,7 +146,7 @@ private fun Mural(
     isAdmin: Boolean,
     onNovoPost: () -> Unit,
     onExcluir: (String) -> Unit,
-    onReagir: (String) -> Unit,
+    onReagir: (String, String) -> Unit,
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -201,6 +202,14 @@ private fun Mural(
                         Text(post.corpo, color = VoleiColors.TextoSecundario, fontSize = 14.sp)
                     }
 
+                    post.imagemUrl?.let { url ->
+                        ImagemRemota(
+                            url = url,
+                            descricao = "Imagem do recado ${post.titulo}",
+                            modifier = Modifier.clip(RoundedCornerShape(12.dp)),
+                        )
+                    }
+
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
@@ -218,11 +227,11 @@ private fun Mural(
                                     .clip(RoundedCornerShape(16.dp))
                                     .background(
                                         if (post.reagi) VoleiColors.SeloVitoriaFundo else VoleiColors.CartaoInterno,
-                                    ).clickable { onReagir(post.id) }
+                                    ).clickable { onReagir(post.id, post.emoji) }
                                     .padding(horizontal = 12.dp, vertical = 6.dp),
                         ) {
                             Text(
-                                text = if (post.reacoes > 0) "👏 ${post.reacoes}" else "👏",
+                                text = if (post.reacoes > 0) "${post.emoji} ${post.reacoes}" else post.emoji,
                                 fontSize = 13.sp,
                                 color = if (post.reagi) VoleiColors.VerdeClaro else VoleiColors.TextoSecundario,
                             )
@@ -256,7 +265,7 @@ private fun Agenda(
             item {
                 EstadoVazio(
                     titulo = "Nada marcado",
-                    descricao = "O sábado é toda semana. Aqui entram confraternização, amistoso e campeonato.",
+                    descricao = "O sábado é toda semana. Aqui entram jogo, confraternização e campeonato.",
                     modifier = Modifier.fillMaxWidth(),
                 )
             }

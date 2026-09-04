@@ -8,11 +8,14 @@ import com.unidospelovolei.data.AppSchema
 import com.unidospelovolei.data.AvaliacaoRepository
 import com.unidospelovolei.data.AuthRepository
 import com.unidospelovolei.data.ChamadaRepository
+import com.unidospelovolei.data.ContasRepository
+import com.unidospelovolei.data.EnderecoRepository
 import com.unidospelovolei.data.FinanceiroRepository
 import com.unidospelovolei.data.GameDaysRepository
 import com.unidospelovolei.data.GrupoRepository
 import com.unidospelovolei.data.MatchesRepository
 import com.unidospelovolei.data.MembroRepository
+import com.unidospelovolei.data.MuralStorage
 import com.unidospelovolei.data.PlayersRepository
 import com.unidospelovolei.data.ProfileRepository
 import com.unidospelovolei.data.StandingsRepository
@@ -21,6 +24,7 @@ import com.unidospelovolei.data.TeamsRepository
 import io.github.jan.supabase.auth.Auth
 import io.github.jan.supabase.createSupabaseClient
 import io.github.jan.supabase.postgrest.Postgrest
+import io.github.jan.supabase.storage.Storage
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -48,6 +52,7 @@ class AppContainer(
         ) {
             install(Auth)
             install(Postgrest)
+            install(Storage)
         }
     }
 
@@ -75,10 +80,13 @@ class AppContainer(
         )
     }
 
+    val contasRepository by lazy { ContasRepository(supabase) }
     val profileRepository by lazy { ProfileRepository(database) }
     val membroRepository by lazy { MembroRepository(database) }
     val chamadaRepository by lazy { ChamadaRepository(database) }
     val grupoRepository by lazy { GrupoRepository(database) }
+    val muralStorage by lazy { MuralStorage(supabase) }
+    val enderecoRepository by lazy { EnderecoRepository() }
     val financeiroRepository by lazy { FinanceiroRepository(database, supabase) }
     val avaliacaoRepository by lazy { AvaliacaoRepository(database) }
     val playersRepository by lazy { PlayersRepository(database) }

@@ -161,7 +161,7 @@ export const TimesScreen = ({
                 key={time.id}
                 time={time}
                 jogadores={elenco?.players.length ?? 0}
-                forca={elenco ? forcaTotal(elenco) : 0}
+                forca={isAdmin && elenco ? forcaTotal(elenco) : null}
                 onClick={() => onAbrirTime(time)}
                 onEditar={isAdmin ? () => onEditarTime(time) : undefined}
                 onAlternarAtivo={isAdmin ? () => onAlternarAtivoTime(time) : undefined}
@@ -199,7 +199,7 @@ const CartaoTime = ({
 }: {
   time: Team;
   jogadores: number;
-  forca: number;
+  forca: number | null;
   onClick: () => void;
   onEditar?: () => void;
   onAlternarAtivo?: () => void;
@@ -235,7 +235,13 @@ const CartaoTime = ({
           {time.nome}
         </span>
         <span className="terciario" style={{ fontSize: 10, textAlign: 'center' }}>
-          {!time.ativo ? 'fora de hoje' : jogadores > 0 ? `${jogadores} jog. • força ${forca}` : 'sem elenco'}
+          {!time.ativo
+            ? 'fora de hoje'
+            : jogadores === 0
+              ? 'sem elenco'
+              : forca !== null
+                ? `${jogadores} jog. • força ${forca}`
+                : `${jogadores} jogadores`}
         </span>
       </button>
     </Cartao>
@@ -370,11 +376,13 @@ export const TeamEditorDialog = ({
 
 export const TeamHistoryDialog = ({
   time,
+  isAdmin,
   elenco,
   partidas,
   onFechar,
 }: {
   time: Team;
+  isAdmin: boolean;
   elenco: Player[];
   partidas: MatchCard[];
   onFechar: () => void;
@@ -408,7 +416,7 @@ export const TeamHistoryDialog = ({
         />
       ) : (
         <div className="coluna" style={{ padding: 12, gap: 10, overflowY: 'auto' }}>
-          <SecaoElenco elenco={elenco} />
+          <SecaoElenco elenco={elenco} isAdmin={isAdmin} />
           <RotuloPequeno>Agenda de jogos</RotuloPequeno>
           {partidas.length === 0 && (
             <span className="subtitulo">Este time ainda não aparece em nenhuma rodada.</span>
@@ -422,7 +430,7 @@ export const TeamHistoryDialog = ({
   </div>
 );
 
-const SecaoElenco = ({ elenco }: { elenco: Player[] }) => (
+const SecaoElenco = ({ elenco, isAdmin }: { elenco: Player[]; isAdmin: boolean }) => (
   <Cartao>
     <div className="coluna" style={{ padding: 12, gap: 8 }}>
       <div className="linha-entre">
@@ -430,8 +438,8 @@ const SecaoElenco = ({ elenco }: { elenco: Player[] }) => (
         {elenco.length > 0 && (
           <span style={{ color: 'var(--verde-claro)', fontSize: 11, fontWeight: 700 }}>
             {elenco.filter((j) => j.genero === 'masculino').length}H /{' '}
-            {elenco.filter((j) => j.genero === 'feminino').length}M • força{' '}
-            {elenco.reduce((soma, j) => soma + j.skillLevel, 0)}
+            {elenco.filter((j) => j.genero === 'feminino').length}M
+            {isAdmin && ` • força ${elenco.reduce((soma, j) => soma + j.skillLevel, 0)}`}
           </span>
         )}
       </div>
@@ -448,9 +456,11 @@ const SecaoElenco = ({ elenco }: { elenco: Player[] }) => (
               corTexto="var(--selo-fase-texto)"
               corFundo="var(--selo-fase-fundo)"
             />
-            <span className="terciario" style={{ fontSize: 11 }}>
-              nível {jogador.skillLevel}
-            </span>
+            {isAdmin && (
+              <span className="terciario" style={{ fontSize: 11 }}>
+                nível {jogador.skillLevel}
+              </span>
+            )}
           </div>
         ))
       )}
@@ -472,7 +482,7 @@ const LinhaHistorico = ({ partida, timeId }: { partida: MatchCard; timeId: strin
       <div className="coluna" style={{ padding: 12, gap: 10 }}>
         <div className="linha-entre">
           <RotuloPequeno>
-            {`Fase ${partida.fase} • Rodada ${partida.roundNumero} • Quadra ${partida.quadra}`}
+            {`Rodada ${partida.roundNumero} • Quadra ${partida.quadra}`}
           </RotuloPequeno>
           {finalizada && <SeloResultado venceu={partida.winnerId === timeId} />}
         </div>

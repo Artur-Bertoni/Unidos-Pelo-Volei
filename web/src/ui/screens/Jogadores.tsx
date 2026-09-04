@@ -2,7 +2,6 @@ import { useState } from 'react';
 import {
   aniversarioDe,
   REGIMES,
-  rotuloDaPosicao,
   regimeDe,
   rotuloDoRegime,
   saldoDoDesempenho,
@@ -135,6 +134,7 @@ export const JogadoresScreen = ({
 
       <div className="coluna" style={{ padding: '0 16px', gap: 8, flex: 'none' }}>
         <CampoBusca valor={busca} onMudar={onBuscar} dica="Buscar jogador pelo nome" />
+        {isAdmin && (
         <div className="linha" style={{ gap: 8 }}>
           {(Object.keys(ROTULOS) as FiltroPresenca[]).map((opcao) => (
             <button
@@ -148,6 +148,7 @@ export const JogadoresScreen = ({
             </button>
           ))}
         </div>
+        )}
         {isAdmin && (
         <div className="linha" style={{ gap: 8 }}>
           <button
@@ -258,12 +259,7 @@ export const JogadoresScreen = ({
 };
 
 const fichaResumida = (jogador: Player): string =>
-  [
-    jogador.posicao ? rotuloDaPosicao(jogador.posicao) : null,
-    aniversarioDe(jogador) ? `aniversário ${aniversarioDe(jogador)}` : null,
-  ]
-    .filter(Boolean)
-    .join(' · ');
+  aniversarioDe(jogador) ? `aniversário ${aniversarioDe(jogador)}` : '';
 
 const LinhaJogador = ({
   jogador,
@@ -297,7 +293,7 @@ const LinhaJogador = ({
             corFundo="var(--selo-fase-fundo)"
           />
         </div>
-        <Estrelas nivel={jogador.skillLevel} />
+        {isAdmin && <Estrelas nivel={jogador.skillLevel} />}
         {fichaResumida(jogador) && (
           <span className="subtitulo" style={{ fontSize: 11, color: 'var(--texto-terciario)' }}>
             {fichaResumida(jogador)}

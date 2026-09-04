@@ -42,6 +42,7 @@ export const JogosScreen = ({
   onEncerrarDia: () => void;
 }) => {
   const [expandida, setExpandida] = useState<number | null>(1);
+  const mostrarFase = new Set(rodadas.map((rodada) => rodada.round.fase)).size < rodadas.length;
 
   return (
     <div className="lista">
@@ -77,6 +78,7 @@ export const JogosScreen = ({
         <CartaoRodada
           key={rodada.round.id}
           rodada={rodada}
+          mostrarFase={mostrarFase}
           expandida={expandida === rodada.round.numero}
           onAlternar={() =>
             setExpandida(expandida === rodada.round.numero ? null : rodada.round.numero)
@@ -106,9 +108,9 @@ const CartaoChaveamento = ({
         <div className="coluna" style={{ padding: 16, gap: 12 }}>
           <strong style={{ fontSize: 15 }}>Chaveamento</strong>
           <p className="subtitulo" style={{ margin: 0 }}>
-            Cada quadra recebe um trio, que joga entre si nas três rodadas da fase (A×B, A×C, B×C).
-            Depois os times trocam de quadra até todos jogarem contra todos, e ninguém joga mais de
-            duas partidas seguidas.
+            Toda rodada enche todas as quadras: dois times por quadra, nenhuma parada. As rodadas
+            seguem até todos jogarem contra todos, revezando quem folga para ninguém emendar partida
+            demais.
           </p>
           <div className="linha-entre">
             <span className="subtitulo" style={{ fontSize: 13 }}>
@@ -201,11 +203,13 @@ const CartaoEncerrarDia = ({
 
 const CartaoRodada = ({
   rodada,
+  mostrarFase,
   expandida,
   onAlternar,
   onAbrirPartida,
 }: {
   rodada: RoundSchedule;
+  mostrarFase: boolean;
   expandida: boolean;
   onAlternar: () => void;
   onAbrirPartida: (matchId: string) => void;
@@ -223,7 +227,7 @@ const CartaoRodada = ({
           <span style={{ fontSize: 17, fontWeight: 900, letterSpacing: 0.5 }}>
             RODADA {rodada.round.numero}
           </span>
-          <SeloFase fase={rodada.round.fase} />
+          {mostrarFase && <SeloFase fase={rodada.round.fase} />}
         </div>
         {rodada.folgam.length > 0 && (
           <div className="linha" style={{ gap: 6 }}>

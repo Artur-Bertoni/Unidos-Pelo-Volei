@@ -141,7 +141,7 @@ fun TeamsScreen(
             CartaoTime(
                 time = time,
                 jogadores = elenco?.players?.size ?: 0,
-                forca = elenco?.forcaTotal ?: 0,
+                forca = if (isAdmin) elenco?.forcaTotal else null,
                 onClick = { onAbrirTime(time) },
                 onEditar = if (isAdmin) ({ onEditarTime(time) }) else null,
                 onAlternarAtivo = if (isAdmin) ({ onAlternarAtivoTime(time) }) else null,
@@ -199,7 +199,7 @@ private fun BotaoAcao(
 private fun CartaoTime(
     time: Team,
     jogadores: Int,
-    forca: Int,
+    forca: Int?,
     onClick: () -> Unit,
     onEditar: (() -> Unit)?,
     onAlternarAtivo: (() -> Unit)?,
@@ -232,8 +232,9 @@ private fun CartaoTime(
                 text =
                     when {
                         !time.ativo -> "fora de hoje"
-                        jogadores > 0 -> "$jogadores jog. • força $forca"
-                        else -> "sem elenco"
+                        jogadores == 0 -> "sem elenco"
+                        forca != null -> "$jogadores jog. • força $forca"
+                        else -> "$jogadores jogadores"
                     },
                 color = VoleiColors.TextoTerciario,
                 fontSize = 10.sp,

@@ -63,12 +63,15 @@ fun rememberVoleiViewModelFactory(container: AppContainer): ViewModelProvider.Fa
                     gameDaysRepository = container.gameDaysRepository,
                     membroRepository = container.membroRepository,
                     chamadaRepository = container.chamadaRepository,
+                    contasRepository = container.contasRepository,
                 )
             }
             initializer {
                 GrupoViewModel(
                     grupoRepository = container.grupoRepository,
                     chamadaRepository = container.chamadaRepository,
+                    muralStorage = container.muralStorage,
+                    enderecoRepository = container.enderecoRepository,
                     playersRepository = container.playersRepository,
                 )
             }

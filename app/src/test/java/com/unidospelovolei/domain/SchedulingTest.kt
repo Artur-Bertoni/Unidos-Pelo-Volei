@@ -140,63 +140,54 @@ class SchedulingTest {
                     elenco.drop(i + 1).map { b -> setOf(a, b) }
                 }
             }.toSet()
+    private fun quadrasCheias(
+        quantidade: Int,
+        quadras: Int,
+    ): Int = minOf(quadras, quantidade / RoundRobinScheduler.TIMES_POR_QUADRA)
+
+    private fun confrontosDe(equipes: List<Team>): Set<Set<String>> =
+        equipes.flatMapIndexed { i, a -> equipes.drop(i + 1).map { b -> setOf(a.id, b.id) } }.toSet()
 
     @Test
-    fun `cada quadra recebe um trio que joga A-B, A-C e B-C na fase`() {
-        val rodadas = RoundRobinScheduler.generate(times(9), quadras = 3, random = Random(4))
+    fun `toda rodada enche todas as quadras`() {
+        listOf(4 to 1, 5 to 2, 6 to 3, 7 to 3, 8 to 3, 9 to 3, 10 to 3, 12 to 4, 15 to 5).forEach { (n, quadras) ->
+            val rodadas = RoundRobinScheduler.generate(times(n), quadras, random = Random(n.toLong()))
+            val porRodada = quadrasCheias(n, quadras)
+            val caso = "$n times em $quadras quadras"
 
-        rodadas
-            .flatMap { rodada -> rodada.matches.map { rodada.fase to it } }
-            .groupBy { (fase, partida) -> fase to partida.quadra }
-            .forEach { (chave, partidas) ->
-                val confrontos = partidas.map { (_, p) -> setOf(p.teamA.id, p.teamB.id) }
-                val trio = confrontos.flatten().toSet()
-
-                assertEquals("$chave", 3, trio.size)
-                assertEquals("$chave", 3, confrontos.size)
-                assertEquals(
-                    "$chave",
-                    trio.flatMapIndexed { i, a -> trio.drop(i + 1).map { b -> setOf(a, b) } }.toSet(),
-                    confrontos.toSet(),
-                )
-            }
-    }
-
-    @Test
-    fun `nenhum time joga mais de dois jogos seguidos`() {
-        val rodadas = RoundRobinScheduler.generate(times(9), quadras = 3, random = Random(4))
-
-        times(9).forEach { time ->
-            var seguidos = 0
+            assertTrue(caso, rodadas.isNotEmpty())
             rodadas.forEach { rodada ->
-                val jogou = rodada.matches.any { it.teamA.id == time.id || it.teamB.id == time.id }
-                seguidos = if (jogou) seguidos + 1 else 0
-                assertTrue("${time.nome} jogou $seguidos seguidos", seguidos <= 2)
+                assertEquals("$caso, rodada ${rodada.numero}", porRodada, rodada.matches.size)
+                assertEquals(
+                    "$caso, rodada ${rodada.numero}",
+                    (1..porRodada).toList(),
+                    rodada.matches.map { it.quadra }.sorted(),
+                )
             }
         }
     }
 
     @Test
-    fun `o trio que chega cansado entra uma rodada depois`() {
+    fun `nove times em tres quadras jogam doze rodadas com seis times em cada uma`() {
         val rodadas = RoundRobinScheduler.generate(times(9), quadras = 3, random = Random(4))
-        val porFase = rodadas.groupBy { it.fase }
 
-        assertEquals(listOf(3, 3, 3, 4), porFase.keys.sorted().map { porFase.getValue(it).size })
-        assertEquals(13, rodadas.size)
-        assertEquals((1..13).toList(), rodadas.map { it.numero })
+        assertEquals(12, rodadas.size)
+        assertEquals((1..12).toList(), rodadas.map { it.numero })
+        rodadas.forEach { rodada ->
+            assertEquals("rodada ${rodada.numero}", 3, rodada.matches.size)
+            assertEquals("rodada ${rodada.numero}", 6, rodada.matches.size * 2)
+            assertEquals("rodada ${rodada.numero}", 3, rodada.folgam.size)
+        }
     }
 
     @Test
-    fun `chaveamento de 9 times em 3 quadras cobre o round-robin completo`() {
-        val rodadas = RoundRobinScheduler.generate(times(9), quadras = 3, random = Random(4))
-
-        val confrontos =
-            rodadas
-                .flatMap { it.matches }
-                .map { setOf(it.teamA.id, it.teamB.id) }
+    fun `chaveamento de 9 times em 3 quadras cobre o round-robin completo sem repetir`() {
+        val equipes = times(9)
+        val rodadas = RoundRobinScheduler.generate(equipes, quadras = 3, random = Random(4))
+        val confrontos = rodadas.flatMap { it.matches }.map { setOf(it.teamA.id, it.teamB.id) }
 
         assertEquals(36, confrontos.size)
-        assertEquals(36, confrontos.toSet().size)
+        assertEquals(confrontosDe(equipes), confrontos.toSet())
         assertEquals(4, rodadas.map { it.fase }.toSet().size)
     }
 
@@ -208,7 +199,6 @@ class SchedulingTest {
             val jogando = rodada.matches.flatMap { listOf(it.teamA.id, it.teamB.id) }
             assertEquals(jogando.size, jogando.toSet().size)
             assertEquals(9, jogando.size + rodada.folgam.size)
-            assertTrue(rodada.matches.size <= 3)
         }
     }
 
@@ -222,28 +212,70 @@ class SchedulingTest {
     }
 
     @Test
-    fun `todo confronto acontece e ninguem passa de dois jogos seguidos`() {
+    fun `todo confronto acontece em todos os formatos`() {
         listOf(4 to 1, 5 to 2, 7 to 3, 8 to 3, 9 to 3, 10 to 3, 12 to 4, 15 to 5).forEach { (n, quadras) ->
             val equipes = times(n)
             val rodadas = RoundRobinScheduler.generate(equipes, quadras, random = Random(n.toLong()))
             val caso = "$n times em $quadras quadras"
 
             val jogados = rodadas.flatMap { it.matches }.map { setOf(it.teamA.id, it.teamB.id) }.toSet()
-            val todos =
-                equipes
-                    .flatMapIndexed { i, a -> equipes.drop(i + 1).map { b -> setOf(a.id, b.id) } }
-                    .toSet()
-            assertEquals(caso, todos, jogados)
-            assertTrue(caso, rodadas.all { it.matches.size <= quadras })
+            assertEquals(caso, confrontosDe(equipes), jogados)
+        }
+    }
 
-            equipes.forEach { time ->
-                var seguidos = 0
-                rodadas.forEach { rodada ->
-                    val jogou = rodada.matches.any { it.teamA.id == time.id || it.teamB.id == time.id }
-                    seguidos = if (jogou) seguidos + 1 else 0
-                    assertTrue("$caso: ${time.nome} jogou $seguidos seguidos", seguidos <= 2)
-                }
+    @Test
+    fun `quando o total de confrontos divide certo ninguem joga duas vezes o mesmo adversario`() {
+        listOf(4 to 1, 5 to 2, 6 to 3, 7 to 3, 9 to 3, 10 to 3, 15 to 5).forEach { (n, quadras) ->
+            val equipes = times(n)
+            val rodadas = RoundRobinScheduler.generate(equipes, quadras, random = Random(n.toLong()))
+            val confrontos = rodadas.flatMap { it.matches }.map { setOf(it.teamA.id, it.teamB.id) }
+            val caso = "$n times em $quadras quadras"
+
+            assertEquals(caso, confrontos.size, confrontos.toSet().size)
+            assertEquals(caso, n * (n - 1) / 2, confrontos.size)
+        }
+    }
+
+    @Test
+    fun `com sobra de confrontos a ultima rodada enche a quadra com uma revanche`() {
+        val equipes = times(8)
+        val rodadas = RoundRobinScheduler.generate(equipes, quadras = 3, random = Random(8))
+        val confrontos = rodadas.flatMap { it.matches }.map { setOf(it.teamA.id, it.teamB.id) }
+
+        assertTrue("rodadas=${rodadas.size}", rodadas.all { it.matches.size == 3 })
+        assertEquals(confrontosDe(equipes), confrontos.toSet())
+        assertEquals(confrontos.size, rodadas.size * 3)
+        assertTrue("repetidos=${confrontos.size - confrontos.toSet().size}", confrontos.size > confrontos.toSet().size)
+    }
+
+    @Test
+    fun `quem folga sempre volta antes de cansar quando o formato permite`() {
+        val rodadas = RoundRobinScheduler.generate(times(10), quadras = 3, random = Random(10))
+
+        times(10).forEach { time ->
+            var seguidos = 0
+            rodadas.forEach { rodada ->
+                val jogou = rodada.matches.any { it.teamA.id == time.id || it.teamB.id == time.id }
+                seguidos = if (jogou) seguidos + 1 else 0
+                assertTrue("${time.nome} jogou $seguidos seguidos", seguidos <= 2)
             }
+        }
+    }
+
+    @Test
+    fun `todo time joga a mesma quantidade de jogos em cada fase`() {
+        val equipes = times(9)
+        val rodadas = RoundRobinScheduler.generate(equipes, quadras = 3, random = Random(4))
+
+        rodadas.groupBy { it.fase }.forEach { (fase, daFase) ->
+            val jogosPorTime =
+                equipes.associate { time ->
+                    time.id to
+                        daFase.sumOf { rodada ->
+                            rodada.matches.count { it.teamA.id == time.id || it.teamB.id == time.id }
+                        }
+                }
+            assertEquals("fase $fase", setOf(2), jogosPorTime.values.toSet())
         }
     }
 
@@ -252,6 +284,12 @@ class SchedulingTest {
         val rodadas = RoundRobinScheduler.generate(times(4), quadras = 5, random = Random(1))
 
         assertEquals(6, rodadas.sumOf { it.matches.size })
-        assertTrue(rodadas.all { it.matches.size <= 2 })
+        assertTrue(rodadas.all { it.matches.size == 2 })
+    }
+
+    @Test
+    fun `menos de dois times nao gera rodada`() {
+        assertTrue(RoundRobinScheduler.generate(times(1), quadras = 3).isEmpty())
+        assertTrue(RoundRobinScheduler.generate(times(9), quadras = 0).isEmpty())
     }
 }
