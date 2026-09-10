@@ -15,27 +15,34 @@ import java.time.temporal.TemporalAdjusters
 
 class ChamadaRepository(
     private val db: PowerSyncDatabase,
+    private val grupoAtivo: GrupoAtivo,
 ) {
     fun observeConfig(): Flow<ConfigGrupo?> =
         db
-            .watch("SELECT id, jogo_hora, jogo_local FROM config_grupo LIMIT 1") { it.toConfigGrupo() }
+            .observarNoGrupo(
+                grupoAtivo,
+                "SELECT id, jogo_hora, jogo_local FROM config_grupo WHERE grupo_id = ? LIMIT 1",
+            ) { it.toConfigGrupo() }
             .map { it.firstOrNull() }
 
     fun observePresencas(data: String): Flow<List<Presenca>> =
-        db.watch(
+        db.observarNoGrupo(
+            grupoAtivo,
             """
             SELECT id, player_id, data, status, origem
             FROM presencas
-            WHERE data = ?
+            WHERE grupo_id = ? AND data = ?
             """.trimIndent(),
             listOf(data),
         ) { it.toPresenca() }
 
     fun observeAvisos(): Flow<List<Aviso>> =
-        db.watch(
+        db.observarNoGrupo(
+            grupoAtivo,
             """
             SELECT id, tipo, titulo, corpo, criado_em
             FROM avisos
+            WHERE grupo_id = ?
             ORDER BY criado_em DESC
             LIMIT 30
             """.trimIndent(),
@@ -50,6 +57,7 @@ class ChamadaRepository(
     ) {
         val agora = agoraIso()
         val origem = if (peloProprio) "atleta" else "diretoria"
+        val grupo = grupoAtivo.exigir()
 
         db.writeTransactionAsync { tx ->
             val existente =
@@ -64,10 +72,10 @@ class ChamadaRepository(
                 tx.execute(
                     """
                     INSERT INTO presencas (
-                        id, player_id, data, status, origem, registrado_por, atualizado_em
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                        id, grupo_id, player_id, data, status, origem, registrado_por, atualizado_em
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                     """.trimIndent(),
-                    listOf(novoId(), playerId, data, status.value, origem, registradoPor, agora),
+                    listOf(novoId(), grupo, playerId, data, status.value, origem, registradoPor, agora),
                 )
             } else {
                 tx.execute(
@@ -82,20 +90,21 @@ class ChamadaRepository(
         }
     }
 
-    suspend fun trazerConfirmados(data: String): Int =
-        db.writeTransactionAsync { tx ->
+    suspend fun trazerConfirmados(data: String): Int {
+        val grupo = grupoAtivo.exigir()
+        return db.writeTransactionAsync { tx ->
             val confirmados =
                 tx.getAll(
-                    "SELECT player_id FROM presencas WHERE data = ? AND status = ?",
-                    listOf(data, StatusPresenca.VOU.value),
+                    "SELECT player_id FROM presencas WHERE grupo_id = ? AND data = ? AND status = ?",
+                    listOf(grupo, data, StatusPresenca.VOU.value),
                 ) { it.getString("player_id") }
 
             if (confirmados.isNotEmpty()) {
                 val agora = agoraIso()
                 val marcadores = confirmados.joinToString(",") { "?" }
                 tx.execute(
-                    "UPDATE players SET ativo = 0, updated_at = ? WHERE ativo = 1",
-                    listOf(agora),
+                    "UPDATE players SET ativo = 0, updated_at = ? WHERE grupo_id = ? AND ativo = 1",
+                    listOf(agora, grupo),
                 )
                 tx.execute(
                     "UPDATE players SET ativo = 1, updated_at = ? WHERE id IN ($marcadores)",
@@ -105,6 +114,7 @@ class ChamadaRepository(
 
             confirmados.size
         }
+    }
 
     suspend fun registrarDispositivo(
         profileId: String,

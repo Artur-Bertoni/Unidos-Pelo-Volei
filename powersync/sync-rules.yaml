@@ -2,35 +2,44 @@ config:
   edition: 3
 
 streams:
+  meu_perfil:
+    auto_subscribe: true
+    query: SELECT * FROM profiles WHERE id = auth.user_id()
+
+  meus_grupos:
+    auto_subscribe: true
+    queries:
+      - SELECT * FROM grupos WHERE id IN (SELECT grupo_id FROM grupo_membros WHERE profile_id = auth.user_id())
+      - SELECT * FROM grupo_membros WHERE grupo_id IN (SELECT grupo_id FROM grupo_membros WHERE profile_id = auth.user_id())
+
   campeonato:
     auto_subscribe: true
     queries:
-      - SELECT * FROM players
-      - SELECT * FROM teams
-      - SELECT * FROM team_players
-      - SELECT * FROM rounds
-      - SELECT * FROM matches
-      - SELECT * FROM game_days
-      - SELECT * FROM player_day_stats
-      - SELECT * FROM vinculo_pedidos
-      - SELECT * FROM config_grupo
-      - SELECT * FROM presencas
-      - SELECT * FROM avisos
+      - SELECT * FROM players WHERE grupo_id IN (SELECT grupo_id FROM grupo_membros WHERE profile_id = auth.user_id())
+      - SELECT * FROM teams WHERE grupo_id IN (SELECT grupo_id FROM grupo_membros WHERE profile_id = auth.user_id())
+      - SELECT * FROM team_players WHERE grupo_id IN (SELECT grupo_id FROM grupo_membros WHERE profile_id = auth.user_id())
+      - SELECT * FROM rounds WHERE grupo_id IN (SELECT grupo_id FROM grupo_membros WHERE profile_id = auth.user_id())
+      - SELECT * FROM matches WHERE grupo_id IN (SELECT grupo_id FROM grupo_membros WHERE profile_id = auth.user_id())
+      - SELECT * FROM game_days WHERE grupo_id IN (SELECT grupo_id FROM grupo_membros WHERE profile_id = auth.user_id())
+      - SELECT * FROM player_day_stats WHERE grupo_id IN (SELECT grupo_id FROM grupo_membros WHERE profile_id = auth.user_id())
+      - SELECT * FROM vinculo_pedidos WHERE grupo_id IN (SELECT grupo_id FROM grupo_membros WHERE profile_id = auth.user_id())
+      - SELECT * FROM config_grupo WHERE grupo_id IN (SELECT grupo_id FROM grupo_membros WHERE profile_id = auth.user_id())
+      - SELECT * FROM presencas WHERE grupo_id IN (SELECT grupo_id FROM grupo_membros WHERE profile_id = auth.user_id())
+      - SELECT * FROM avisos WHERE grupo_id IN (SELECT grupo_id FROM grupo_membros WHERE profile_id = auth.user_id())
 
   grupo:
     auto_subscribe: true
     queries:
-      - SELECT * FROM posts
-      - SELECT * FROM post_reacoes
-      - SELECT * FROM eventos
-      - SELECT * FROM paginas
-      - SELECT * FROM config_financeiro
-      - SELECT * FROM cobrancas
-      - SELECT * FROM dicas
+      - SELECT * FROM posts WHERE grupo_id IN (SELECT grupo_id FROM grupo_membros WHERE profile_id = auth.user_id())
+      - SELECT * FROM post_reacoes WHERE grupo_id IN (SELECT grupo_id FROM grupo_membros WHERE profile_id = auth.user_id())
+      - SELECT * FROM eventos WHERE grupo_id IN (SELECT grupo_id FROM grupo_membros WHERE profile_id = auth.user_id())
+      - SELECT * FROM paginas WHERE grupo_id IN (SELECT grupo_id FROM grupo_membros WHERE profile_id = auth.user_id())
+      - SELECT * FROM config_financeiro WHERE grupo_id IN (SELECT grupo_id FROM grupo_membros WHERE profile_id = auth.user_id())
+      - SELECT * FROM cobrancas WHERE grupo_id IN (SELECT grupo_id FROM grupo_membros WHERE profile_id = auth.user_id())
 
-  meu_perfil:
+  dicas:
     auto_subscribe: true
-    query: SELECT * FROM profiles WHERE id = auth.user_id()
+    query: SELECT * FROM dicas
 
   meus_contatos:
     auto_subscribe: true

@@ -5,9 +5,12 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.unidospelovolei.data.AuthRepository
 import com.unidospelovolei.data.Formato
+import com.unidospelovolei.data.GrupoAtivo
 import com.unidospelovolei.data.MatchesRepository
+import com.unidospelovolei.data.MeusGruposRepository
 import com.unidospelovolei.data.ProfileRepository
 import com.unidospelovolei.data.SyncService
+import com.unidospelovolei.domain.model.MeuGrupo
 import com.unidospelovolei.domain.model.UserProfile
 import io.github.jan.supabase.auth.status.SessionStatus
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -33,18 +36,27 @@ data class MainUiState(
     val carregandoSessao: Boolean = true,
     val logado: Boolean = false,
     val profile: UserProfile? = null,
+    val meusGrupos: List<MeuGrupo> = emptyList(),
+    val grupoAtual: MeuGrupo? = null,
+    val temGrupoEscolhido: Boolean = false,
     val sincronizacao: EstadoSincronizacao = EstadoSincronizacao.OFFLINE,
     val formato: Formato = Formato(times = 0, quadras = 0),
     val entrando: Boolean = false,
     val erro: String? = null,
 ) {
     val isAdmin: Boolean get() = profile?.isAdmin == true
+
+    val precisaEscolherGrupo: Boolean get() = logado && !temGrupoEscolhido
+
+    val nomeDoGrupo: String get() = grupoAtual?.nome ?: "Meu grupo"
 }
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class MainViewModel(
     private val authRepository: AuthRepository,
     private val profileRepository: ProfileRepository,
+    private val meusGruposRepository: MeusGruposRepository,
+    private val grupoAtivo: GrupoAtivo,
     matchesRepository: MatchesRepository,
     syncService: SyncService,
 ) : ViewModel() {
@@ -53,16 +65,30 @@ class MainViewModel(
 
     private val sessao = authRepository.sessionStatus
 
-    private val profile =
-        sessao.flatMapLatest { status ->
-            when (status) {
-                is SessionStatus.Authenticated ->
-                    profileRepository
-                        .observeProfile(status.session.user?.id.orEmpty())
-                        .catch { emit(null) }
+    private val usuarioId =
+        sessao.map { status -> (status as? SessionStatus.Authenticated)?.session?.user?.id }
 
-                else -> flowOf(null)
+    private val profile =
+        usuarioId.flatMapLatest { id ->
+            if (id == null) flowOf(null) else profileRepository.observeProfile(id).catch { emit(null) }
+        }
+
+    private val grupos =
+        usuarioId.flatMapLatest { id ->
+            if (id == null) {
+                flowOf(emptyList())
+            } else {
+                meusGruposRepository.observeMeusGrupos(id).catch { emit(emptyList()) }
             }
+        }
+
+    private val escolha =
+        combine(grupos, grupoAtivo.id) { lista, escolhido ->
+            Escolha(
+                grupos = lista,
+                atual = lista.firstOrNull { it.id == escolhido },
+                temEscolha = escolhido != null,
+            )
         }
 
     private val sincronizacao =
@@ -77,26 +103,32 @@ class MainViewModel(
 
     private val formato = matchesRepository.observeFormato().catch { emit(Formato(0, 0)) }
 
+    private val ambiente =
+        combine(sincronizacao, formato, entrando, erro) { sync, formatoAtual, carregando, mensagem ->
+            Ambiente(sync, formatoAtual, carregando, mensagem)
+        }
+
     val estado: StateFlow<MainUiState> =
-        combine(
-            sessao,
-            profile,
-            sincronizacao,
-            formato,
-            combine(entrando, erro) { carregando, mensagem -> carregando to mensagem },
-        ) { statusSessao, perfil, sync, formatoAtual, (carregando, mensagem) ->
+        combine(sessao, profile, escolha, ambiente) { statusSessao, perfil, grupo, extra ->
             MainUiState(
                 carregandoSessao = statusSessao is SessionStatus.Initializing,
                 logado = statusSessao is SessionStatus.Authenticated,
                 profile = perfil,
-                sincronizacao = sync,
-                formato = formatoAtual,
-                entrando = carregando,
-                erro = mensagem,
+                meusGrupos = grupo.grupos,
+                grupoAtual = grupo.atual,
+                temGrupoEscolhido = grupo.temEscolha,
+                sincronizacao = extra.sincronizacao,
+                formato = extra.formato,
+                entrando = extra.entrando,
+                erro = extra.erro,
             )
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), MainUiState())
 
     val erroVisivel: StateFlow<String?> = erro.asStateFlow()
+
+    fun selecionarGrupo(grupoId: String?) {
+        grupoAtivo.selecionar(grupoId)
+    }
 
     fun entrarComGoogle(activityContext: Context) {
         if (entrando.value) return
@@ -119,4 +151,17 @@ class MainViewModel(
     fun limparErro() {
         erro.value = null
     }
+
+    private data class Escolha(
+        val grupos: List<MeuGrupo> = emptyList(),
+        val atual: MeuGrupo? = null,
+        val temEscolha: Boolean = false,
+    )
+
+    private data class Ambiente(
+        val sincronizacao: EstadoSincronizacao,
+        val formato: Formato,
+        val entrando: Boolean,
+        val erro: String?,
+    )
 }

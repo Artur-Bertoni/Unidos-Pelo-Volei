@@ -6,29 +6,39 @@ const PLAYER_COLUNAS = `id, nome, skill_level, genero, ativo, profile_id,
 const PLAYER_COLUNAS_P = `p.id, p.nome, p.skill_level, p.genero, p.ativo, p.profile_id,
          p.foto_url, p.nascimento_dia, p.nascimento_mes, p.entrou_em, p.regime`;
 
+export const MEUS_GRUPOS_SQL = `
+  SELECT g.id, g.nome, g.cidade, g.logo_url, g.ativo, m.papel
+  FROM grupo_membros m
+  JOIN grupos g ON g.id = m.grupo_id
+  WHERE m.profile_id = ?
+  ORDER BY g.nome COLLATE NOCASE
+`;
+
 export const PLAYERS_SQL = `
   SELECT ${PLAYER_COLUNAS}
   FROM players
+  WHERE grupo_id = ?
   ORDER BY nome COLLATE NOCASE
 `;
 
 export const ACTIVE_PLAYERS_SQL = `
   SELECT ${PLAYER_COLUNAS}
   FROM players
-  WHERE ativo = 1
+  WHERE grupo_id = ? AND ativo = 1
   ORDER BY skill_level DESC, nome COLLATE NOCASE
 `;
 
 export const TEAMS_SQL = `
   SELECT id, nome, cor_hex, sigla, ativo, ordem
   FROM teams
-  WHERE ativo = 1
+  WHERE grupo_id = ? AND ativo = 1
   ORDER BY ordem, nome COLLATE NOCASE
 `;
 
 export const ALL_TEAMS_SQL = `
   SELECT id, nome, cor_hex, sigla, ativo, ordem
   FROM teams
+  WHERE grupo_id = ?
   ORDER BY ativo DESC, ordem, nome COLLATE NOCASE
 `;
 
@@ -50,17 +60,17 @@ export const ROSTERS_SQL = `
   FROM teams t
   LEFT JOIN team_players tp ON tp.team_id = t.id
   LEFT JOIN players p ON p.id = tp.player_id
-  WHERE t.ativo = 1
+  WHERE t.grupo_id = ? AND t.ativo = 1
   ORDER BY t.ordem, t.nome COLLATE NOCASE, p.skill_level DESC, p.nome COLLATE NOCASE
 `;
 
 export const FORMATO_SQL = `
   SELECT
-      (SELECT COUNT(*) FROM teams WHERE ativo = 1)  AS times,
-      (SELECT COALESCE(MAX(quadra), 0) FROM matches) AS quadras
+      (SELECT COUNT(*) FROM teams WHERE grupo_id = ? AND ativo = 1)     AS times,
+      (SELECT COALESCE(MAX(quadra), 0) FROM matches WHERE grupo_id = ?) AS quadras
 `;
 
-export const ROUNDS_SQL = `SELECT id, numero, fase FROM rounds ORDER BY numero`;
+export const ROUNDS_SQL = `SELECT id, numero, fase FROM rounds WHERE grupo_id = ? ORDER BY numero`;
 
 const MATCH_CARD_SQL = `
   SELECT
@@ -76,18 +86,23 @@ const MATCH_CARD_SQL = `
   JOIN teams tb ON tb.id = m.team_b_id
 `;
 
-export const MATCHES_SQL = `${MATCH_CARD_SQL} ORDER BY r.numero, m.quadra`;
+export const MATCHES_SQL = `${MATCH_CARD_SQL} WHERE m.grupo_id = ? ORDER BY r.numero, m.quadra`;
 
 export const TEAM_HISTORY_SQL = `${MATCH_CARD_SQL} WHERE m.team_a_id = ? OR m.team_b_id = ? ORDER BY r.numero, m.quadra`;
 
 export const MATCH_SQL = `${MATCH_CARD_SQL} WHERE m.id = ?`;
 
-export const PROFILE_SQL = `SELECT id, email, nome, papel, is_admin FROM profiles WHERE id = ?`;
+export const PROFILE_SQL = `
+  SELECT p.id, p.email, p.nome, COALESCE(m.papel, 'atleta') AS papel
+  FROM profiles p
+  LEFT JOIN grupo_membros m ON m.profile_id = p.id AND m.grupo_id = ?
+  WHERE p.id = ?
+`;
 
 export const MEU_JOGADOR_SQL = `
   SELECT ${PLAYER_COLUNAS}
   FROM players
-  WHERE profile_id = ?
+  WHERE grupo_id = ? AND profile_id = ?
 `;
 
 const PEDIDO_COLUNAS = `id, profile_id, player_id, profile_nome, status, criado_em`;
@@ -95,7 +110,7 @@ const PEDIDO_COLUNAS = `id, profile_id, player_id, profile_nome, status, criado_
 export const MEU_PEDIDO_SQL = `
   SELECT ${PEDIDO_COLUNAS}
   FROM vinculo_pedidos
-  WHERE profile_id = ?
+  WHERE grupo_id = ? AND profile_id = ?
   ORDER BY criado_em DESC
   LIMIT 1
 `;
@@ -103,7 +118,7 @@ export const MEU_PEDIDO_SQL = `
 export const PEDIDOS_PENDENTES_SQL = `
   SELECT ${PEDIDO_COLUNAS}
   FROM vinculo_pedidos
-  WHERE status = 'pendente'
+  WHERE grupo_id = ? AND status = 'pendente'
   ORDER BY criado_em
 `;
 
@@ -113,50 +128,58 @@ export const MEU_CONTATO_SQL = `
   WHERE player_id = ?
 `;
 
-export const CONFIG_GRUPO_SQL = `SELECT id, jogo_hora, jogo_local FROM config_grupo LIMIT 1`;
+export const CONFIG_GRUPO_SQL = `
+  SELECT id, jogo_hora, jogo_local FROM config_grupo WHERE grupo_id = ? LIMIT 1
+`;
 
 export const PRESENCAS_SQL = `
   SELECT id, player_id, data, status, origem
   FROM presencas
-  WHERE data = ?
+  WHERE grupo_id = ? AND data = ?
 `;
 
 export const POSTS_SQL = `
+  WITH meus AS (SELECT * FROM posts WHERE grupo_id = ?)
   SELECT
       p.id, p.autor_nome, p.titulo, p.corpo, p.imagem_url, p.emoji, p.fixado, p.publicado_em,
       (SELECT COUNT(*) FROM post_reacoes r WHERE r.post_id = p.id) AS reacoes,
       (SELECT COUNT(*) FROM post_reacoes r WHERE r.post_id = p.id AND r.profile_id = ?) AS reagi
-  FROM posts p
+  FROM meus p
   ORDER BY p.fixado DESC, p.publicado_em DESC
 `;
 
 export const EVENTOS_SQL = `
   SELECT id, titulo, descricao, tipo, inicio, local
   FROM eventos
+  WHERE grupo_id = ?
   ORDER BY inicio
 `;
 
 export const PAGINAS_SQL = `
   SELECT id, slug, categoria, titulo, corpo, ordem
   FROM paginas
+  WHERE grupo_id = ?
   ORDER BY categoria, ordem, titulo COLLATE NOCASE
 `;
 
 export const CONFIG_FINANCEIRO_SQL = `
   SELECT id, pix_chave, pix_nome, pix_cidade, mensalidade_centavos, diaria_centavos
   FROM config_financeiro
+  WHERE grupo_id = ?
   LIMIT 1
 `;
 
 export const COBRANCAS_SQL = `
   SELECT id, titulo, tipo, valor_centavos, competencia, vence_em
   FROM cobrancas
+  WHERE grupo_id = ?
   ORDER BY COALESCE(competencia, criado_em) DESC, criado_em DESC
 `;
 
 export const MEUS_PAGAMENTOS_SQL = `
   SELECT id, cobranca_id, player_id, valor_centavos, status, pago_em, observacao
   FROM pagamentos
+  WHERE grupo_id = ?
   ORDER BY criado_em DESC
 `;
 
@@ -164,6 +187,7 @@ export const EVOLUCAO_SQL = `
   SELECT player_id, total_avaliacoes, saque_media, passe_media, ataque_media,
          bloqueio_media, defesa_media, atitude_media
   FROM player_evolucao
+  WHERE grupo_id = ?
   LIMIT 1
 `;
 
@@ -185,7 +209,7 @@ export const AVALIACOES_PENDENTES_SQL = `
       AND colega.player_id <> meu.player_id
   JOIN players p ON p.id = colega.player_id
   JOIN (
-      SELECT id FROM game_days ORDER BY encerrado_em DESC LIMIT 4
+      SELECT id FROM game_days WHERE grupo_id = ? ORDER BY encerrado_em DESC LIMIT 4
   ) d ON d.id = meu.day_id
   WHERE meu.player_id = ?
       AND meu.team_id IS NOT NULL
@@ -206,7 +230,7 @@ export const STANDINGS_SQL = `
           m.score_b   AS pontos_contra,
           CASE WHEN m.winner_id = m.team_a_id THEN 1 ELSE 0 END AS venceu
       FROM matches m
-      WHERE m.status = 'finalizado'
+      WHERE m.grupo_id = ? AND m.status = 'finalizado'
       UNION ALL
       SELECT
           m.team_b_id,
@@ -214,7 +238,7 @@ export const STANDINGS_SQL = `
           m.score_a,
           CASE WHEN m.winner_id = m.team_b_id THEN 1 ELSE 0 END
       FROM matches m
-      WHERE m.status = 'finalizado'
+      WHERE m.grupo_id = ? AND m.status = 'finalizado'
   )
   SELECT
       t.id      AS team_id,
@@ -229,7 +253,7 @@ export const STANDINGS_SQL = `
       COALESCE(SUM(l.pontos_contra), 0)                   AS pontos_contra
   FROM teams t
   LEFT JOIN lados l ON l.team_id = t.id
-  WHERE t.ativo = 1
+  WHERE t.grupo_id = ? AND t.ativo = 1
   GROUP BY t.id, t.nome, t.sigla, t.cor_hex, t.ordem
   ORDER BY vitorias DESC, saldo_pontos DESC, pontos_pro DESC, t.ordem
 `;
@@ -240,10 +264,11 @@ export const ELENCOS_SQL = `
   JOIN (
       SELECT id, encerrado_em
       FROM game_days
+      WHERE grupo_id = ?
       ORDER BY encerrado_em DESC
       LIMIT ${DIAS_NO_HISTORICO}
   ) d ON d.id = s.day_id
-  WHERE s.team_id IS NOT NULL
+  WHERE s.grupo_id = ? AND s.team_id IS NOT NULL
   ORDER BY d.encerrado_em DESC, s.day_id, s.team_id
 `;
 
@@ -258,5 +283,6 @@ export const PERFORMANCE_SQL = `
       COALESCE(SUM(s.pontos_contra), 0) AS pontos_contra
   FROM players p
   LEFT JOIN player_day_stats s ON s.player_id = p.id
+  WHERE p.grupo_id = ?
   GROUP BY p.id
 `;

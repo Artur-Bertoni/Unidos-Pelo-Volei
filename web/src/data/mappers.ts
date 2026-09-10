@@ -20,6 +20,7 @@ import {
   type Evolucao,
   type Fundamento,
   type MatchCard,
+  type MeuGrupo,
   type Pagamento,
   type Pagina,
   type Player,
@@ -210,10 +211,17 @@ export const toStanding = (row: Row): Standing => ({
   pontosPro: inteiro(row, 'pontos_pro'),
 });
 
+export const toMeuGrupo = (row: Row): MeuGrupo => ({
+  id: texto(row, 'id'),
+  nome: texto(row, 'nome'),
+  cidade: textoOuNulo(row, 'cidade'),
+  papel: papelDe(textoOuNulo(row, 'papel')),
+  logoUrl: textoOuNulo(row, 'logo_url'),
+  ativo: booleano(row, 'ativo', true),
+});
+
 export const toUserProfile = (row: Row): UserProfile => {
-  const gravado = textoOuNulo(row, 'papel');
-  const legado = booleano(row, 'is_admin') ? 'diretoria' : 'atleta';
-  const resolvido = papelDe(gravado ?? legado);
+  const resolvido = papelDe(textoOuNulo(row, 'papel'));
   return {
     id: texto(row, 'id'),
     email: textoOuNulo(row, 'email'),

@@ -19,6 +19,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Cake
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.HowToReg
 import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.Phone
@@ -62,6 +63,9 @@ fun EuScreen(
     onResponderChamada: (StatusPresenca) -> Unit,
     onAbrirPainelFinanceiro: () -> Unit,
     onAbrirAvaliacao: () -> Unit,
+    onAbrirGrupos: () -> Unit,
+    nomeDoGrupo: String,
+    quantosGrupos: Int,
     modifier: Modifier = Modifier,
 ) {
     if (estado.carregando) {
@@ -76,6 +80,15 @@ fun EuScreen(
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
+        item {
+            CartaoDosGrupos(
+                nomeDoGrupo = nomeDoGrupo,
+                quantosGrupos = quantosGrupos,
+                souDiretoria = estado.isAdmin,
+                onAbrir = onAbrirGrupos,
+            )
+        }
+
         if (estado.isAdmin) {
             item {
                 CartaoDaFila(quantidade = estado.fila.size, onAbrir = onAbrirAprovacoes)
@@ -155,6 +168,56 @@ fun EuScreen(
                 }
                 item { RecadoDaDiretoria() }
             }
+        }
+    }
+}
+
+@Composable
+private fun CartaoDosGrupos(
+    nomeDoGrupo: String,
+    quantosGrupos: Int,
+    souDiretoria: Boolean,
+    onAbrir: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Cartao(modifier = modifier.fillMaxWidth().clickable(onClick = onAbrir)) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Groups,
+                contentDescription = null,
+                tint = VoleiColors.Azul,
+                modifier = Modifier.size(22.dp),
+            )
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = nomeDoGrupo,
+                    color = VoleiColors.TextoPrimario,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold,
+                )
+                Text(
+                    text =
+                        listOfNotNull(
+                            if (souDiretoria) "Você é da diretoria" else "Você é atleta",
+                            when {
+                                quantosGrupos <= 1 -> "Entrar em outro grupo"
+                                else -> "Trocar entre os seus $quantosGrupos grupos"
+                            },
+                        ).joinToString(" · "),
+                    color = VoleiColors.TextoSecundario,
+                    fontSize = 12.sp,
+                )
+            }
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                contentDescription = null,
+                tint = VoleiColors.TextoTerciario,
+                modifier = Modifier.size(20.dp),
+            )
         }
     }
 }

@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
@@ -27,13 +28,21 @@ import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.neverEqualPolicy
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -130,6 +139,57 @@ fun CampoTexto(
                 cursorColor = VoleiColors.Verde,
             ),
     )
+}
+
+@Composable
+fun CampoMascarado(
+    valor: String,
+    rotulo: String,
+    mascara: (String) -> String,
+    onMudar: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var campo by remember {
+        mutableStateOf(TextFieldValue(valor, TextRange(valor.length)), neverEqualPolicy())
+    }
+    if (campo.text != valor) {
+        campo = TextFieldValue(valor, TextRange(valor.length))
+    }
+    OutlinedTextField(
+        value = campo,
+        onValueChange = { digitado ->
+            val digitosAntes = digitado.text.take(digitado.selection.end).count(Char::isDigit)
+            val mascarado = mascara(digitado.text)
+            campo = TextFieldValue(mascarado, TextRange(posicaoAposDigitos(mascarado, digitosAntes)))
+            onMudar(mascarado)
+        },
+        label = { Text(rotulo) },
+        singleLine = true,
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+        modifier = modifier,
+        colors =
+            OutlinedTextFieldDefaults.colors(
+                focusedTextColor = VoleiColors.TextoPrimario,
+                unfocusedTextColor = VoleiColors.TextoPrimario,
+                focusedBorderColor = VoleiColors.Verde,
+                unfocusedBorderColor = VoleiColors.Borda,
+                focusedLabelColor = VoleiColors.Verde,
+                unfocusedLabelColor = VoleiColors.TextoSecundario,
+                cursorColor = VoleiColors.Verde,
+            ),
+    )
+}
+
+private fun posicaoAposDigitos(texto: String, quantidade: Int): Int {
+    if (quantidade <= 0) return 0
+    var vistos = 0
+    texto.forEachIndexed { indice, caractere ->
+        if (caractere.isDigit()) {
+            vistos++
+            if (vistos == quantidade) return indice + 1
+        }
+    }
+    return texto.length
 }
 
 @Composable

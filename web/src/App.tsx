@@ -1,5 +1,19 @@
 import { useRef, useState } from 'react';
 import { encerrarDia, lerElencosPassados } from './data/gameDays';
+import { selecionarGrupo } from './data/grupoAtivo';
+import {
+  criarChave,
+  criarGrupo,
+  definirChaveAtiva,
+  definirPapel,
+  entrarComChave,
+  excluirChave,
+  listarChaves,
+  listarMembros,
+  removerMembro,
+  sairDoGrupo,
+  salvarIdentidade,
+} from './data/meusGrupos';
 import {
   cancelarPedido,
   decidirPedido,
@@ -33,8 +47,13 @@ import {
   substituirElencos,
 } from './data/teams';
 import type {
+  ChaveDeAcesso,
   Evento,
+  MembroDoGrupo,
+  MeuGrupo,
   Pagina,
+  Papel,
+  Post,
   ResumoDoDia,
   StatusPagamento,
   Team,
@@ -56,14 +75,15 @@ import {
   gerarDiaria,
   gerarMensalidade,
   proximoSabado,
-  publicarPost,
   responderChamada,
   salvarConfigFinanceiro,
   salvarEvento,
   salvarPagina,
+  salvarPost,
   trazerConfirmados,
 } from './data/grupo';
 import { chavesFaltando, configurado, env } from './lib/env';
+import { enviarLogoDoGrupo } from './lib/logos';
 import { enviarImagemDoMural } from './lib/mural';
 import { supabase } from './lib/supabase';
 import { entrarComGoogle, sair } from './lib/supabase';
@@ -71,6 +91,7 @@ import {
   AppHeader,
   Aviso,
   Carregando,
+  Cartao,
 } from './ui/components/Componentes';
 import { IconeGrupos, IconePessoa, IconeTrofeu, IconeVolei } from './ui/components/Icons';
 import {
@@ -94,7 +115,10 @@ import {
   useDicas,
   useEventos,
   useEvolucao,
+  useGrupoAtivo,
+  useGrupoAtual,
   useMeuExtrato,
+  useMeusGrupos,
   usePaginas,
   usePedidosPendentes,
   usePerfil,
@@ -105,6 +129,7 @@ import {
   useSinal,
   useTodosOsTimes,
 } from './ui/hooks';
+import { ChavesScreen, GruposScreen, LogoDoGrupo, MembrosScreen } from './ui/screens/Grupos';
 import { ClassificacaoScreen } from './ui/screens/Classificacao';
 import { AprovacoesScreen, EuScreen, type PedidoNaFila } from './ui/screens/Eu';
 import {
@@ -140,6 +165,9 @@ const PREVIAS_LEMBRADAS = 3;
 type Aba = 'social' | 'jogos' | 'classificacao' | 'times' | 'eu';
 type Destino =
   | { tipo: 'abas' }
+  | { tipo: 'grupos' }
+  | { tipo: 'chaves' }
+  | { tipo: 'membros' }
   | { tipo: 'jogadores' }
   | { tipo: 'distribuicao' }
   | { tipo: 'aprovacoes' }
@@ -215,7 +243,189 @@ function ComTour({ usuarioId }: { usuarioId: string }) {
     );
   }
 
-  return <Home usuarioId={usuarioId} abaInicial={veioDoTour ? 'eu' : 'social'} />;
+  return <ComGrupo usuarioId={usuarioId} abaInicial={veioDoTour ? 'eu' : 'social'} />;
+}
+
+const chaveNaUrl = (): string | null => {
+  try {
+    return new URLSearchParams(window.location.search).get('chave');
+  } catch {
+    return null;
+  }
+};
+
+const limparChaveDaUrl = (): void => {
+  try {
+    const url = new URL(window.location.href);
+    url.searchParams.delete('chave');
+    window.history.replaceState({}, '', url.toString());
+  } catch {
+    /* navegador sem history: o link fica como está */
+  }
+};
+
+/** Reúne tudo que mexe em grupo, chave e membro, para as duas telas usarem igual. */
+function useGrupos(usuarioId: string) {
+  const grupos = useMeusGrupos(usuarioId);
+  const grupoAtual = useGrupoAtual(usuarioId);
+  const { salvando, erro, limparErro, executar } = useAcao();
+
+  const [chaves, setChaves] = useState<ChaveDeAcesso[]>([]);
+  const [membros, setMembros] = useState<MembroDoGrupo[]>([]);
+  const [carregandoLista, setCarregandoLista] = useState(false);
+  const [falhaNaLista, setFalhaNaLista] = useState<string | null>(null);
+  const [aviso, setAviso] = useState<string | null>(null);
+
+  /** Guarda a falha na própria lista: o toast some, e a tela vazia não pode mentir. */
+  const comLista = async (acao: () => Promise<void>): Promise<void> => {
+    setCarregandoLista(true);
+    setFalhaNaLista(null);
+    try {
+      await acao();
+    } catch (falha) {
+      setFalhaNaLista(falha instanceof Error ? falha.message : 'Não foi possível carregar.');
+    } finally {
+      setCarregandoLista(false);
+    }
+  };
+
+  return {
+    grupos,
+    grupoAtual,
+    chaves,
+    membros,
+    carregandoLista,
+    falhaNaLista,
+    salvando,
+    mensagem: erro ?? aviso,
+    limparMensagem: () => {
+      limparErro();
+      setAviso(null);
+    },
+    selecionar: (grupo: MeuGrupo) => {
+      selecionarGrupo(grupo.id);
+      setChaves([]);
+      setMembros([]);
+    },
+    entrarComChave: (codigo: string) =>
+      void executar(async () => {
+        const grupo = await entrarComChave(codigo);
+        selecionarGrupo(grupo.id);
+        limparChaveDaUrl();
+        setAviso(`Você entrou no ${grupo.nome}. Baixando os dados do grupo.`);
+      }),
+    criar: (nome: string, cidade: string | null) =>
+      void executar(async () => {
+        const grupo = await criarGrupo(nome, cidade);
+        selecionarGrupo(grupo.id);
+        setAviso(`Grupo ${grupo.nome} criado. Você é a diretoria e já tem uma chave de acesso.`);
+      }),
+    sair: (grupo: MeuGrupo) =>
+      void executar(async () => {
+        await sairDoGrupo(grupo.id);
+        selecionarGrupo(null);
+        setAviso('Você saiu do grupo.');
+      }),
+    salvarIdentidade: (
+      nome: string,
+      cidade: string | null,
+      logo: File | null,
+      remover: boolean,
+    ) => {
+      if (!grupoAtual) return;
+      void executar(async () => {
+        const urlDaLogo = logo
+          ? await enviarLogoDoGrupo(grupoAtual.id, logo)
+          : remover
+            ? null
+            : grupoAtual.logoUrl;
+        await salvarIdentidade(grupoAtual.id, nome, cidade, urlDaLogo);
+        setAviso('Grupo atualizado.');
+      });
+    },
+    carregarChaves: () => {
+      if (!grupoAtual) return;
+      void comLista(async () => setChaves(await listarChaves(grupoAtual.id)));
+    },
+    criarChave: (
+      rotulo: string | null,
+      papel: Papel,
+      usosMax: number | null,
+      expiraEm: string | null,
+    ) => {
+      if (!grupoAtual) return;
+      void executar(async () => {
+        const nova = await criarChave(grupoAtual.id, rotulo, papel, usosMax, expiraEm);
+        setChaves((atuais) => [nova, ...atuais]);
+        setAviso('Chave criada. Mande o código para quem vai entrar.');
+      });
+    },
+    alternarChave: (chave: ChaveDeAcesso) =>
+      void executar(async () => {
+        await definirChaveAtiva(chave.id, !chave.ativa);
+        setChaves((atuais) =>
+          atuais.map((atual) => (atual.id === chave.id ? { ...atual, ativa: !chave.ativa } : atual)),
+        );
+      }),
+    excluirChave: (chave: ChaveDeAcesso) =>
+      void executar(async () => {
+        await excluirChave(chave.id);
+        setChaves((atuais) => atuais.filter((atual) => atual.id !== chave.id));
+      }),
+    carregarMembros: () => {
+      if (!grupoAtual) return;
+      void comLista(async () => setMembros(await listarMembros(grupoAtual.id)));
+    },
+    definirPapel: (membro: MembroDoGrupo, papel: Papel) => {
+      if (!grupoAtual) return;
+      void executar(async () => {
+        await definirPapel(grupoAtual.id, membro.profileId, papel);
+        setMembros((atuais) =>
+          atuais.map((atual) =>
+            atual.profileId === membro.profileId ? { ...atual, papel } : atual,
+          ),
+        );
+      });
+    },
+    removerMembro: (membro: MembroDoGrupo) => {
+      if (!grupoAtual) return;
+      void executar(async () => {
+        await removerMembro(grupoAtual.id, membro.profileId);
+        setMembros((atuais) => atuais.filter((atual) => atual.profileId !== membro.profileId));
+      });
+    },
+  };
+}
+
+function ComGrupo({ usuarioId, abaInicial }: { usuarioId: string; abaInicial: Aba }) {
+  const escolhido = useGrupoAtivo();
+  const grupos = useGrupos(usuarioId);
+  const [chaveSugerida] = useState(chaveNaUrl);
+
+  if (escolhido !== '') {
+    return <Home usuarioId={usuarioId} abaInicial={abaInicial} />;
+  }
+
+  return (
+    <div className="app">
+      <GruposScreen
+        grupos={grupos.grupos}
+        grupoAtual={grupos.grupoAtual}
+        salvando={grupos.salvando}
+        onVoltar={null}
+        onSelecionar={grupos.selecionar}
+        onEntrarComChave={grupos.entrarComChave}
+        onCriarGrupo={grupos.criar}
+        onSair={grupos.sair}
+        onAbrirChaves={() => undefined}
+        onAbrirMembros={() => undefined}
+        chaveSugerida={chaveSugerida}
+      />
+      {grupos.mensagem && (
+        <Aviso mensagem={grupos.mensagem} onFechar={grupos.limparMensagem} />
+      )}
+    </div>
+  );
 }
 
 function Home({ usuarioId, abaInicial }: { usuarioId: string; abaInicial: Aba }) {
@@ -223,6 +433,9 @@ function Home({ usuarioId, abaInicial }: { usuarioId: string; abaInicial: Aba })
   const isAdmin = perfil?.isAdmin === true;
   const sinal = useSinal();
   const formato = useFormato();
+  const grupos = useGrupos(usuarioId);
+  const grupoAtivoId = useGrupoAtivo();
+  const nomeDoGrupo = grupos.grupoAtual?.nome ?? 'Meu grupo';
 
   const [aba, setAba] = useState<Aba>(abaInicial);
   const [destino, setDestino] = useState<Destino>({ tipo: 'abas' });
@@ -261,6 +474,7 @@ function Home({ usuarioId, abaInicial }: { usuarioId: string; abaInicial: Aba })
 
   const [secaoDoGrupo, setSecaoDoGrupo] = useState<SecaoDoGrupo>('mural');
   const [criandoPost, setCriandoPost] = useState(false);
+  const [postEmEdicao, setPostEmEdicao] = useState<Post | null>(null);
   const [eventoEmEdicao, setEventoEmEdicao] = useState<Evento | null>(null);
   const [criandoEvento, setCriandoEvento] = useState(false);
   const [configurandoFinanceiro, setConfigurandoFinanceiro] = useState(false);
@@ -289,23 +503,19 @@ function Home({ usuarioId, abaInicial }: { usuarioId: string; abaInicial: Aba })
 
   const carregarContas = (): Promise<void> =>
     executar(async () => {
+      if (grupoAtivoId === '') return;
       setCarregandoContas(true);
       try {
-        const { data, error } = await supabase.from('profiles').select();
-        if (error) throw new Error('Não foi possível listar as contas. Precisa de internet.');
-        const nomeDe = (conta: ContaDoGrupo): string =>
-          (conta.nome ?? conta.email ?? '').toLowerCase();
+        const membros = await listarMembros(grupoAtivoId);
         setContas(
-          (data ?? [])
-            .map(
-              (linha): ContaDoGrupo => ({
-                id: String(linha.id),
-                nome: linha.nome === null ? null : String(linha.nome),
-                email: linha.email === null ? null : String(linha.email),
-                isAdmin: Boolean(linha.is_admin),
-              }),
-            )
-            .sort((a, b) => nomeDe(a).localeCompare(nomeDe(b))),
+          membros.map(
+            (membro): ContaDoGrupo => ({
+              id: membro.profileId,
+              nome: membro.nome,
+              email: membro.email,
+              isAdmin: membro.papel === 'diretoria',
+            }),
+          ),
         );
       } finally {
         setCarregandoContas(false);
@@ -374,7 +584,77 @@ function Home({ usuarioId, abaInicial }: { usuarioId: string; abaInicial: Aba })
       setPrevia(distribuicao);
     });
 
-  const mensagemVisivel = erro ?? aviso;
+  const mensagemVisivel = erro ?? aviso ?? grupos.mensagem;
+
+  const fecharMensagem = (): void => {
+    limparErro();
+    setAviso(null);
+    grupos.limparMensagem();
+  };
+
+  if (destino.tipo === 'grupos') {
+    return (
+      <div className="app">
+        <GruposScreen
+          grupos={grupos.grupos}
+          grupoAtual={grupos.grupoAtual}
+          salvando={grupos.salvando}
+          onVoltar={() => setDestino({ tipo: 'abas' })}
+          onSelecionar={(grupo) => {
+            grupos.selecionar(grupo);
+            setDestino({ tipo: 'abas' });
+          }}
+          onEntrarComChave={grupos.entrarComChave}
+          onCriarGrupo={grupos.criar}
+          onSair={grupos.sair}
+          onAbrirChaves={() => setDestino({ tipo: 'chaves' })}
+          onAbrirMembros={() => setDestino({ tipo: 'membros' })}
+          onSalvarIdentidade={grupos.salvarIdentidade}
+        />
+        {mensagemVisivel && <Aviso mensagem={mensagemVisivel} onFechar={fecharMensagem} />}
+      </div>
+    );
+  }
+
+  if (destino.tipo === 'chaves') {
+    return (
+      <div className="app">
+        <ChavesScreen
+          nomeDoGrupo={nomeDoGrupo}
+          chaves={grupos.chaves}
+          carregando={grupos.carregandoLista}
+          salvando={grupos.salvando}
+          onVoltar={() => setDestino({ tipo: 'grupos' })}
+          onCarregar={grupos.carregarChaves}
+          onCriar={grupos.criarChave}
+          onAlternar={grupos.alternarChave}
+          onExcluir={grupos.excluirChave}
+          falha={grupos.falhaNaLista}
+        />
+        {mensagemVisivel && <Aviso mensagem={mensagemVisivel} onFechar={fecharMensagem} />}
+      </div>
+    );
+  }
+
+  if (destino.tipo === 'membros') {
+    return (
+      <div className="app">
+        <MembrosScreen
+          nomeDoGrupo={nomeDoGrupo}
+          membros={grupos.membros}
+          meuId={usuarioId}
+          carregando={grupos.carregandoLista}
+          salvando={grupos.salvando}
+          onVoltar={() => setDestino({ tipo: 'grupos' })}
+          onCarregar={grupos.carregarMembros}
+          onDefinirPapel={grupos.definirPapel}
+          onRemover={grupos.removerMembro}
+          falha={grupos.falhaNaLista}
+        />
+        {mensagemVisivel && <Aviso mensagem={mensagemVisivel} onFechar={fecharMensagem} />}
+      </div>
+    );
+  }
 
   if (destino.tipo === 'jogadores') {
     return (
@@ -620,9 +900,12 @@ function Home({ usuarioId, abaInicial }: { usuarioId: string; abaInicial: Aba })
   return (
     <div className="app">
       <AppHeader
+        titulo={nomeDoGrupo}
+        logo={grupos.grupoAtual ? <LogoDoGrupo grupo={grupos.grupoAtual} /> : undefined}
         subtitulo={subtituloDoFormato(formato.times, formato.quadras)}
         sinal={sinal}
         onSair={() => void sair()}
+        onTrocarGrupo={() => setDestino({ tipo: 'grupos' })}
       />
 
       <div className="conteudo">
@@ -721,6 +1004,7 @@ function Home({ usuarioId, abaInicial }: { usuarioId: string; abaInicial: Aba })
             salvando={salvando}
             onSecao={setSecaoDoGrupo}
             onNovoPost={() => setCriandoPost(true)}
+            onEditarPost={setPostEmEdicao}
             onExcluirPost={(postId) => void executar(() => excluirPost(postId))}
             onReagir={(postId, emoji) =>
               void executar(() => alternarReacao(postId, usuarioId, emoji))
@@ -757,6 +1041,26 @@ function Home({ usuarioId, abaInicial }: { usuarioId: string; abaInicial: Aba })
                 if (!meuJogador) return;
                 await responderChamada(meuJogador.id, sabado, status, true, usuarioId);
               })
+            }
+            topo={
+              <Cartao onClick={() => setDestino({ tipo: 'grupos' })}>
+                <div className="linha" style={{ padding: 16, gap: 12 }}>
+                  <div className="coluna expandir" style={{ gap: 2 }}>
+                    <span className="titulo-tela">{nomeDoGrupo}</span>
+                    <span className="subtitulo">
+                      {[
+                        isAdmin ? 'Você é da diretoria' : 'Você é atleta',
+                        grupos.grupos.length <= 1
+                          ? 'Entrar em outro grupo'
+                          : `Trocar entre os seus ${grupos.grupos.length} grupos`,
+                      ].join(' · ')}
+                    </span>
+                  </div>
+                  <span className="subtitulo" aria-hidden="true">
+                    ›
+                  </span>
+                </div>
+              </Cartao>
             }
             extras={
               <>
@@ -878,13 +1182,16 @@ function Home({ usuarioId, abaInicial }: { usuarioId: string; abaInicial: Aba })
         </button>
       </nav>
 
-      {criandoPost && (
+      {(criandoPost || postEmEdicao !== null) && (
         <PostDialogo
+          post={postEmEdicao}
           salvando={salvando}
-          onSalvar={(titulo, corpo, fixado, imagem, emoji) => {
+          onSalvar={(titulo, corpo, fixado, imagem, emoji, imagemMantida) => {
+            const postId = postEmEdicao?.id ?? null;
             void executar(async () => {
-              const imagemUrl = imagem === null ? null : await enviarImagemDoMural(imagem);
-              await publicarPost(
+              const imagemUrl = imagem === null ? imagemMantida : await enviarImagemDoMural(imagem);
+              await salvarPost(
+                postId,
                 usuarioId,
                 perfil?.nome ?? null,
                 titulo,
@@ -895,8 +1202,12 @@ function Home({ usuarioId, abaInicial }: { usuarioId: string; abaInicial: Aba })
               );
             });
             setCriandoPost(false);
+            setPostEmEdicao(null);
           }}
-          onFechar={() => setCriandoPost(false)}
+          onFechar={() => {
+            setCriandoPost(false);
+            setPostEmEdicao(null);
+          }}
         />
       )}
 

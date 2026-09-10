@@ -130,6 +130,50 @@ export interface UserProfile {
   isAdmin: boolean;
 }
 
+export interface MeuGrupo {
+  id: string;
+  nome: string;
+  cidade: string | null;
+  papel: Papel;
+  logoUrl: string | null;
+  ativo: boolean;
+}
+
+export const iniciaisDoGrupo = (nome: string): string =>
+  nome
+    .split(' ')
+    .filter((parte) => parte.length > 0)
+    .slice(0, 2)
+    .map((parte) => parte[0].toUpperCase())
+    .join('') || '?';
+
+export interface ChaveDeAcesso {
+  id: string;
+  codigo: string;
+  rotulo: string | null;
+  papel: Papel;
+  usos: number;
+  usosMax: number | null;
+  expiraEm: string | null;
+  ativa: boolean;
+}
+
+export interface MembroDoGrupo {
+  profileId: string;
+  nome: string | null;
+  email: string | null;
+  papel: Papel;
+}
+
+export const rotuloDoMembro = (membro: MembroDoGrupo): string =>
+  membro.nome?.trim() || membro.email || 'Conta sem nome';
+
+export const codigoFormatado = (codigo: string): string =>
+  codigo.length === 8 ? `${codigo.slice(0, 4)}-${codigo.slice(4)}` : codigo;
+
+export const limparCodigo = (codigo: string): string =>
+  codigo.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+
 export type StatusVinculo = 'pendente' | 'aprovado' | 'recusado';
 
 const STATUS_DE_VINCULO: StatusVinculo[] = ['pendente', 'aprovado', 'recusado'];

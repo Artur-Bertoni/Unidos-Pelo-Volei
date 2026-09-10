@@ -52,6 +52,7 @@ fun GrupoScreen(
     isAdmin: Boolean,
     onSecao: (SecaoDoGrupo) -> Unit,
     onNovoPost: () -> Unit,
+    onEditarPost: (Post) -> Unit,
     onExcluirPost: (String) -> Unit,
     onReagir: (String, String) -> Unit,
     onNovoEvento: () -> Unit,
@@ -86,6 +87,7 @@ fun GrupoScreen(
                     posts = estado.posts,
                     isAdmin = isAdmin,
                     onNovoPost = onNovoPost,
+                    onEditar = onEditarPost,
                     onExcluir = onExcluirPost,
                     onReagir = onReagir,
                 )
@@ -145,6 +147,7 @@ private fun Mural(
     posts: List<Post>,
     isAdmin: Boolean,
     onNovoPost: () -> Unit,
+    onEditar: (Post) -> Unit,
     onExcluir: (String) -> Unit,
     onReagir: (String, String) -> Unit,
 ) {
@@ -189,6 +192,12 @@ private fun Mural(
                             modifier = Modifier.weight(1f),
                         )
                         if (isAdmin) {
+                            Icon(
+                                Icons.Filled.Edit,
+                                contentDescription = "Editar publicação",
+                                tint = VoleiColors.TextoTerciario,
+                                modifier = Modifier.size(17.dp).clickable { onEditar(post) },
+                            )
                             Icon(
                                 Icons.Filled.Delete,
                                 contentDescription = "Excluir publicação",

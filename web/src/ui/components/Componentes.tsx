@@ -1,4 +1,4 @@
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useRef, type ReactNode } from 'react';
 import { GENEROS, rotuloDoGenero, type Genero, type Team } from '../../domain/models';
 import {
   IconeBusca,
@@ -221,6 +221,63 @@ export const CampoTexto = ({
   </label>
 );
 
+const posicaoAposDigitos = (texto: string, quantidade: number): number => {
+  if (quantidade <= 0) return 0;
+  let vistos = 0;
+  for (let indice = 0; indice < texto.length; indice += 1) {
+    if (texto[indice] >= '0' && texto[indice] <= '9') {
+      vistos += 1;
+      if (vistos === quantidade) return indice + 1;
+    }
+  }
+  return texto.length;
+};
+
+export const CampoMascarado = ({
+  valor,
+  rotulo,
+  mascara,
+  onMudar,
+}: {
+  valor: string;
+  rotulo: string;
+  mascara: (valor: string) => string;
+  onMudar: (valor: string) => void;
+}) => {
+  const entrada = useRef<HTMLInputElement>(null);
+  const cursor = useRef<number | null>(null);
+
+  useLayoutEffect(() => {
+    if (cursor.current !== null && entrada.current !== null) {
+      entrada.current.setSelectionRange(cursor.current, cursor.current);
+      cursor.current = null;
+    }
+  });
+
+  return (
+    <label className="campo">
+      <span className="campo-rotulo">{rotulo}</span>
+      <input
+        ref={entrada}
+        className="campo-entrada"
+        inputMode="numeric"
+        value={valor}
+        onChange={(e) => {
+          const digitado = e.target.value;
+          const ate = e.target.selectionStart ?? digitado.length;
+          const digitosAntes = digitado.slice(0, ate).replace(/\D/g, '').length;
+          const mascarado = mascara(digitado);
+          const posicao = posicaoAposDigitos(mascarado, digitosAntes);
+          cursor.current = posicao;
+          e.target.value = mascarado;
+          e.target.setSelectionRange(posicao, posicao);
+          onMudar(mascarado);
+        }}
+      />
+    </label>
+  );
+};
+
 export const CampoBusca = ({
   valor,
   onMudar,
@@ -429,13 +486,19 @@ export const DialogoConfirmacao = ({
 export type SinalSync = 'online' | 'conectando' | 'offline';
 
 export const AppHeader = ({
+  titulo,
   subtitulo,
   sinal,
   onSair,
+  onTrocarGrupo,
+  logo,
 }: {
+  titulo: string;
   subtitulo: string;
   sinal: SinalSync;
   onSair?: () => void;
+  onTrocarGrupo?: () => void;
+  logo?: ReactNode;
 }) => {
   const cor =
     sinal === 'online'
@@ -448,11 +511,23 @@ export const AppHeader = ({
   return (
     <header className="cabecalho">
       <div className="cabecalho-linha">
-        <LogoUpv />
-        <div className="expandir">
-          <div className="cabecalho-titulo">UNIDOS PELO VÔLEI</div>
-          <div className="cabecalho-subtitulo">{subtitulo}</div>
-        </div>
+        {logo ?? <LogoUpv />}
+        {onTrocarGrupo ? (
+          <button
+            type="button"
+            className="expandir"
+            style={{ background: 'none', border: 'none', padding: 0, textAlign: 'left', cursor: 'pointer' }}
+            onClick={onTrocarGrupo}
+          >
+            <div className="cabecalho-titulo">{titulo.toUpperCase()} ▾</div>
+            <div className="cabecalho-subtitulo">{subtitulo}</div>
+          </button>
+        ) : (
+          <div className="expandir">
+            <div className="cabecalho-titulo">{titulo.toUpperCase()}</div>
+            <div className="cabecalho-subtitulo">{subtitulo}</div>
+          </div>
+        )}
         <span className="sinal-sync" style={{ color: cor }}>
           {sinal === 'online' ? <IconeNuvemOk /> : sinal === 'conectando' ? <IconeNuvemSync /> : <IconeNuvemOff />}
           {rotulo}

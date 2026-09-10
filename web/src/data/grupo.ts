@@ -7,6 +7,7 @@ import {
   type TipoEvento,
 } from '../domain/models';
 import { db } from '../lib/powersync/db';
+import { exigirGrupo } from './grupoAtivo';
 import { agoraIso, novoId } from './mappers';
 
 export function proximoSabado(hoje = new Date()): string {
@@ -43,26 +44,31 @@ export async function responderChamada(
       );
     } else {
       await tx.execute(
-        `INSERT INTO presencas (id, player_id, data, status, origem, registrado_por, atualizado_em)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [novoId(), playerId, data, status, origem, registradoPor, agora],
+        `INSERT INTO presencas (
+           id, grupo_id, player_id, data, status, origem, registrado_por, atualizado_em
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [novoId(), exigirGrupo(), playerId, data, status, origem, registradoPor, agora],
       );
     }
   });
 }
 
 export async function trazerConfirmados(data: string): Promise<number> {
+  const grupo = exigirGrupo();
   return db.writeTransaction(async (tx) => {
     const linhas = await tx.getAll<{ player_id: string }>(
-      'SELECT player_id FROM presencas WHERE data = ? AND status = ?',
-      [data, 'vou'],
+      'SELECT player_id FROM presencas WHERE grupo_id = ? AND data = ? AND status = ?',
+      [grupo, data, 'vou'],
     );
     const ids = linhas.map((linha) => linha.player_id);
     if (ids.length === 0) return 0;
 
     const agora = agoraIso();
     const marcadores = ids.map(() => '?').join(',');
-    await tx.execute('UPDATE players SET ativo = 0, updated_at = ? WHERE ativo = 1', [agora]);
+    await tx.execute(
+      'UPDATE players SET ativo = 0, updated_at = ? WHERE grupo_id = ? AND ativo = 1',
+      [agora, grupo],
+    );
     await tx.execute(
       `UPDATE players SET ativo = 1, updated_at = ? WHERE id IN (${marcadores})`,
       [agora, ...ids],
@@ -97,7 +103,8 @@ export async function registrarDispositivo(
   });
 }
 
-export async function publicarPost(
+export async function salvarPost(
+  postId: string | null,
   autorProfileId: string,
   autorNome: string | null,
   titulo: string,
@@ -107,24 +114,42 @@ export async function publicarPost(
   emoji: string,
 ): Promise<void> {
   const agora = agoraIso();
-  await db.execute(
-    `INSERT INTO posts (
-       id, autor_profile_id, autor_nome, titulo, corpo, imagem_url, emoji,
-       fixado, publicado_em, atualizado_em
-     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [
-      novoId(),
-      autorProfileId,
-      autorNome,
-      titulo.trim(),
-      corpo.trim(),
-      imagemUrl?.trim() || null,
-      emoji.trim() || EMOJI_PADRAO,
-      fixado ? 1 : 0,
-      agora,
-      agora,
-    ],
-  );
+  if (postId === null) {
+    await db.execute(
+      `INSERT INTO posts (
+         id, grupo_id, autor_profile_id, autor_nome, titulo, corpo, imagem_url, emoji,
+         fixado, publicado_em, atualizado_em
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        novoId(),
+        exigirGrupo(),
+        autorProfileId,
+        autorNome,
+        titulo.trim(),
+        corpo.trim(),
+        imagemUrl?.trim() || null,
+        emoji.trim() || EMOJI_PADRAO,
+        fixado ? 1 : 0,
+        agora,
+        agora,
+      ],
+    );
+  } else {
+    await db.execute(
+      `UPDATE posts
+       SET titulo = ?, corpo = ?, imagem_url = ?, emoji = ?, fixado = ?, atualizado_em = ?
+       WHERE id = ?`,
+      [
+        titulo.trim(),
+        corpo.trim(),
+        imagemUrl?.trim() || null,
+        emoji.trim() || EMOJI_PADRAO,
+        fixado ? 1 : 0,
+        agora,
+        postId,
+      ],
+    );
+  }
 }
 
 export async function excluirPost(postId: string): Promise<void> {
@@ -148,8 +173,9 @@ export async function alternarReacao(
       await tx.execute('DELETE FROM post_reacoes WHERE id = ?', [existente.id]);
     } else {
       await tx.execute(
-        'INSERT INTO post_reacoes (id, post_id, profile_id, emoji, criado_em) VALUES (?, ?, ?, ?, ?)',
-        [novoId(), postId, profileId, emoji.trim() || EMOJI_PADRAO, agoraIso()],
+        `INSERT INTO post_reacoes (id, grupo_id, post_id, profile_id, emoji, criado_em)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [novoId(), exigirGrupo(), postId, profileId, emoji.trim() || EMOJI_PADRAO, agoraIso()],
       );
     }
   });
@@ -171,9 +197,20 @@ export async function salvarEvento(
 ): Promise<void> {
   if (eventoId === null) {
     await db.execute(
-      `INSERT INTO eventos (id, titulo, descricao, tipo, inicio, local, criado_por, criado_em)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [novoId(), titulo.trim(), ouNulo(descricao), tipo, inicio, ouNulo(local), criadoPor, agoraIso()],
+      `INSERT INTO eventos (
+         id, grupo_id, titulo, descricao, tipo, inicio, local, criado_por, criado_em
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        novoId(),
+        exigirGrupo(),
+        titulo.trim(),
+        ouNulo(descricao),
+        tipo,
+        inicio,
+        ouNulo(local),
+        criadoPor,
+        agoraIso(),
+      ],
     );
   } else {
     await db.execute(
@@ -212,9 +249,10 @@ export async function criarPagina(
       .replace(/^-+|-+$/g, '') || `pagina-${novoId().slice(0, 8)}`;
 
   await db.execute(
-    `INSERT INTO paginas (id, slug, categoria, titulo, corpo, ordem, atualizado_por, atualizado_em)
-     VALUES (?, ?, ?, ?, '', 99, ?, ?)`,
-    [novoId(), slug, categoria, titulo.trim(), atualizadoPor, agoraIso()],
+    `INSERT INTO paginas (
+       id, grupo_id, slug, categoria, titulo, corpo, ordem, atualizado_por, atualizado_em
+     ) VALUES (?, ?, ?, ?, ?, '', 99, ?, ?)`,
+    [novoId(), exigirGrupo(), slug, categoria, titulo.trim(), atualizadoPor, agoraIso()],
   );
 }
 
@@ -273,33 +311,36 @@ async function gerarCobranca(
   somentePresentes: boolean,
 ): Promise<number> {
   if (valorCentavos <= 0) return 0;
+  const grupo = exigirGrupo();
 
   return db.writeTransaction(async (tx) => {
     const jaExiste = await tx.getOptional<{ id: string }>(
-      'SELECT id FROM cobrancas WHERE tipo = ? AND competencia = ?',
-      [tipo, competencia],
+      'SELECT id FROM cobrancas WHERE grupo_id = ? AND tipo = ? AND competencia = ?',
+      [grupo, tipo, competencia],
     );
     if (jaExiste) return 0;
 
     const filtro = somentePresentes ? ' AND ativo = 1' : '';
     const alvos = await tx.getAll<{ id: string }>(
-      `SELECT id FROM players WHERE regime = ?${filtro}`,
-      [regime],
+      `SELECT id FROM players WHERE grupo_id = ? AND regime = ?${filtro}`,
+      [grupo, regime],
     );
     if (alvos.length === 0) return 0;
 
     const cobrancaId = novoId();
     const agora = agoraIso();
     await tx.execute(
-      `INSERT INTO cobrancas (id, titulo, tipo, valor_centavos, competencia, vence_em, criado_por, criado_em)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [cobrancaId, titulo, tipo, valorCentavos, competencia, venceEm, criadoPor, agora],
+      `INSERT INTO cobrancas (
+         id, grupo_id, titulo, tipo, valor_centavos, competencia, vence_em, criado_por, criado_em
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [cobrancaId, grupo, titulo, tipo, valorCentavos, competencia, venceEm, criadoPor, agora],
     );
     for (const alvo of alvos) {
       await tx.execute(
-        `INSERT INTO pagamentos (id, cobranca_id, player_id, valor_centavos, status, criado_em)
-         VALUES (?, ?, ?, ?, 'pendente', ?)`,
-        [novoId(), cobrancaId, alvo.id, valorCentavos, agora],
+        `INSERT INTO pagamentos (
+           id, grupo_id, cobranca_id, player_id, valor_centavos, status, criado_em
+         ) VALUES (?, ?, ?, ?, ?, 'pendente', ?)`,
+        [novoId(), grupo, cobrancaId, alvo.id, valorCentavos, agora],
       );
     }
     return alvos.length;
@@ -366,11 +407,12 @@ export async function enviarAvaliacao(
 ): Promise<void> {
   await db.execute(
     `INSERT INTO avaliacoes (
-       id, day_id, avaliador_player_id, avaliado_player_id,
+       id, grupo_id, day_id, avaliador_player_id, avaliado_player_id,
        saque, passe, ataque, bloqueio, defesa, atitude, criado_em
-     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       novoId(),
+      exigirGrupo(),
       dayId,
       avaliadorPlayerId,
       avaliadoPlayerId,

@@ -1,5 +1,6 @@
 import type { Genero, Player } from '../domain/models';
 import { db } from '../lib/powersync/db';
+import { exigirGrupo } from './grupoAtivo';
 import { agoraIso, novoId } from './mappers';
 
 export async function criarJogador(
@@ -10,9 +11,9 @@ export async function criarJogador(
 ): Promise<void> {
   const agora = agoraIso();
   await db.execute(
-    `INSERT INTO players (id, nome, skill_level, genero, ativo, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    [novoId(), nome.trim(), skillLevel, genero, ativo ? 1 : 0, agora, agora],
+    `INSERT INTO players (id, grupo_id, nome, skill_level, genero, ativo, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    [novoId(), exigirGrupo(), nome.trim(), skillLevel, genero, ativo ? 1 : 0, agora, agora],
   );
 }
 
@@ -42,11 +43,10 @@ export async function definirPresenca(playerId: string, ativo: boolean): Promise
 }
 
 export async function definirPresencaDeTodos(presente: boolean): Promise<void> {
-  await db.execute('UPDATE players SET ativo = ?, updated_at = ? WHERE ativo <> ?', [
-    presente ? 1 : 0,
-    agoraIso(),
-    presente ? 1 : 0,
-  ]);
+  await db.execute(
+    'UPDATE players SET ativo = ?, updated_at = ? WHERE grupo_id = ? AND ativo <> ?',
+    [presente ? 1 : 0, agoraIso(), exigirGrupo(), presente ? 1 : 0],
+  );
 }
 
 export async function excluirJogador(playerId: string): Promise<void> {

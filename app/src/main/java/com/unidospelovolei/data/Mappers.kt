@@ -19,6 +19,7 @@ import com.unidospelovolei.domain.model.Fundamento
 import com.unidospelovolei.domain.model.Genero
 import com.unidospelovolei.domain.model.MatchCard
 import com.unidospelovolei.domain.model.MatchStatus
+import com.unidospelovolei.domain.model.MeuGrupo
 import com.unidospelovolei.domain.model.Pagamento
 import com.unidospelovolei.domain.model.Pagina
 import com.unidospelovolei.domain.model.Papel
@@ -219,10 +220,17 @@ internal fun SqlCursor.toUserProfile(): UserProfile =
         id = getString("id"),
         email = getStringOptional("email"),
         nome = getStringOptional("nome"),
-        papel =
-            getStringOptional("papel")
-                ?.let(Papel::from)
-                ?: if (bool("is_admin")) Papel.DIRETORIA else Papel.ATLETA,
+        papel = Papel.from(getStringOptional("papel")),
+    )
+
+internal fun SqlCursor.toMeuGrupo(): MeuGrupo =
+    MeuGrupo(
+        id = getString("id"),
+        nome = getStringOptional("nome").orEmpty(),
+        cidade = getStringOptional("cidade"),
+        papel = Papel.from(getStringOptional("papel")),
+        logoUrl = getStringOptional("logo_url"),
+        ativo = bool("ativo", true),
     )
 
 internal fun SqlCursor.toVinculoPedido(): VinculoPedido =

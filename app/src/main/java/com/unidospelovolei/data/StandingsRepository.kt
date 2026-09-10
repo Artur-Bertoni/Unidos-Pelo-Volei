@@ -6,8 +6,10 @@ import kotlinx.coroutines.flow.Flow
 
 class StandingsRepository(
     private val db: PowerSyncDatabase,
+    private val grupoAtivo: GrupoAtivo,
 ) {
-    fun observeStandings(): Flow<List<Standing>> = db.watch(STANDINGS_SQL) { it.toStanding() }
+    fun observeStandings(): Flow<List<Standing>> =
+        db.observarNoGrupo(grupoAtivo, STANDINGS_SQL, vezesDoGrupo = 3) { it.toStanding() }
 
     companion object {
         val STANDINGS_SQL =
@@ -19,7 +21,7 @@ class StandingsRepository(
                     m.score_b   AS pontos_contra,
                     CASE WHEN m.winner_id = m.team_a_id THEN 1 ELSE 0 END AS venceu
                 FROM matches m
-                WHERE m.status = 'finalizado'
+                WHERE m.grupo_id = ? AND m.status = 'finalizado'
                 UNION ALL
                 SELECT
                     m.team_b_id,
@@ -27,7 +29,7 @@ class StandingsRepository(
                     m.score_a,
                     CASE WHEN m.winner_id = m.team_b_id THEN 1 ELSE 0 END
                 FROM matches m
-                WHERE m.status = 'finalizado'
+                WHERE m.grupo_id = ? AND m.status = 'finalizado'
             )
             SELECT
                 t.id      AS team_id,
@@ -42,7 +44,7 @@ class StandingsRepository(
                 COALESCE(SUM(l.pontos_contra), 0)                   AS pontos_contra
             FROM teams t
             LEFT JOIN lados l ON l.team_id = t.id
-            WHERE t.ativo = 1
+            WHERE t.grupo_id = ? AND t.ativo = 1
             GROUP BY t.id, t.nome, t.sigla, t.cor_hex, t.ordem
             ORDER BY vitorias DESC, saldo_pontos DESC, pontos_pro DESC, t.ordem
             """.trimIndent()

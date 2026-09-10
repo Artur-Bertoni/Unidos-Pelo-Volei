@@ -1,3 +1,4 @@
+import { exigirGrupo } from '../data/grupoAtivo';
 import { novoId } from '../data/mappers';
 import { supabase } from './supabase';
 
@@ -19,7 +20,7 @@ export async function enviarImagemDoMural(arquivo: File): Promise<string> {
   const extensao = EXTENSOES[arquivo.type];
   if (!extensao) throw new Error('Formato não aceito. Use JPG, PNG, WEBP ou GIF.');
 
-  const caminho = `${novoId()}.${extensao}`;
+  const caminho = `${exigirGrupo()}/${novoId()}.${extensao}`;
   const { error } = await supabase.storage
     .from(BUCKET)
     .upload(caminho, arquivo, { contentType: arquivo.type, upsert: false });

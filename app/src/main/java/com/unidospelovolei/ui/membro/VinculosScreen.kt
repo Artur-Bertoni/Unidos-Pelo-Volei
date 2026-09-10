@@ -32,7 +32,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.unidospelovolei.data.ContaDoGrupo
+import com.unidospelovolei.domain.model.MembroDoGrupo
+import com.unidospelovolei.domain.model.Papel
 import com.unidospelovolei.domain.model.Player
 import com.unidospelovolei.ui.components.CampoBusca
 import com.unidospelovolei.ui.components.Cartao
@@ -43,7 +44,7 @@ import com.unidospelovolei.ui.theme.VoleiColors
 @Composable
 fun VinculosScreen(
     jogadores: List<Player>,
-    contas: List<ContaDoGrupo>,
+    contas: List<MembroDoGrupo>,
     carregandoContas: Boolean,
     salvando: Boolean,
     onVoltar: () -> Unit,
@@ -58,7 +59,7 @@ fun VinculosScreen(
 
     LaunchedEffect(Unit) { onCarregarContas() }
 
-    val porPerfil = contas.associateBy { it.id }
+    val porPerfil = contas.associateBy { it.profileId }
     val termo = busca.trim().lowercase()
     val visiveis =
         jogadores
@@ -136,10 +137,10 @@ fun VinculosScreen(
     escolhendoPara?.let { jogador ->
         EscolhaDeConta(
             jogador = jogador,
-            contas = contas.filter { conta -> jogadores.none { it.profileId == conta.id } },
+            contas = contas.filter { conta -> jogadores.none { it.profileId == conta.profileId } },
             carregando = carregandoContas,
             onEscolher = { conta ->
-                onVincular(jogador.id, conta.id)
+                onVincular(jogador.id, conta.profileId)
                 escolhendoPara = null
             },
             onFechar = { escolhendoPara = null },
@@ -181,7 +182,7 @@ fun VinculosScreen(
 @Composable
 private fun LinhaDeVinculo(
     jogador: Player,
-    conta: ContaDoGrupo?,
+    conta: MembroDoGrupo?,
     habilitado: Boolean,
     onVincular: () -> Unit,
     onDesvincular: () -> Unit,
@@ -229,9 +230,9 @@ private fun LinhaDeVinculo(
 @Composable
 private fun EscolhaDeConta(
     jogador: Player,
-    contas: List<ContaDoGrupo>,
+    contas: List<MembroDoGrupo>,
     carregando: Boolean,
-    onEscolher: (ContaDoGrupo) -> Unit,
+    onEscolher: (MembroDoGrupo) -> Unit,
     onFechar: () -> Unit,
 ) {
     AlertDialog(
@@ -253,7 +254,7 @@ private fun EscolhaDeConta(
 
                 else ->
                     LazyColumn(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        items(contas, key = { it.id }) { conta ->
+                        items(contas, key = { it.profileId }) { conta ->
                             Row(
                                 modifier =
                                     Modifier
@@ -274,7 +275,7 @@ private fun EscolhaDeConta(
                                         Text(email, color = VoleiColors.TextoTerciario, fontSize = 11.sp)
                                     }
                                 }
-                                if (conta.isAdmin) {
+                                if (conta.papel == Papel.DIRETORIA) {
                                     Selo("Diretoria", VoleiColors.SeloFaseTexto, VoleiColors.SeloFaseFundo)
                                 }
                             }

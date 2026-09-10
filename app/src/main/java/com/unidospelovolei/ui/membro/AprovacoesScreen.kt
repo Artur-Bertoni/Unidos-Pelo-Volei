@@ -74,7 +74,7 @@ fun AprovacoesScreen(
                 }
                 Spacer(modifier = Modifier.weight(1f))
                 TextButton(onClick = onAbrirVinculos) {
-                    Text("Vincular à mão", color = VoleiColors.Azul, fontSize = 13.sp)
+                    Text("Vincular manualmente", color = VoleiColors.Azul, fontSize = 13.sp)
                 }
             }
 
@@ -83,7 +83,7 @@ fun AprovacoesScreen(
                     titulo = "Nenhum pedido na fila",
                     descricao =
                         "Quando alguém entrar e escolher o próprio nome, o pedido aparece aqui. " +
-                            "Você também pode ligar jogador e conta na mão, em Vincular à mão.",
+                            "Você também pode ligar jogador e conta na mão, em Vincular manualmente.",
                     modifier = Modifier.fillMaxWidth(),
                 )
                 return@Column

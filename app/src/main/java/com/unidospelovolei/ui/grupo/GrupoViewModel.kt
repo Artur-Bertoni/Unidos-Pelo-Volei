@@ -162,16 +162,18 @@ class GrupoViewModel(
         aviso.value = null
     }
 
-    fun publicar(
+    fun salvarPost(
+        postId: String?,
         titulo: String,
         corpo: String,
         fixado: Boolean,
         autorNome: String?,
         imagem: ImagemEscolhida?,
         emoji: String,
+        imagemMantida: String?,
     ) = executar {
-        val url = imagem?.let { muralStorage.enviarImagem(it.bytes, it.extensao) }
-        grupoRepository.publicar(perfilId.value, autorNome, titulo, corpo, fixado, url, emoji)
+        val url = imagem?.let { muralStorage.enviarImagem(it.bytes, it.extensao) } ?: imagemMantida
+        grupoRepository.salvarPost(postId, perfilId.value, autorNome, titulo, corpo, fixado, url, emoji)
     }
 
     fun excluirPost(postId: String) = executar { grupoRepository.excluirPost(postId) }

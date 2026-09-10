@@ -20,8 +20,9 @@ max_rows = 1000
 # `postgres` are reachable through the Data API roles (`anon`, `authenticated`, `service_role`)
 # without explicit GRANTs, matching the cloud default. Set to `false` to require explicit GRANTs
 # instead. Left unset, a fresh project falls back to `true`.
-# Desligado de proposito, igual ao projeto na nuvem: a migration de RLS ja faz os
-# GRANTs explicitos nas 6 tabelas, na view standings e na funcao is_admin().
+# Desligado de proposito, igual ao projeto na nuvem: as migrations ja fazem os
+# GRANTs explicitos nas tabelas, nas views e nas funcoes de grupo (sou_membro,
+# e_diretoria, criar_grupo, entrar_no_grupo, sair_do_grupo).
 auto_expose_new_tables = false
 
 [api.tls]

@@ -10,14 +10,16 @@ import kotlinx.coroutines.flow.map
 
 class MembroRepository(
     private val db: PowerSyncDatabase,
+    private val grupoAtivo: GrupoAtivo,
 ) {
     fun observeMeuPedido(profileId: String): Flow<VinculoPedido?> =
         db
-            .watch(
+            .observarNoGrupo(
+                grupoAtivo,
                 """
                 SELECT $COLUNAS_PEDIDO
                 FROM vinculo_pedidos
-                WHERE profile_id = ?
+                WHERE grupo_id = ? AND profile_id = ?
                 ORDER BY criado_em DESC
                 LIMIT 1
                 """.trimIndent(),
@@ -26,11 +28,12 @@ class MembroRepository(
             .map { it.firstOrNull() }
 
     fun observePedidosPendentes(): Flow<List<VinculoPedido>> =
-        db.watch(
+        db.observarNoGrupo(
+            grupoAtivo,
             """
             SELECT $COLUNAS_PEDIDO
             FROM vinculo_pedidos
-            WHERE status = ?
+            WHERE grupo_id = ? AND status = ?
             ORDER BY criado_em
             """.trimIndent(),
             listOf(StatusVinculo.PENDENTE.value),
@@ -53,19 +56,21 @@ class MembroRepository(
         profileNome: String?,
         playerId: String,
     ) {
+        val grupo = grupoAtivo.exigir()
         db.writeTransactionAsync { tx ->
             tx.execute(
-                "DELETE FROM vinculo_pedidos WHERE profile_id = ? AND status = ?",
-                listOf(profileId, StatusVinculo.PENDENTE.value),
+                "DELETE FROM vinculo_pedidos WHERE grupo_id = ? AND profile_id = ? AND status = ?",
+                listOf(grupo, profileId, StatusVinculo.PENDENTE.value),
             )
             tx.execute(
                 """
                 INSERT INTO vinculo_pedidos (
-                    id, profile_id, player_id, profile_nome, status, criado_em
-                ) VALUES (?, ?, ?, ?, ?, ?)
+                    id, grupo_id, profile_id, player_id, profile_nome, status, criado_em
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
                 """.trimIndent(),
                 listOf(
                     novoId(),
+                    grupo,
                     profileId,
                     playerId,
                     profileNome,
@@ -86,6 +91,7 @@ class MembroRepository(
         decididoPor: String,
     ) {
         val status = if (aprovado) StatusVinculo.APROVADO else StatusVinculo.RECUSADO
+        val grupo = grupoAtivo.exigir()
         db.writeTransactionAsync { tx ->
             tx.execute(
                 """
@@ -97,8 +103,12 @@ class MembroRepository(
             )
             if (aprovado) {
                 tx.execute(
-                    "UPDATE players SET profile_id = NULL, updated_at = ? WHERE profile_id = ? AND id <> ?",
-                    listOf(agoraIso(), pedido.profileId, pedido.playerId),
+                    """
+                    UPDATE players
+                    SET profile_id = NULL, updated_at = ?
+                    WHERE grupo_id = ? AND profile_id = ? AND id <> ?
+                    """.trimIndent(),
+                    listOf(agoraIso(), grupo, pedido.profileId, pedido.playerId),
                 )
                 tx.execute(
                     "UPDATE players SET profile_id = ?, updated_at = ? WHERE id = ?",
@@ -118,6 +128,7 @@ class MembroRepository(
         val fone = telefone?.trim()?.ifBlank { null }
         val emergencia = contatoEmergencia?.trim()?.ifBlank { null }
         val agora = agoraIso()
+        val grupo = grupoAtivo.exigir()
 
         db.writeTransactionAsync { tx ->
             val existente =
@@ -132,11 +143,11 @@ class MembroRepository(
                 tx.execute(
                     """
                     INSERT INTO player_contatos (
-                        id, player_id, profile_id, telefone, contato_emergencia,
+                        id, grupo_id, player_id, profile_id, telefone, contato_emergencia,
                         nascimento_ano, atualizado_em
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                     """.trimIndent(),
-                    listOf(novoId(), playerId, profileId, fone, emergencia, nascimentoAno, agora),
+                    listOf(novoId(), grupo, playerId, profileId, fone, emergencia, nascimentoAno, agora),
                 )
             } else {
                 tx.execute(

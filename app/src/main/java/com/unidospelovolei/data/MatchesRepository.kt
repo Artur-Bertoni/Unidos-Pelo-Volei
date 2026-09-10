@@ -16,19 +16,25 @@ data class Formato(
 
 class MatchesRepository(
     private val db: PowerSyncDatabase,
+    private val grupoAtivo: GrupoAtivo,
 ) {
     fun observeFormato(): Flow<Formato> =
-        db.watch(
+        db.observarNoGrupo(
+            grupoAtivo,
             """
             SELECT
-                (SELECT COUNT(*) FROM teams WHERE ativo = 1)  AS times,
-                (SELECT COALESCE(MAX(quadra), 0) FROM matches) AS quadras
+                (SELECT COUNT(*) FROM teams WHERE grupo_id = ? AND ativo = 1)     AS times,
+                (SELECT COALESCE(MAX(quadra), 0) FROM matches WHERE grupo_id = ?) AS quadras
             """.trimIndent(),
+            vezesDoGrupo = 2,
         ) { Formato(times = it.int("times"), quadras = it.int("quadras")) }
             .map { it.firstOrNull() ?: Formato(times = 0, quadras = 0) }
 
     fun observeRounds(): Flow<List<Round>> =
-        db.watch("SELECT id, numero, fase FROM rounds ORDER BY numero") { cursor ->
+        db.observarNoGrupo(
+            grupoAtivo,
+            "SELECT id, numero, fase FROM rounds WHERE grupo_id = ? ORDER BY numero",
+        ) { cursor ->
             Round(
                 id = cursor.getString("id"),
                 numero = cursor.int("numero"),
@@ -37,7 +43,10 @@ class MatchesRepository(
         }
 
     fun observeMatches(): Flow<List<MatchCard>> =
-        db.watch("$MATCH_CARD_SQL ORDER BY r.numero, m.quadra") { it.toMatchCard() }
+        db.observarNoGrupo(
+            grupoAtivo,
+            "$MATCH_CARD_SQL WHERE m.grupo_id = ? ORDER BY r.numero, m.quadra",
+        ) { it.toMatchCard() }
 
     fun observeTeamHistory(teamId: String): Flow<List<MatchCard>> =
         db.watch(
@@ -89,27 +98,29 @@ class MatchesRepository(
     }
 
     suspend fun replaceSchedule(rodadas: List<ScheduledRound>) {
+        val grupo = grupoAtivo.exigir()
         db.writeTransactionAsync { tx ->
-            tx.execute("DELETE FROM matches", listOf())
-            tx.execute("DELETE FROM rounds", listOf())
+            tx.execute("DELETE FROM matches WHERE grupo_id = ?", listOf(grupo))
+            tx.execute("DELETE FROM rounds WHERE grupo_id = ?", listOf(grupo))
 
             rodadas.forEach { rodada ->
                 val roundId = novoId()
                 val agora = agoraIso()
                 tx.execute(
-                    "INSERT INTO rounds (id, numero, fase, created_at) VALUES (?, ?, ?, ?)",
-                    listOf(roundId, rodada.numero, rodada.fase, agora),
+                    "INSERT INTO rounds (id, grupo_id, numero, fase, created_at) VALUES (?, ?, ?, ?, ?)",
+                    listOf(roundId, grupo, rodada.numero, rodada.fase, agora),
                 )
                 rodada.matches.forEach { partida ->
                     tx.execute(
                         """
                         INSERT INTO matches (
-                            id, round_id, quadra, team_a_id, team_b_id,
+                            id, grupo_id, round_id, quadra, team_a_id, team_b_id,
                             score_a, score_b, status, winner_id, created_at, updated_at
-                        ) VALUES (?, ?, ?, ?, ?, 0, 0, ?, NULL, ?, ?)
+                        ) VALUES (?, ?, ?, ?, ?, ?, 0, 0, ?, NULL, ?, ?)
                         """.trimIndent(),
                         listOf(
                             novoId(),
+                            grupo,
                             roundId,
                             partida.quadra,
                             partida.teamA.id,
@@ -129,8 +140,9 @@ class MatchesRepository(
             """
             UPDATE matches
             SET score_a = 0, score_b = 0, status = ?, winner_id = NULL, updated_at = ?
+            WHERE grupo_id = ?
             """.trimIndent(),
-            listOf(MatchStatus.AGENDADO.value, agoraIso()),
+            listOf(MatchStatus.AGENDADO.value, agoraIso(), grupoAtivo.exigir()),
         )
     }
 

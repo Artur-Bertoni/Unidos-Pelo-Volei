@@ -12,9 +12,11 @@ import kotlinx.coroutines.flow.map
 
 class AvaliacaoRepository(
     private val db: PowerSyncDatabase,
+    private val grupoAtivo: GrupoAtivo,
 ) {
     fun observePendentes(playerId: String): Flow<List<AvaliacaoPendente>> =
-        db.watch(
+        db.observarNoGrupo(
+            grupoAtivo,
             PENDENTES_SQL,
             listOf(playerId, playerId),
         ) { cursor ->
@@ -27,11 +29,13 @@ class AvaliacaoRepository(
 
     fun observeEvolucao(): Flow<Evolucao?> =
         db
-            .watch(
+            .observarNoGrupo(
+                grupoAtivo,
                 """
                 SELECT player_id, total_avaliacoes, saque_media, passe_media, ataque_media,
                        bloqueio_media, defesa_media, atitude_media
                 FROM player_evolucao
+                WHERE grupo_id = ?
                 LIMIT 1
                 """.trimIndent(),
             ) { it.toEvolucao() }
@@ -55,12 +59,13 @@ class AvaliacaoRepository(
         db.execute(
             """
             INSERT INTO avaliacoes (
-                id, day_id, avaliador_player_id, avaliado_player_id,
+                id, grupo_id, day_id, avaliador_player_id, avaliado_player_id,
                 saque, passe, ataque, bloqueio, defesa, atitude, criado_em
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """.trimIndent(),
             listOf(
                 novoId(),
+                grupoAtivo.exigir(),
                 dayId,
                 avaliadorPlayerId,
                 avaliadoPlayerId,
@@ -89,7 +94,7 @@ class AvaliacaoRepository(
                 AND colega.player_id <> meu.player_id
             JOIN players p ON p.id = colega.player_id
             JOIN (
-                SELECT id FROM game_days ORDER BY encerrado_em DESC LIMIT 4
+                SELECT id FROM game_days WHERE grupo_id = ? ORDER BY encerrado_em DESC LIMIT 4
             ) d ON d.id = meu.day_id
             WHERE meu.player_id = ?
                 AND meu.team_id IS NOT NULL

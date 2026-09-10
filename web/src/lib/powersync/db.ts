@@ -1,4 +1,5 @@
 import { PowerSyncDatabase } from '@powersync/web';
+import { definirUsuario } from '../../data/grupoAtivo';
 import { supabase } from '../supabase';
 import { SupabaseConnector } from './connector';
 import { AppSchema } from './schema';
@@ -51,10 +52,12 @@ const desconectar = (limpar: boolean): Promise<void> =>
  */
 export function iniciarSync(): void {
   void supabase.auth.getSession().then(({ data: { session } }) => {
+    definirUsuario(session?.user.id ?? null);
     if (session) void conectar();
   });
 
   supabase.auth.onAuthStateChange((evento, session) => {
+    definirUsuario(session?.user.id ?? null);
     if (evento === 'SIGNED_OUT') {
       void desconectar(true);
       return;

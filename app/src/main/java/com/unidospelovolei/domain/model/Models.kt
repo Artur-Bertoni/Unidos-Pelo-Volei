@@ -155,6 +155,50 @@ data class UserProfile(
     val isAdmin: Boolean get() = papel == Papel.DIRETORIA
 }
 
+data class MeuGrupo(
+    val id: String,
+    val nome: String,
+    val cidade: String?,
+    val papel: Papel,
+    val logoUrl: String? = null,
+    val ativo: Boolean = true,
+) {
+    val souDiretoria: Boolean get() = papel == Papel.DIRETORIA
+
+    val iniciais: String
+        get() =
+            nome
+                .split(" ")
+                .filter { it.isNotBlank() }
+                .take(2)
+                .map { it.first().uppercaseChar() }
+                .joinToString("")
+                .ifBlank { "?" }
+}
+
+data class ChaveDeAcesso(
+    val id: String,
+    val codigo: String,
+    val rotulo: String?,
+    val papel: Papel,
+    val usos: Int,
+    val usosMax: Int?,
+    val expiraEm: String?,
+    val ativa: Boolean,
+) {
+    val codigoFormatado: String
+        get() = if (codigo.length == 8) "${codigo.take(4)}-${codigo.drop(4)}" else codigo
+}
+
+data class MembroDoGrupo(
+    val profileId: String,
+    val nome: String?,
+    val email: String?,
+    val papel: Papel,
+) {
+    val rotulo: String get() = nome?.takeIf { it.isNotBlank() } ?: email ?: "Conta sem nome"
+}
+
 enum class StatusVinculo(
     val value: String,
     val rotulo: String,

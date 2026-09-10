@@ -12,22 +12,26 @@ import kotlinx.coroutines.flow.map
 
 class TeamsRepository(
     private val db: PowerSyncDatabase,
+    private val grupoAtivo: GrupoAtivo,
 ) {
     fun observeTeams(): Flow<List<Team>> =
-        db.watch(
+        db.observarNoGrupo(
+            grupoAtivo,
             """
             SELECT id, nome, cor_hex, sigla, ativo, ordem
             FROM teams
-            WHERE ativo = 1
+            WHERE grupo_id = ? AND ativo = 1
             ORDER BY ordem, nome COLLATE NOCASE
             """.trimIndent(),
         ) { it.toTeam() }
 
     fun observeAllTeams(): Flow<List<Team>> =
-        db.watch(
+        db.observarNoGrupo(
+            grupoAtivo,
             """
             SELECT id, nome, cor_hex, sigla, ativo, ordem
             FROM teams
+            WHERE grupo_id = ?
             ORDER BY ativo DESC, ordem, nome COLLATE NOCASE
             """.trimIndent(),
         ) { it.toTeam() }
@@ -46,7 +50,8 @@ class TeamsRepository(
 
     fun observeRosters(): Flow<List<TeamRoster>> =
         db
-            .watch(
+            .observarNoGrupo(
+                grupoAtivo,
                 """
                 SELECT
                     t.id AS team_id, t.nome AS team_nome, t.cor_hex AS team_cor_hex,
@@ -57,7 +62,7 @@ class TeamsRepository(
                 FROM teams t
                 LEFT JOIN team_players tp ON tp.team_id = t.id
                 LEFT JOIN players p ON p.id = tp.player_id
-                WHERE t.ativo = 1
+                WHERE t.grupo_id = ? AND t.ativo = 1
                 ORDER BY t.ordem, t.nome COLLATE NOCASE, p.skill_level DESC, p.nome COLLATE NOCASE
                 """.trimIndent(),
             ) { cursor ->
@@ -96,10 +101,19 @@ class TeamsRepository(
         val agora = agoraIso()
         db.execute(
             """
-            INSERT INTO teams (id, nome, cor_hex, sigla, ativo, ordem, created_at, updated_at)
-            VALUES (?, ?, ?, ?, 1, ?, ?, ?)
+            INSERT INTO teams (id, grupo_id, nome, cor_hex, sigla, ativo, ordem, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?)
             """.trimIndent(),
-            listOf(novoId(), nome.trim(), corHex, sigla.trim().uppercase().take(2), ordem, agora, agora),
+            listOf(
+                novoId(),
+                grupoAtivo.exigir(),
+                nome.trim(),
+                corHex,
+                sigla.trim().uppercase().take(2),
+                ordem,
+                agora,
+                agora,
+            ),
         )
     }
 
@@ -156,13 +170,17 @@ class TeamsRepository(
     }
 
     suspend fun replaceRosters(rosters: List<TeamRoster>) {
+        val grupo = grupoAtivo.exigir()
         db.writeTransactionAsync { tx ->
-            tx.execute("DELETE FROM team_players", listOf())
+            tx.execute("DELETE FROM team_players WHERE grupo_id = ?", listOf(grupo))
             rosters.forEach { roster ->
                 roster.players.forEach { jogador ->
                     tx.execute(
-                        "INSERT INTO team_players (id, team_id, player_id) VALUES (?, ?, ?)",
-                        listOf(novoId(), roster.team.id, jogador.id),
+                        """
+                        INSERT INTO team_players (id, grupo_id, team_id, player_id)
+                        VALUES (?, ?, ?, ?)
+                        """.trimIndent(),
+                        listOf(novoId(), grupo, roster.team.id, jogador.id),
                     )
                 }
             }

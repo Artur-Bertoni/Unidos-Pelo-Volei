@@ -47,24 +47,30 @@ import com.unidospelovolei.domain.model.EMOJIS_DE_REACAO
 import com.unidospelovolei.domain.model.EMOJI_PADRAO
 import com.unidospelovolei.domain.model.Evento
 import com.unidospelovolei.domain.model.Pagina
+import com.unidospelovolei.domain.model.Post
 import com.unidospelovolei.domain.model.TipoEvento
+import com.unidospelovolei.ui.components.CampoMascarado
 import com.unidospelovolei.ui.components.CampoTexto
 import com.unidospelovolei.ui.components.RotuloPequeno
 import com.unidospelovolei.ui.theme.VoleiColors
 
 @Composable
 fun PostDialog(
+    post: Post?,
     salvando: Boolean,
-    onSalvar: (String, String, Boolean, ImagemEscolhida?, String) -> Unit,
+    onSalvar: (String, String, Boolean, ImagemEscolhida?, String, String?) -> Unit,
     onFechar: () -> Unit,
 ) {
-    var titulo by remember { mutableStateOf("") }
-    var corpo by remember { mutableStateOf("") }
-    var fixado by remember { mutableStateOf(false) }
-    var emoji by remember { mutableStateOf(EMOJI_PADRAO) }
-    var imagem by remember { mutableStateOf<ImagemEscolhida?>(null) }
-    var nomeDaImagem by remember { mutableStateOf<String?>(null) }
-    var falhaNaImagem by remember { mutableStateOf<String?>(null) }
+    var titulo by remember(post?.id) { mutableStateOf(post?.titulo.orEmpty()) }
+    var corpo by remember(post?.id) { mutableStateOf(post?.corpo.orEmpty()) }
+    var fixado by remember(post?.id) { mutableStateOf(post?.fixado == true) }
+    var emoji by remember(post?.id) { mutableStateOf(post?.emoji ?: EMOJI_PADRAO) }
+    var imagem by remember(post?.id) { mutableStateOf<ImagemEscolhida?>(null) }
+    var imagemMantida by remember(post?.id) { mutableStateOf(post?.imagemUrl) }
+    var nomeDaImagem by remember(post?.id) { mutableStateOf<String?>(null) }
+    var falhaNaImagem by remember(post?.id) { mutableStateOf<String?>(null) }
+
+    val temImagem = imagem != null || imagemMantida != null
 
     val contexto = LocalContext.current
     val escolherImagem =
@@ -76,6 +82,7 @@ fun PostDialog(
             } else {
                 falhaNaImagem = null
                 imagem = lida
+                imagemMantida = null
                 nomeDaImagem = "Imagem de ${lida.bytes.size / 1024} KB"
             }
         }
@@ -84,7 +91,9 @@ fun PostDialog(
         onDismissRequest = onFechar,
         containerColor = VoleiColors.Cartao,
         titleContentColor = VoleiColors.TextoPrimario,
-        title = { Text("Publicar no mural", fontWeight = FontWeight.Bold) },
+        title = {
+            Text(if (post == null) "Publicar no mural" else "Editar recado", fontWeight = FontWeight.Bold)
+        },
         text = {
             Column(
                 modifier = Modifier.verticalScroll(rememberScrollState()),
@@ -107,15 +116,16 @@ fun PostDialog(
                             },
                         ) {
                             Text(
-                                if (imagem == null) "Anexar imagem" else "Trocar imagem",
+                                if (temImagem) "Trocar imagem" else "Anexar imagem",
                                 color = VoleiColors.Azul,
                                 fontSize = 13.sp,
                             )
                         }
-                        if (imagem != null) {
+                        if (temImagem) {
                             TextButton(
                                 onClick = {
                                     imagem = null
+                                    imagemMantida = null
                                     nomeDaImagem = null
                                 },
                             ) {
@@ -123,7 +133,11 @@ fun PostDialog(
                             }
                         }
                     }
-                    (falhaNaImagem ?: nomeDaImagem)?.let { aviso ->
+                    val recado =
+                        falhaNaImagem
+                            ?: nomeDaImagem
+                            ?: imagemMantida?.let { "Imagem já publicada." }
+                    recado?.let { aviso ->
                         Text(
                             text = aviso,
                             color = if (falhaNaImagem != null) VoleiColors.Vermelho else VoleiColors.TextoTerciario,
@@ -175,11 +189,15 @@ fun PostDialog(
         },
         confirmButton = {
             TextButton(
-                onClick = { onSalvar(titulo, corpo, fixado, imagem, emoji) },
+                onClick = { onSalvar(titulo, corpo, fixado, imagem, emoji, imagemMantida) },
                 enabled = titulo.isNotBlank() && !salvando,
             ) {
                 Text(
-                    if (salvando && imagem != null) "Enviando…" else "Publicar",
+                    when {
+                        salvando && imagem != null -> "Enviando…"
+                        post == null -> "Publicar"
+                        else -> "Salvar"
+                    },
                     color = if (titulo.isNotBlank()) VoleiColors.VerdeClaro else VoleiColors.TextoTerciario,
                 )
             }
@@ -242,16 +260,18 @@ fun EventoDialog(
                 CampoTexto(titulo, "Título", { titulo = it }, Modifier.fillMaxWidth())
 
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    CampoTexto(
+                    CampoMascarado(
                         valor = data,
                         rotulo = "Data (dd/mm/aaaa)",
-                        onMudar = { data = mascaraDeData(it) },
+                        mascara = ::mascaraDeData,
+                        onMudar = { data = it },
                         modifier = Modifier.weight(1.6f),
                     )
-                    CampoTexto(
+                    CampoMascarado(
                         valor = hora,
                         rotulo = "Hora",
-                        onMudar = { hora = mascaraDeHora(it) },
+                        mascara = ::mascaraDeHora,
+                        onMudar = { hora = it },
                         modifier = Modifier.weight(1f),
                     )
                 }

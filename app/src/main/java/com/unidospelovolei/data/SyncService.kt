@@ -14,6 +14,7 @@ class SyncService(
     private val db: PowerSyncDatabase,
     private val connector: SupabaseConnector,
     private val authRepository: AuthRepository,
+    private val grupoAtivo: GrupoAtivo,
     private val scope: CoroutineScope,
 ) {
     private val trava = Mutex()
@@ -25,8 +26,16 @@ class SyncService(
         scope.launch {
             authRepository.sessionStatus.collect { sessao ->
                 when (sessao) {
-                    is SessionStatus.Authenticated -> conectar()
-                    is SessionStatus.NotAuthenticated -> desconectar(limpar = sessao.isSignOut)
+                    is SessionStatus.Authenticated -> {
+                        grupoAtivo.paraUsuario(sessao.session.user?.id)
+                        conectar()
+                    }
+
+                    is SessionStatus.NotAuthenticated -> {
+                        grupoAtivo.paraUsuario(null)
+                        desconectar(limpar = sessao.isSignOut)
+                    }
+
                     else -> Unit
                 }
             }

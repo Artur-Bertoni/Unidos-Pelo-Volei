@@ -6,12 +6,43 @@ import com.powersync.db.schema.IndexedColumn
 import com.powersync.db.schema.Schema
 import com.powersync.db.schema.Table
 
+private fun porGrupo(vararg extras: Index): List<Index> =
+    listOf(Index("por_grupo", IndexedColumn.ascending("grupo_id"))) + extras
+
 val AppSchema: Schema =
     Schema(
+        Table(
+            name = "grupos",
+            columns =
+                listOf(
+                    Column.text("nome"),
+                    Column.text("slug"),
+                    Column.text("cidade"),
+                    Column.text("sobre"),
+                    Column.text("logo_url"),
+                    Column.text("criado_por"),
+                    Column.text("criado_em"),
+                    Column.integer("ativo"),
+                ),
+        ),
+        Table(
+            name = "grupo_membros",
+            columns =
+                listOf(
+                    Column.text("grupo_id"),
+                    Column.text("profile_id"),
+                    Column.text("papel"),
+                    Column.text("entrou_em"),
+                    Column.text("chave_id"),
+                ),
+            indexes =
+                porGrupo(Index("por_perfil", IndexedColumn.ascending("profile_id"))),
+        ),
         Table(
             name = "players",
             columns =
                 listOf(
+                    Column.text("grupo_id"),
                     Column.text("nome"),
                     Column.integer("skill_level"),
                     Column.text("genero"),
@@ -26,14 +57,13 @@ val AppSchema: Schema =
                     Column.text("updated_at"),
                 ),
             indexes =
-                listOf(
-                    Index("por_perfil", IndexedColumn.ascending("profile_id")),
-                ),
+                porGrupo(Index("por_perfil", IndexedColumn.ascending("profile_id"))),
         ),
         Table(
             name = "teams",
             columns =
                 listOf(
+                    Column.text("grupo_id"),
                     Column.text("nome"),
                     Column.text("cor_hex"),
                     Column.text("sigla"),
@@ -42,16 +72,18 @@ val AppSchema: Schema =
                     Column.text("created_at"),
                     Column.text("updated_at"),
                 ),
+            indexes = porGrupo(),
         ),
         Table(
             name = "team_players",
             columns =
                 listOf(
+                    Column.text("grupo_id"),
                     Column.text("team_id"),
                     Column.text("player_id"),
                 ),
             indexes =
-                listOf(
+                porGrupo(
                     Index("por_time", IndexedColumn.ascending("team_id")),
                     Index("por_jogador", IndexedColumn.ascending("player_id")),
                 ),
@@ -60,15 +92,18 @@ val AppSchema: Schema =
             name = "rounds",
             columns =
                 listOf(
+                    Column.text("grupo_id"),
                     Column.integer("numero"),
                     Column.integer("fase"),
                     Column.text("created_at"),
                 ),
+            indexes = porGrupo(),
         ),
         Table(
             name = "matches",
             columns =
                 listOf(
+                    Column.text("grupo_id"),
                     Column.text("round_id"),
                     Column.integer("quadra"),
                     Column.text("team_a_id"),
@@ -81,9 +116,7 @@ val AppSchema: Schema =
                     Column.text("updated_at"),
                 ),
             indexes =
-                listOf(
-                    Index("por_rodada", IndexedColumn.ascending("round_id")),
-                ),
+                porGrupo(Index("por_rodada", IndexedColumn.ascending("round_id"))),
         ),
         Table(
             name = "profiles",
@@ -91,8 +124,6 @@ val AppSchema: Schema =
                 listOf(
                     Column.text("email"),
                     Column.text("nome"),
-                    Column.text("papel"),
-                    Column.integer("is_admin"),
                     Column.text("created_at"),
                     Column.text("updated_at"),
                 ),
@@ -101,6 +132,7 @@ val AppSchema: Schema =
             name = "vinculo_pedidos",
             columns =
                 listOf(
+                    Column.text("grupo_id"),
                     Column.text("profile_id"),
                     Column.text("player_id"),
                     Column.text("profile_nome"),
@@ -110,7 +142,7 @@ val AppSchema: Schema =
                     Column.text("decidido_em"),
                 ),
             indexes =
-                listOf(
+                porGrupo(
                     Index("por_perfil", IndexedColumn.ascending("profile_id")),
                     Index("por_situacao", IndexedColumn.ascending("status")),
                 ),
@@ -119,6 +151,7 @@ val AppSchema: Schema =
             name = "player_contatos",
             columns =
                 listOf(
+                    Column.text("grupo_id"),
                     Column.text("player_id"),
                     Column.text("profile_id"),
                     Column.text("telefone"),
@@ -127,23 +160,24 @@ val AppSchema: Schema =
                     Column.text("atualizado_em"),
                 ),
             indexes =
-                listOf(
-                    Index("por_atleta", IndexedColumn.ascending("player_id")),
-                ),
+                porGrupo(Index("por_atleta", IndexedColumn.ascending("player_id"))),
         ),
         Table(
             name = "game_days",
             columns =
                 listOf(
+                    Column.text("grupo_id"),
                     Column.text("encerrado_em"),
                     Column.integer("partidas"),
                     Column.text("created_at"),
                 ),
+            indexes = porGrupo(),
         ),
         Table(
             name = "player_day_stats",
             columns =
                 listOf(
+                    Column.text("grupo_id"),
                     Column.text("day_id"),
                     Column.text("player_id"),
                     Column.text("team_id"),
@@ -157,7 +191,7 @@ val AppSchema: Schema =
                     Column.text("created_at"),
                 ),
             indexes =
-                listOf(
+                porGrupo(
                     Index("por_dia", IndexedColumn.ascending("day_id")),
                     Index("por_atleta", IndexedColumn.ascending("player_id")),
                 ),
@@ -166,15 +200,18 @@ val AppSchema: Schema =
             name = "config_grupo",
             columns =
                 listOf(
+                    Column.text("grupo_id"),
                     Column.text("jogo_hora"),
                     Column.text("jogo_local"),
                     Column.text("atualizado_em"),
                 ),
+            indexes = porGrupo(),
         ),
         Table(
             name = "presencas",
             columns =
                 listOf(
+                    Column.text("grupo_id"),
                     Column.text("player_id"),
                     Column.text("profile_id"),
                     Column.text("data"),
@@ -184,7 +221,7 @@ val AppSchema: Schema =
                     Column.text("atualizado_em"),
                 ),
             indexes =
-                listOf(
+                porGrupo(
                     Index("por_data", IndexedColumn.ascending("data")),
                     Index("por_presente", IndexedColumn.ascending("player_id")),
                 ),
@@ -205,17 +242,20 @@ val AppSchema: Schema =
             name = "avisos",
             columns =
                 listOf(
+                    Column.text("grupo_id"),
                     Column.text("tipo"),
                     Column.text("titulo"),
                     Column.text("corpo"),
                     Column.text("referencia"),
                     Column.text("criado_em"),
                 ),
+            indexes = porGrupo(),
         ),
         Table(
             name = "posts",
             columns =
                 listOf(
+                    Column.text("grupo_id"),
                     Column.text("autor_profile_id"),
                     Column.text("autor_nome"),
                     Column.text("titulo"),
@@ -226,25 +266,26 @@ val AppSchema: Schema =
                     Column.text("publicado_em"),
                     Column.text("atualizado_em"),
                 ),
+            indexes = porGrupo(),
         ),
         Table(
             name = "post_reacoes",
             columns =
                 listOf(
+                    Column.text("grupo_id"),
                     Column.text("post_id"),
                     Column.text("profile_id"),
                     Column.text("emoji"),
                     Column.text("criado_em"),
                 ),
             indexes =
-                listOf(
-                    Index("por_post", IndexedColumn.ascending("post_id")),
-                ),
+                porGrupo(Index("por_post", IndexedColumn.ascending("post_id"))),
         ),
         Table(
             name = "eventos",
             columns =
                 listOf(
+                    Column.text("grupo_id"),
                     Column.text("titulo"),
                     Column.text("descricao"),
                     Column.text("tipo"),
@@ -255,14 +296,13 @@ val AppSchema: Schema =
                     Column.text("criado_em"),
                 ),
             indexes =
-                listOf(
-                    Index("por_inicio", IndexedColumn.ascending("inicio")),
-                ),
+                porGrupo(Index("por_inicio", IndexedColumn.ascending("inicio"))),
         ),
         Table(
             name = "paginas",
             columns =
                 listOf(
+                    Column.text("grupo_id"),
                     Column.text("slug"),
                     Column.text("categoria"),
                     Column.text("titulo"),
@@ -271,11 +311,13 @@ val AppSchema: Schema =
                     Column.text("atualizado_por"),
                     Column.text("atualizado_em"),
                 ),
+            indexes = porGrupo(),
         ),
         Table(
             name = "config_financeiro",
             columns =
                 listOf(
+                    Column.text("grupo_id"),
                     Column.text("pix_chave"),
                     Column.text("pix_nome"),
                     Column.text("pix_cidade"),
@@ -283,11 +325,13 @@ val AppSchema: Schema =
                     Column.integer("diaria_centavos"),
                     Column.text("atualizado_em"),
                 ),
+            indexes = porGrupo(),
         ),
         Table(
             name = "cobrancas",
             columns =
                 listOf(
+                    Column.text("grupo_id"),
                     Column.text("titulo"),
                     Column.text("tipo"),
                     Column.integer("valor_centavos"),
@@ -296,11 +340,13 @@ val AppSchema: Schema =
                     Column.text("criado_por"),
                     Column.text("criado_em"),
                 ),
+            indexes = porGrupo(),
         ),
         Table(
             name = "pagamentos",
             columns =
                 listOf(
+                    Column.text("grupo_id"),
                     Column.text("cobranca_id"),
                     Column.text("player_id"),
                     Column.text("profile_id"),
@@ -312,14 +358,13 @@ val AppSchema: Schema =
                     Column.text("criado_em"),
                 ),
             indexes =
-                listOf(
-                    Index("por_cobranca", IndexedColumn.ascending("cobranca_id")),
-                ),
+                porGrupo(Index("por_cobranca", IndexedColumn.ascending("cobranca_id"))),
         ),
         Table(
             name = "avaliacoes",
             columns =
                 listOf(
+                    Column.text("grupo_id"),
                     Column.text("day_id"),
                     Column.text("avaliador_player_id"),
                     Column.text("avaliado_player_id"),
@@ -337,6 +382,7 @@ val AppSchema: Schema =
             name = "avaliacao_registros",
             columns =
                 listOf(
+                    Column.text("grupo_id"),
                     Column.text("day_id"),
                     Column.text("avaliador_player_id"),
                     Column.text("avaliado_player_id"),
@@ -344,14 +390,13 @@ val AppSchema: Schema =
                     Column.text("criado_em"),
                 ),
             indexes =
-                listOf(
-                    Index("por_dia_avaliado", IndexedColumn.ascending("day_id")),
-                ),
+                porGrupo(Index("por_dia_avaliado", IndexedColumn.ascending("day_id"))),
         ),
         Table(
             name = "player_evolucao",
             columns =
                 listOf(
+                    Column.text("grupo_id"),
                     Column.text("player_id"),
                     Column.text("profile_id"),
                     Column.integer("total_avaliacoes"),
@@ -363,6 +408,7 @@ val AppSchema: Schema =
                     Column.real("atitude_media"),
                     Column.text("atualizado_em"),
                 ),
+            indexes = porGrupo(),
         ),
         Table(
             name = "dicas",

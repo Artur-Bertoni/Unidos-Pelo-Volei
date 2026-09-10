@@ -1,6 +1,7 @@
 import { useQuery, useStatus } from '@powersync/react';
 import type { Session } from '@supabase/supabase-js';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
+import { grupoAtivo, observarGrupoAtivo } from '../data/grupoAtivo';
 import type { Row } from '../data/mappers';
 import {
   booleano,
@@ -14,6 +15,7 @@ import {
   toEvento,
   toEvolucao,
   toMatchCard,
+  toMeuGrupo,
   toPagamento,
   toPagina,
   toPlayer,
@@ -36,6 +38,7 @@ import {
   EVENTOS_SQL,
   EVOLUCAO_SQL,
   FORMATO_SQL,
+  MEUS_GRUPOS_SQL,
   MEUS_PAGAMENTOS_SQL,
   PAGINAS_SQL,
   POSTS_SQL,
@@ -67,6 +70,7 @@ import {
   type Evolucao,
   type ItemDoExtrato,
   type MatchCard,
+  type MeuGrupo,
   type Pagina,
   type Player,
   type PlayerContato,
@@ -108,23 +112,47 @@ export function useSessao(): EstadoDaSessao {
   return estado;
 }
 
+/**
+ * O grupo escolhido é o filtro de tudo: sem ele as consultas usam '' e não
+ * devolvem linha nenhuma, o que deixa o app vazio até alguém entrar num grupo.
+ */
+export function useGrupoAtivo(): string {
+  const escolhido = useSyncExternalStore(observarGrupoAtivo, grupoAtivo, grupoAtivo);
+  return escolhido ?? '';
+}
+
+export function useMeusGrupos(profileId: string | undefined): MeuGrupo[] {
+  const { data } = useQuery<Row>(MEUS_GRUPOS_SQL, [profileId ?? '']);
+  return useMemo(() => data.map(toMeuGrupo), [data]);
+}
+
+export function useGrupoAtual(profileId: string | undefined): MeuGrupo | null {
+  const grupos = useMeusGrupos(profileId);
+  const escolhido = useGrupoAtivo();
+  return useMemo(() => grupos.find((grupo) => grupo.id === escolhido) ?? null, [grupos, escolhido]);
+}
+
 export function usePerfil(usuarioId: string | undefined): UserProfile | null {
-  const { data } = useQuery<Row>(PROFILE_SQL, [usuarioId ?? '']);
+  const grupo = useGrupoAtivo();
+  const { data } = useQuery<Row>(PROFILE_SQL, [grupo, usuarioId ?? '']);
   return data.length > 0 ? toUserProfile(data[0]) : null;
 }
 
 export function useMeuJogador(profileId: string | undefined): Player | null {
-  const { data } = useQuery<Row>(MEU_JOGADOR_SQL, [profileId ?? '']);
+  const grupo = useGrupoAtivo();
+  const { data } = useQuery<Row>(MEU_JOGADOR_SQL, [grupo, profileId ?? '']);
   return data.length > 0 ? toPlayer(data[0]) : null;
 }
 
 export function useMeuPedido(profileId: string | undefined): VinculoPedido | null {
-  const { data } = useQuery<Row>(MEU_PEDIDO_SQL, [profileId ?? '']);
+  const grupo = useGrupoAtivo();
+  const { data } = useQuery<Row>(MEU_PEDIDO_SQL, [grupo, profileId ?? '']);
   return data.length > 0 ? toVinculoPedido(data[0]) : null;
 }
 
 export function usePedidosPendentes(): VinculoPedido[] {
-  const { data } = useQuery<Row>(PEDIDOS_PENDENTES_SQL);
+  const grupo = useGrupoAtivo();
+  const { data } = useQuery<Row>(PEDIDOS_PENDENTES_SQL, [grupo]);
   return useMemo(() => data.map(toVinculoPedido), [data]);
 }
 
@@ -134,42 +162,50 @@ export function useMeuContato(playerId: string | undefined): PlayerContato | nul
 }
 
 export function useConfigGrupo(): ConfigGrupo | null {
-  const { data } = useQuery<Row>(CONFIG_GRUPO_SQL);
+  const grupo = useGrupoAtivo();
+  const { data } = useQuery<Row>(CONFIG_GRUPO_SQL, [grupo]);
   return data.length > 0 ? toConfigGrupo(data[0]) : null;
 }
 
 export function usePresencas(data: string): Presenca[] {
-  const { data: linhas } = useQuery<Row>(PRESENCAS_SQL, [data]);
+  const grupo = useGrupoAtivo();
+  const { data: linhas } = useQuery<Row>(PRESENCAS_SQL, [grupo, data]);
   return useMemo(() => linhas.map(toPresenca), [linhas]);
 }
 
 export function usePosts(profileId: string | undefined): Post[] {
-  const { data } = useQuery<Row>(POSTS_SQL, [profileId ?? '']);
+  const grupo = useGrupoAtivo();
+  const { data } = useQuery<Row>(POSTS_SQL, [grupo, profileId ?? '']);
   return useMemo(() => data.map(toPost), [data]);
 }
 
 export function useEventos(): Evento[] {
-  const { data } = useQuery<Row>(EVENTOS_SQL);
+  const grupo = useGrupoAtivo();
+  const { data } = useQuery<Row>(EVENTOS_SQL, [grupo]);
   return useMemo(() => data.map(toEvento), [data]);
 }
 
 export function usePaginas(): Pagina[] {
-  const { data } = useQuery<Row>(PAGINAS_SQL);
+  const grupo = useGrupoAtivo();
+  const { data } = useQuery<Row>(PAGINAS_SQL, [grupo]);
   return useMemo(() => data.map(toPagina), [data]);
 }
 
 export function useConfigFinanceiro(): ConfigFinanceiro | null {
-  const { data } = useQuery<Row>(CONFIG_FINANCEIRO_SQL);
+  const grupo = useGrupoAtivo();
+  const { data } = useQuery<Row>(CONFIG_FINANCEIRO_SQL, [grupo]);
   return data.length > 0 ? toConfigFinanceiro(data[0]) : null;
 }
 
 export function useCobrancas(): Cobranca[] {
-  const { data } = useQuery<Row>(COBRANCAS_SQL);
+  const grupo = useGrupoAtivo();
+  const { data } = useQuery<Row>(COBRANCAS_SQL, [grupo]);
   return useMemo(() => data.map(toCobranca), [data]);
 }
 
 export function useMeuExtrato(): ItemDoExtrato[] {
-  const { data } = useQuery<Row>(MEUS_PAGAMENTOS_SQL);
+  const grupo = useGrupoAtivo();
+  const { data } = useQuery<Row>(MEUS_PAGAMENTOS_SQL, [grupo]);
   const cobrancas = useCobrancas();
   return useMemo(() => {
     const porId = new Map(cobrancas.map((cobranca) => [cobranca.id, cobranca]));
@@ -181,7 +217,8 @@ export function useMeuExtrato(): ItemDoExtrato[] {
 }
 
 export function useEvolucao(): Evolucao | null {
-  const { data } = useQuery<Row>(EVOLUCAO_SQL);
+  const grupo = useGrupoAtivo();
+  const { data } = useQuery<Row>(EVOLUCAO_SQL, [grupo]);
   return data.length > 0 ? toEvolucao(data[0]) : null;
 }
 
@@ -191,7 +228,8 @@ export function useDicas(): Dica[] {
 }
 
 export function useAvaliacoesPendentes(playerId: string | undefined): AvaliacaoPendente[] {
-  const { data } = useQuery<Row>(AVALIACOES_PENDENTES_SQL, [playerId ?? '', playerId ?? '']);
+  const grupo = useGrupoAtivo();
+  const { data } = useQuery<Row>(AVALIACOES_PENDENTES_SQL, [grupo, playerId ?? '', playerId ?? '']);
   return useMemo(
     () =>
       data.map((linha) => ({
@@ -216,24 +254,28 @@ export interface Formato {
 }
 
 export function useFormato(): Formato {
-  const { data } = useQuery<Row>(FORMATO_SQL);
+  const grupo = useGrupoAtivo();
+  const { data } = useQuery<Row>(FORMATO_SQL, [grupo, grupo]);
   if (data.length === 0) return { times: 0, quadras: 0 };
   return { times: inteiro(data[0], 'times'), quadras: inteiro(data[0], 'quadras') };
 }
 
 export function useJogadores(): { jogadores: Player[]; carregando: boolean } {
-  const { data, isLoading } = useQuery<Row>(PLAYERS_SQL);
+  const grupo = useGrupoAtivo();
+  const { data, isLoading } = useQuery<Row>(PLAYERS_SQL, [grupo]);
   const jogadores = useMemo(() => data.map(toPlayer), [data]);
   return { jogadores, carregando: isLoading };
 }
 
 export function useJogadoresAtivos(): Player[] {
-  const { data } = useQuery<Row>(ACTIVE_PLAYERS_SQL);
+  const grupo = useGrupoAtivo();
+  const { data } = useQuery<Row>(ACTIVE_PLAYERS_SQL, [grupo]);
   return useMemo(() => data.map(toPlayer), [data]);
 }
 
 export function useDesempenho(): Map<string, PlayerPerformance> {
-  const { data } = useQuery<Row>(PERFORMANCE_SQL);
+  const grupo = useGrupoAtivo();
+  const { data } = useQuery<Row>(PERFORMANCE_SQL, [grupo]);
   return useMemo(
     () =>
       new Map(
@@ -255,18 +297,21 @@ export function useDesempenho(): Map<string, PlayerPerformance> {
 }
 
 export function useTodosOsTimes(): { times: Team[]; carregando: boolean } {
-  const { data, isLoading } = useQuery<Row>(ALL_TEAMS_SQL);
+  const grupo = useGrupoAtivo();
+  const { data, isLoading } = useQuery<Row>(ALL_TEAMS_SQL, [grupo]);
   const times = useMemo(() => data.map((linha) => toTeam(linha)), [data]);
   return { times, carregando: isLoading };
 }
 
 export function useTimesAtivos(): Team[] {
-  const { data } = useQuery<Row>(TEAMS_SQL);
+  const grupo = useGrupoAtivo();
+  const { data } = useQuery<Row>(TEAMS_SQL, [grupo]);
   return useMemo(() => data.map((linha) => toTeam(linha)), [data]);
 }
 
 export function useElencos(): TeamRoster[] {
-  const { data } = useQuery<Row>(ROSTERS_SQL);
+  const grupo = useGrupoAtivo();
+  const { data } = useQuery<Row>(ROSTERS_SQL, [grupo]);
   return useMemo(() => {
     const porTime = new Map<string, TeamRoster>();
     data.forEach((linha) => {
@@ -310,8 +355,11 @@ export function useElencoDoTime(teamId: string): Player[] {
 }
 
 export function useRodadas(): { rodadas: RoundSchedule[]; carregando: boolean } {
-  const { data: linhasDeRodadas, isLoading: carregandoRodadas } = useQuery<Row>(ROUNDS_SQL);
-  const { data: linhasDePartidas, isLoading: carregandoPartidas } = useQuery<Row>(MATCHES_SQL);
+  const grupo = useGrupoAtivo();
+  const { data: linhasDeRodadas, isLoading: carregandoRodadas } = useQuery<Row>(ROUNDS_SQL, [grupo]);
+  const { data: linhasDePartidas, isLoading: carregandoPartidas } = useQuery<Row>(MATCHES_SQL, [
+    grupo,
+  ]);
   const elencos = useElencos();
 
   const rodadas = useMemo(() => {
@@ -340,7 +388,8 @@ export function useRodadas(): { rodadas: RoundSchedule[]; carregando: boolean } 
 }
 
 export function useClassificacao(): { linhas: Standing[]; carregando: boolean } {
-  const { data, isLoading } = useQuery<Row>(STANDINGS_SQL);
+  const grupo = useGrupoAtivo();
+  const { data, isLoading } = useQuery<Row>(STANDINGS_SQL, [grupo, grupo, grupo]);
   const linhas = useMemo(() => data.map(toStanding), [data]);
   return { linhas, carregando: isLoading };
 }

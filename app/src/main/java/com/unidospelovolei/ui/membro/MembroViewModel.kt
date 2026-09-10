@@ -4,13 +4,13 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.unidospelovolei.data.AuthRepository
 import com.unidospelovolei.data.ChamadaRepository
-import com.unidospelovolei.data.ContaDoGrupo
-import com.unidospelovolei.data.ContasRepository
 import com.unidospelovolei.data.GameDaysRepository
 import com.unidospelovolei.data.MembroRepository
+import com.unidospelovolei.data.MeusGruposRepository
 import com.unidospelovolei.data.PlayersRepository
 import com.unidospelovolei.data.ProfileRepository
 import com.unidospelovolei.domain.model.ConfigGrupo
+import com.unidospelovolei.domain.model.MembroDoGrupo
 import com.unidospelovolei.domain.model.Player
 import com.unidospelovolei.domain.model.PlayerContato
 import com.unidospelovolei.domain.model.PlayerPerformance
@@ -75,16 +75,16 @@ class MembroViewModel(
     gameDaysRepository: GameDaysRepository,
     private val membroRepository: MembroRepository,
     private val chamadaRepository: ChamadaRepository,
-    private val contasRepository: ContasRepository,
+    private val meusGruposRepository: MeusGruposRepository,
 ) : ViewModel() {
     private val sabado = ChamadaRepository.proximoSabado()
     private val busca = MutableStateFlow("")
     private val salvando = MutableStateFlow(false)
     private val erro = MutableStateFlow<String?>(null)
-    private val contas = MutableStateFlow<List<ContaDoGrupo>>(emptyList())
+    private val contas = MutableStateFlow<List<MembroDoGrupo>>(emptyList())
     private val carregandoContas = MutableStateFlow(false)
 
-    val contasDoGrupo: StateFlow<List<ContaDoGrupo>> = contas.asStateFlow()
+    val contasDoGrupo: StateFlow<List<MembroDoGrupo>> = contas.asStateFlow()
     val buscandoContas: StateFlow<Boolean> = carregandoContas.asStateFlow()
 
     private val usuarioId =
@@ -202,7 +202,7 @@ class MembroViewModel(
         if (carregandoContas.value) return
         viewModelScope.launch {
             carregandoContas.value = true
-            runCatching { contasRepository.listar() }
+            runCatching { meusGruposRepository.listarMembrosDoGrupoAtivo() }
                 .onSuccess { contas.value = it }
                 .onFailure {
                     erro.value = "Não foi possível listar as contas. Precisa de internet."

@@ -1,6 +1,7 @@
 import type { ResumoDoDia } from '../domain/models';
 import type { ElencoPassado } from '../domain/teamDraft';
 import { db } from '../lib/powersync/db';
+import { exigirGrupo, grupoAtivo } from './grupoAtivo';
 import { agoraIso, inteiro, novoId, texto, textoOuNulo, type Row } from './mappers';
 import { ELENCOS_SQL } from './queries';
 
@@ -45,7 +46,8 @@ export function agruparEmElencos(
 }
 
 export async function lerElencosPassados(): Promise<ElencoPassado[]> {
-  const linhas = await db.getAll<Row>(ELENCOS_SQL);
+  const grupo = grupoAtivo() ?? '';
+  const linhas = await db.getAll<Row>(ELENCOS_SQL, [grupo, grupo]);
   return agruparEmElencos(
     linhas.map((linha) => ({
       dayId: texto(linha, 'day_id'),
@@ -56,12 +58,15 @@ export async function lerElencosPassados(): Promise<ElencoPassado[]> {
 }
 
 export async function encerrarDia(): Promise<ResumoDoDia> {
+  const grupo = exigirGrupo();
   return db.writeTransaction(async (tx) => {
     const vinculos = (
       await tx.getAll<Row>(
         `SELECT tp.team_id, tp.player_id, t.nome AS team_nome, t.cor_hex AS team_cor_hex
          FROM team_players tp
-         JOIN teams t ON t.id = tp.team_id`,
+         JOIN teams t ON t.id = tp.team_id
+         WHERE tp.grupo_id = ?`,
+        [grupo],
       )
     ).map((linha) => ({
       teamId: texto(linha, 'team_id'),
@@ -70,16 +75,16 @@ export async function encerrarDia(): Promise<ResumoDoDia> {
       teamCorHex: textoOuNulo(linha, 'team_cor_hex'),
     }));
 
-    const presentes = (await tx.getAll<Row>('SELECT id FROM players WHERE ativo = 1')).map((linha) =>
-      texto(linha, 'id'),
-    );
+    const presentes = (
+      await tx.getAll<Row>('SELECT id FROM players WHERE grupo_id = ? AND ativo = 1', [grupo])
+    ).map((linha) => texto(linha, 'id'));
 
     const partidas = (
       await tx.getAll<Row>(
         `SELECT team_a_id, team_b_id, score_a, score_b, winner_id
          FROM matches
-         WHERE status = ?`,
-        ['finalizado'],
+         WHERE grupo_id = ? AND status = ?`,
+        [grupo, 'finalizado'],
       )
     ).map((linha) => ({
       teamAId: texto(linha, 'team_a_id'),
@@ -118,19 +123,21 @@ export async function encerrarDia(): Promise<ResumoDoDia> {
       const diaId = novoId();
       const agora = agoraIso();
       await tx.execute(
-        'INSERT INTO game_days (id, encerrado_em, partidas, created_at) VALUES (?, ?, ?, ?)',
-        [diaId, agora, partidas.length, agora],
+        `INSERT INTO game_days (id, grupo_id, encerrado_em, partidas, created_at)
+         VALUES (?, ?, ?, ?, ?)`,
+        [diaId, grupo, agora, partidas.length, agora],
       );
 
       for (const vinculo of vinculos) {
         const desempenho = porTime.get(vinculo.teamId) ?? zerado();
         await tx.execute(
           `INSERT INTO player_day_stats (
-              id, day_id, player_id, team_id, team_nome, team_cor_hex,
+              id, grupo_id, day_id, player_id, team_id, team_nome, team_cor_hex,
               jogos, vitorias, derrotas, pontos_pro, pontos_contra, created_at
-           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             novoId(),
+            grupo,
             diaId,
             vinculo.playerId,
             vinculo.teamId,
@@ -149,18 +156,21 @@ export async function encerrarDia(): Promise<ResumoDoDia> {
       for (const playerId of presentesSemTime) {
         await tx.execute(
           `INSERT INTO player_day_stats (
-              id, day_id, player_id, team_id, team_nome, team_cor_hex,
+              id, grupo_id, day_id, player_id, team_id, team_nome, team_cor_hex,
               jogos, vitorias, derrotas, pontos_pro, pontos_contra, created_at
-           ) VALUES (?, ?, ?, NULL, NULL, NULL, 0, 0, 0, 0, 0, ?)`,
-          [novoId(), diaId, playerId, agora],
+           ) VALUES (?, ?, ?, ?, NULL, NULL, NULL, 0, 0, 0, 0, 0, ?)`,
+          [novoId(), grupo, diaId, playerId, agora],
         );
       }
     }
 
-    await tx.execute('UPDATE players SET ativo = 0, updated_at = ? WHERE ativo = 1', [agoraIso()]);
-    await tx.execute('DELETE FROM team_players');
-    await tx.execute('DELETE FROM matches');
-    await tx.execute('DELETE FROM rounds');
+    await tx.execute(
+      'UPDATE players SET ativo = 0, updated_at = ? WHERE grupo_id = ? AND ativo = 1',
+      [agoraIso(), grupo],
+    );
+    await tx.execute('DELETE FROM team_players WHERE grupo_id = ?', [grupo]);
+    await tx.execute('DELETE FROM matches WHERE grupo_id = ?', [grupo]);
+    await tx.execute('DELETE FROM rounds WHERE grupo_id = ?', [grupo]);
 
     return {
       partidas: partidas.length,

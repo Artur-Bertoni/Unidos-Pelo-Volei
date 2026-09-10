@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -18,9 +19,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.unidospelovolei.ui.theme.VoleiColors
@@ -94,6 +98,63 @@ fun ImagemRemota(
                     color = VoleiColors.TextoTerciario,
                     fontSize = 12.sp,
                 )
+        }
+    }
+}
+
+@Composable
+fun AvatarRemoto(
+    url: String?,
+    iniciais: String,
+    descricao: String?,
+    modifier: Modifier = Modifier,
+    tamanho: Dp = 40.dp,
+) {
+    var estado by remember(url) {
+        mutableStateOf(
+            when {
+                url == null -> EstadoDaImagem.Falhou
+                else -> cache.get(url)?.let(EstadoDaImagem::Pronta) ?: EstadoDaImagem.Carregando
+            },
+        )
+    }
+
+    LaunchedEffect(url) {
+        if (url == null || estado is EstadoDaImagem.Pronta) return@LaunchedEffect
+        estado =
+            runCatching { baixar(url) }
+                .fold(
+                    onSuccess = { bitmap ->
+                        cache.put(url, bitmap)
+                        EstadoDaImagem.Pronta(bitmap)
+                    },
+                    onFailure = { EstadoDaImagem.Falhou },
+                )
+    }
+
+    Box(
+        modifier =
+            modifier
+                .size(tamanho)
+                .clip(CircleShape)
+                .background(VoleiColors.CartaoInterno),
+        contentAlignment = Alignment.Center,
+    ) {
+        val pronta = estado as? EstadoDaImagem.Pronta
+        if (pronta != null) {
+            Image(
+                bitmap = pronta.bitmap,
+                contentDescription = descricao,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.size(tamanho),
+            )
+        } else {
+            Text(
+                text = iniciais,
+                color = VoleiColors.TextoSecundario,
+                fontSize = (tamanho.value / 2.6f).sp,
+                fontWeight = FontWeight.Bold,
+            )
         }
     }
 }

@@ -1,17 +1,18 @@
 import type { Team, TeamRoster } from '../domain/models';
 import { db } from '../lib/powersync/db';
+import { exigirGrupo, grupoAtivo } from './grupoAtivo';
 import { agoraIso, novoId, toTeam, type Row } from './mappers';
 import { ALL_TEAMS_SQL, TEAMS_SQL } from './queries';
 
 const siglaLimpa = (sigla: string): string => sigla.trim().toUpperCase().slice(0, 2);
 
 export async function lerTimesAtivos(): Promise<Team[]> {
-  const linhas = await db.getAll<Row>(TEAMS_SQL);
+  const linhas = await db.getAll<Row>(TEAMS_SQL, [grupoAtivo() ?? '']);
   return linhas.map((linha) => toTeam(linha));
 }
 
 export async function lerTodosOsTimes(): Promise<Team[]> {
-  const linhas = await db.getAll<Row>(ALL_TEAMS_SQL);
+  const linhas = await db.getAll<Row>(ALL_TEAMS_SQL, [grupoAtivo() ?? '']);
   return linhas.map((linha) => toTeam(linha));
 }
 
@@ -23,9 +24,9 @@ export async function criarTime(
 ): Promise<void> {
   const agora = agoraIso();
   await db.execute(
-    `INSERT INTO teams (id, nome, cor_hex, sigla, ativo, ordem, created_at, updated_at)
-     VALUES (?, ?, ?, ?, 1, ?, ?, ?)`,
-    [novoId(), nome.trim(), corHex, siglaLimpa(sigla), ordem, agora, agora],
+    `INSERT INTO teams (id, grupo_id, nome, cor_hex, sigla, ativo, ordem, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?)`,
+    [novoId(), exigirGrupo(), nome.trim(), corHex, siglaLimpa(sigla), ordem, agora, agora],
   );
 }
 
@@ -77,15 +78,15 @@ export async function excluirTime(teamId: string): Promise<void> {
 }
 
 export async function substituirElencos(rosters: readonly TeamRoster[]): Promise<void> {
+  const grupo = exigirGrupo();
   await db.writeTransaction(async (tx) => {
-    await tx.execute('DELETE FROM team_players');
+    await tx.execute('DELETE FROM team_players WHERE grupo_id = ?', [grupo]);
     for (const roster of rosters) {
       for (const jogador of roster.players) {
-        await tx.execute('INSERT INTO team_players (id, team_id, player_id) VALUES (?, ?, ?)', [
-          novoId(),
-          roster.team.id,
-          jogador.id,
-        ]);
+        await tx.execute(
+          'INSERT INTO team_players (id, grupo_id, team_id, player_id) VALUES (?, ?, ?, ?)',
+          [novoId(), grupo, roster.team.id, jogador.id],
+        );
       }
     }
   });

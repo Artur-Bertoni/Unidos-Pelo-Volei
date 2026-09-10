@@ -10,30 +10,35 @@ import kotlinx.coroutines.flow.map
 
 class PlayersRepository(
     private val db: PowerSyncDatabase,
+    private val grupoAtivo: GrupoAtivo,
 ) {
     fun observePlayers(): Flow<List<Player>> =
-        db.watch(
+        db.observarNoGrupo(
+            grupoAtivo,
             """
             SELECT $COLUNAS
             FROM players
+            WHERE grupo_id = ?
             ORDER BY nome COLLATE NOCASE
             """.trimIndent(),
         ) { it.toPlayer() }
 
     fun observeActivePlayers(): Flow<List<Player>> =
-        db.watch(
+        db.observarNoGrupo(
+            grupoAtivo,
             """
             SELECT $COLUNAS
             FROM players
-            WHERE ativo = 1
+            WHERE grupo_id = ? AND ativo = 1
             ORDER BY skill_level DESC, nome COLLATE NOCASE
             """.trimIndent(),
         ) { it.toPlayer() }
 
     fun observePlayerDoPerfil(profileId: String): Flow<Player?> =
         db
-            .watch(
-                "SELECT $COLUNAS FROM players WHERE profile_id = ?",
+            .observarNoGrupo(
+                grupoAtivo,
+                "SELECT $COLUNAS FROM players WHERE grupo_id = ? AND profile_id = ?",
                 listOf(profileId),
             ) { it.toPlayer() }
             .map { it.firstOrNull() }
@@ -47,10 +52,19 @@ class PlayersRepository(
         val agora = agoraIso()
         db.execute(
             """
-            INSERT INTO players (id, nome, skill_level, genero, ativo, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO players (id, grupo_id, nome, skill_level, genero, ativo, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """.trimIndent(),
-            listOf(novoId(), nome.trim(), skillLevel, genero.value, if (ativo) 1 else 0, agora, agora),
+            listOf(
+                novoId(),
+                grupoAtivo.exigir(),
+                nome.trim(),
+                skillLevel,
+                genero.value,
+                if (ativo) 1 else 0,
+                agora,
+                agora,
+            ),
         )
     }
 
@@ -85,8 +99,8 @@ class PlayersRepository(
 
     suspend fun definirPresencaDeTodos(presente: Boolean) {
         db.execute(
-            "UPDATE players SET ativo = ?, updated_at = ? WHERE ativo <> ?",
-            listOf(if (presente) 1 else 0, agoraIso(), if (presente) 1 else 0),
+            "UPDATE players SET ativo = ?, updated_at = ? WHERE grupo_id = ? AND ativo <> ?",
+            listOf(if (presente) 1 else 0, agoraIso(), grupoAtivo.exigir(), if (presente) 1 else 0),
         )
     }
 
@@ -121,15 +135,20 @@ class PlayersRepository(
         playerId: String,
         profileId: String?,
     ) {
+        val grupo = grupoAtivo.exigir()
         db.writeTransactionAsync { tx ->
             if (profileId != null) {
                 tx.execute(
-                    "UPDATE players SET profile_id = NULL, updated_at = ? WHERE profile_id = ? AND id <> ?",
-                    listOf(agoraIso(), profileId, playerId),
+                    """
+                    UPDATE players
+                    SET profile_id = NULL, updated_at = ?
+                    WHERE grupo_id = ? AND profile_id = ? AND id <> ?
+                    """.trimIndent(),
+                    listOf(agoraIso(), grupo, profileId, playerId),
                 )
                 tx.execute(
-                    "DELETE FROM vinculo_pedidos WHERE profile_id = ? AND status = ?",
-                    listOf(profileId, StatusVinculo.PENDENTE.value),
+                    "DELETE FROM vinculo_pedidos WHERE grupo_id = ? AND profile_id = ? AND status = ?",
+                    listOf(grupo, profileId, StatusVinculo.PENDENTE.value),
                 )
             }
             tx.execute(

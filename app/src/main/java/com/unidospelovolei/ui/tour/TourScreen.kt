@@ -17,6 +17,7 @@ import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.Forum
 import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.HowToReg
+import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.SportsVolleyball
 import androidx.compose.material3.Button
@@ -52,6 +53,14 @@ private data class PassoDoTour(
 
 private val PASSOS =
     listOf(
+        PassoDoTour(
+            icone = Icons.Filled.Key,
+            aba = null,
+            titulo = "Tudo aqui acontece dentro de um grupo",
+            texto =
+                "Cada grupo de jogo tem os próprios jogadores, times, placar e financeiro. " +
+                    "Você entra com a chave de acesso que a diretoria passa, ou cria o seu grupo.",
+        ),
         PassoDoTour(
             icone = Icons.Filled.Forum,
             aba = "SOCIAL",
@@ -93,10 +102,10 @@ private val PASSOS =
         PassoDoTour(
             icone = Icons.Filled.HowToReg,
             aba = null,
-            titulo = "Falta só achar você na lista",
+            titulo = "Falta só entrar no seu grupo",
             texto =
-                "Escolha o seu nome entre os jogadores do grupo. A diretoria confirma e, " +
-                    "a partir daí, a sua ficha e o seu histórico ficam aqui dentro.",
+                "Use a chave de acesso e escolha o seu nome entre os jogadores. A diretoria " +
+                    "confirma e, a partir daí, a sua ficha e o seu histórico ficam aqui dentro.",
         ),
     )
 

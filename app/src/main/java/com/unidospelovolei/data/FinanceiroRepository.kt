@@ -14,51 +14,56 @@ import io.github.jan.supabase.postgrest.from
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
-import kotlinx.serialization.SerialName
-import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonObject
 import java.time.LocalDate
 import java.time.YearMonth
 
-@Serializable
 data class LinhaDoPainel(
     val id: String,
-    @SerialName("cobranca_id") val cobrancaId: String,
-    @SerialName("player_id") val playerId: String,
-    @SerialName("valor_centavos") val valorCentavos: Int,
+    val cobrancaId: String,
+    val playerId: String,
+    val valorCentavos: Int,
     val status: String,
-    @SerialName("pago_em") val pagoEm: String? = null,
+    val pagoEm: String? = null,
     val observacao: String? = null,
 )
 
 class FinanceiroRepository(
     private val db: PowerSyncDatabase,
     private val supabase: SupabaseClient,
+    private val grupoAtivo: GrupoAtivo,
 ) {
     fun observeConfig(): Flow<ConfigFinanceiro?> =
         db
-            .watch(
+            .observarNoGrupo(
+                grupoAtivo,
                 """
                 SELECT id, pix_chave, pix_nome, pix_cidade, mensalidade_centavos, diaria_centavos
                 FROM config_financeiro
+                WHERE grupo_id = ?
                 LIMIT 1
                 """.trimIndent(),
             ) { it.toConfigFinanceiro() }
             .map { it.firstOrNull() }
 
     fun observeCobrancas(): Flow<List<Cobranca>> =
-        db.watch(
+        db.observarNoGrupo(
+            grupoAtivo,
             """
             SELECT id, titulo, tipo, valor_centavos, competencia, vence_em
             FROM cobrancas
+            WHERE grupo_id = ?
             ORDER BY COALESCE(competencia, criado_em) DESC, criado_em DESC
             """.trimIndent(),
         ) { it.toCobranca() }
 
     fun observeMeusPagamentos(): Flow<List<Pagamento>> =
-        db.watch(
+        db.observarNoGrupo(
+            grupoAtivo,
             """
             SELECT id, cobranca_id, player_id, valor_centavos, status, pago_em, observacao
             FROM pagamentos
+            WHERE grupo_id = ?
             ORDER BY criado_em DESC
             """.trimIndent(),
         ) { it.toPagamento() }
@@ -69,11 +74,24 @@ class FinanceiroRepository(
             pagamentos.map { ItemDoExtrato(pagamento = it, cobranca = porId[it.cobrancaId]) }
         }
 
-    suspend fun lerPainel(): List<LinhaDoPainel> =
-        supabase
+    suspend fun lerPainel(): List<LinhaDoPainel> {
+        val grupo = grupoAtivo.exigir()
+        return supabase
             .from("pagamentos")
-            .select()
-            .decodeList<LinhaDoPainel>()
+            .select { filter { eq("grupo_id", grupo) } }
+            .decodeList<JsonObject>()
+            .map { linha ->
+                LinhaDoPainel(
+                    id = linha.textoObrigatorio("id"),
+                    cobrancaId = linha.texto("cobranca_id").orEmpty(),
+                    playerId = linha.texto("player_id").orEmpty(),
+                    valorCentavos = linha.inteiro("valor_centavos"),
+                    status = linha.texto("status") ?: StatusPagamento.PENDENTE.value,
+                    pagoEm = linha.texto("pago_em"),
+                    observacao = linha.texto("observacao"),
+                )
+            }
+    }
 
     suspend fun salvarConfig(
         id: String,
@@ -145,13 +163,14 @@ class FinanceiroRepository(
         somentePresentes: Boolean,
     ): Int {
         if (valorCentavos <= 0) return 0
+        val grupo = grupoAtivo.exigir()
 
         return db.writeTransactionAsync { tx ->
             val jaExiste =
                 tx
                     .getAll(
-                        "SELECT id FROM cobrancas WHERE tipo = ? AND competencia = ?",
-                        listOf(tipo.value, competencia),
+                        "SELECT id FROM cobrancas WHERE grupo_id = ? AND tipo = ? AND competencia = ?",
+                        listOf(grupo, tipo.value, competencia),
                     ) { it.getString("id") }
                     .firstOrNull()
 
@@ -162,8 +181,8 @@ class FinanceiroRepository(
                 val filtroPresenca = if (somentePresentes) " AND ativo = 1" else ""
                 val alvos =
                     tx.getAll(
-                        "SELECT id FROM players WHERE regime IN ($marcadores)$filtroPresenca",
-                        regimes,
+                        "SELECT id FROM players WHERE grupo_id = ? AND regime IN ($marcadores)$filtroPresenca",
+                        listOf(grupo) + regimes,
                     ) { it.getString("id") }
 
                 if (alvos.isEmpty()) {
@@ -174,19 +193,38 @@ class FinanceiroRepository(
                     tx.execute(
                         """
                         INSERT INTO cobrancas (
-                            id, titulo, tipo, valor_centavos, competencia, vence_em, criado_por, criado_em
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                            id, grupo_id, titulo, tipo, valor_centavos, competencia,
+                            vence_em, criado_por, criado_em
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                         """.trimIndent(),
-                        listOf(cobrancaId, titulo, tipo.value, valorCentavos, competencia, venceEm, criadoPor, agora),
+                        listOf(
+                            cobrancaId,
+                            grupo,
+                            titulo,
+                            tipo.value,
+                            valorCentavos,
+                            competencia,
+                            venceEm,
+                            criadoPor,
+                            agora,
+                        ),
                     )
                     alvos.forEach { playerId ->
                         tx.execute(
                             """
                             INSERT INTO pagamentos (
-                                id, cobranca_id, player_id, valor_centavos, status, criado_em
-                            ) VALUES (?, ?, ?, ?, ?, ?)
+                                id, grupo_id, cobranca_id, player_id, valor_centavos, status, criado_em
+                            ) VALUES (?, ?, ?, ?, ?, ?, ?)
                             """.trimIndent(),
-                            listOf(novoId(), cobrancaId, playerId, valorCentavos, StatusPagamento.PENDENTE.value, agora),
+                            listOf(
+                                novoId(),
+                                grupo,
+                                cobrancaId,
+                                playerId,
+                                valorCentavos,
+                                StatusPagamento.PENDENTE.value,
+                                agora,
+                            ),
                         )
                     }
                     alvos.size

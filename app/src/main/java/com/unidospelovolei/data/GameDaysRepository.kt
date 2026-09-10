@@ -12,10 +12,11 @@ import kotlinx.coroutines.flow.map
 
 class GameDaysRepository(
     private val db: PowerSyncDatabase,
+    private val grupoAtivo: GrupoAtivo,
 ) {
     fun observeElencosPassados(): Flow<List<ElencoPassado>> =
         db
-            .watch(ELENCOS_SQL) { cursor ->
+            .observarNoGrupo(grupoAtivo, ELENCOS_SQL, vezesDoGrupo = 2) { cursor ->
                 Triple(
                     cursor.getString("day_id"),
                     cursor.getString("team_id"),
@@ -25,7 +26,7 @@ class GameDaysRepository(
 
     fun observePerformances(): Flow<Map<String, PlayerPerformance>> =
         db
-            .watch(PERFORMANCE_SQL) { cursor ->
+            .observarNoGrupo(grupoAtivo, PERFORMANCE_SQL) { cursor ->
                 PlayerPerformance(
                     playerId = cursor.getString("player_id"),
                     dias = cursor.int("dias"),
@@ -37,15 +38,18 @@ class GameDaysRepository(
                 )
             }.map { linhas -> linhas.associateBy { it.playerId } }
 
-    suspend fun encerrarDia(): ResumoDoDia =
-        db.writeTransactionAsync { tx ->
+    suspend fun encerrarDia(): ResumoDoDia {
+        val grupo = grupoAtivo.exigir()
+        return db.writeTransactionAsync { tx ->
             val vinculos =
                 tx.getAll(
                     """
                     SELECT tp.team_id, tp.player_id, t.nome AS team_nome, t.cor_hex AS team_cor_hex
                     FROM team_players tp
                     JOIN teams t ON t.id = tp.team_id
+                    WHERE tp.grupo_id = ?
                     """.trimIndent(),
+                    listOf(grupo),
                 ) { cursor ->
                     Vinculo(
                         teamId = cursor.getString("team_id"),
@@ -56,16 +60,19 @@ class GameDaysRepository(
                 }
 
             val presentes =
-                tx.getAll("SELECT id FROM players WHERE ativo = 1") { it.getString("id") }
+                tx.getAll(
+                    "SELECT id FROM players WHERE grupo_id = ? AND ativo = 1",
+                    listOf(grupo),
+                ) { it.getString("id") }
 
             val partidas =
                 tx.getAll(
                     """
                     SELECT team_a_id, team_b_id, score_a, score_b, winner_id
                     FROM matches
-                    WHERE status = ?
+                    WHERE grupo_id = ? AND status = ?
                     """.trimIndent(),
-                    listOf(MatchStatus.FINALIZADO.value),
+                    listOf(grupo, MatchStatus.FINALIZADO.value),
                 ) { cursor ->
                     PartidaFinalizada(
                         teamAId = cursor.getString("team_a_id"),
@@ -89,20 +96,24 @@ class GameDaysRepository(
                 val diaId = novoId()
                 val agora = agoraIso()
                 tx.execute(
-                    "INSERT INTO game_days (id, encerrado_em, partidas, created_at) VALUES (?, ?, ?, ?)",
-                    listOf(diaId, agora, partidas.size, agora),
+                    """
+                    INSERT INTO game_days (id, grupo_id, encerrado_em, partidas, created_at)
+                    VALUES (?, ?, ?, ?, ?)
+                    """.trimIndent(),
+                    listOf(diaId, grupo, agora, partidas.size, agora),
                 )
                 vinculos.forEach { vinculo ->
                     val desempenho = porTime[vinculo.teamId] ?: Desempenho()
                     tx.execute(
                         """
                         INSERT INTO player_day_stats (
-                            id, day_id, player_id, team_id, team_nome, team_cor_hex,
+                            id, grupo_id, day_id, player_id, team_id, team_nome, team_cor_hex,
                             jogos, vitorias, derrotas, pontos_pro, pontos_contra, created_at
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         """.trimIndent(),
                         listOf(
                             novoId(),
+                            grupo,
                             diaId,
                             vinculo.playerId,
                             vinculo.teamId,
@@ -121,22 +132,22 @@ class GameDaysRepository(
                     tx.execute(
                         """
                         INSERT INTO player_day_stats (
-                            id, day_id, player_id, team_id, team_nome, team_cor_hex,
+                            id, grupo_id, day_id, player_id, team_id, team_nome, team_cor_hex,
                             jogos, vitorias, derrotas, pontos_pro, pontos_contra, created_at
-                        ) VALUES (?, ?, ?, NULL, NULL, NULL, 0, 0, 0, 0, 0, ?)
+                        ) VALUES (?, ?, ?, ?, NULL, NULL, NULL, 0, 0, 0, 0, 0, ?)
                         """.trimIndent(),
-                        listOf(novoId(), diaId, playerId, agora),
+                        listOf(novoId(), grupo, diaId, playerId, agora),
                     )
                 }
             }
 
             tx.execute(
-                "UPDATE players SET ativo = 0, updated_at = ? WHERE ativo = 1",
-                listOf(agoraIso()),
+                "UPDATE players SET ativo = 0, updated_at = ? WHERE grupo_id = ? AND ativo = 1",
+                listOf(agoraIso(), grupo),
             )
-            tx.execute("DELETE FROM team_players", listOf())
-            tx.execute("DELETE FROM matches", listOf())
-            tx.execute("DELETE FROM rounds", listOf())
+            tx.execute("DELETE FROM team_players WHERE grupo_id = ?", listOf(grupo))
+            tx.execute("DELETE FROM matches WHERE grupo_id = ?", listOf(grupo))
+            tx.execute("DELETE FROM rounds WHERE grupo_id = ?", listOf(grupo))
 
             ResumoDoDia(
                 partidas = partidas.size,
@@ -144,6 +155,7 @@ class GameDaysRepository(
                 presencas = vinculos.size + presentesSemTime.size,
             )
         }
+    }
 
     private fun agruparEmElencos(linhas: List<Triple<String, String, String>>): List<ElencoPassado> {
         val porDia = linkedMapOf<String, MutableMap<String, MutableList<String>>>()
@@ -206,10 +218,11 @@ class GameDaysRepository(
             JOIN (
                 SELECT id, encerrado_em
                 FROM game_days
+                WHERE grupo_id = ?
                 ORDER BY encerrado_em DESC
                 LIMIT $DIAS_NO_HISTORICO
             ) d ON d.id = s.day_id
-            WHERE s.team_id IS NOT NULL
+            WHERE s.grupo_id = ? AND s.team_id IS NOT NULL
             ORDER BY d.encerrado_em DESC, s.day_id, s.team_id
             """.trimIndent()
 
@@ -225,6 +238,7 @@ class GameDaysRepository(
                 COALESCE(SUM(s.pontos_contra), 0)                AS pontos_contra
             FROM players p
             LEFT JOIN player_day_stats s ON s.player_id = p.id
+            WHERE p.grupo_id = ?
             GROUP BY p.id
             """.trimIndent()
     }

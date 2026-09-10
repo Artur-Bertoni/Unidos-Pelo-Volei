@@ -5,16 +5,18 @@ import com.powersync.DatabaseDriverFactory
 import com.powersync.PowerSyncDatabase
 import com.powersync.connector.supabase.SupabaseConnector
 import com.unidospelovolei.data.AppSchema
-import com.unidospelovolei.data.AvaliacaoRepository
 import com.unidospelovolei.data.AuthRepository
+import com.unidospelovolei.data.AvaliacaoRepository
 import com.unidospelovolei.data.ChamadaRepository
-import com.unidospelovolei.data.ContasRepository
 import com.unidospelovolei.data.EnderecoRepository
 import com.unidospelovolei.data.FinanceiroRepository
 import com.unidospelovolei.data.GameDaysRepository
+import com.unidospelovolei.data.GrupoAtivo
 import com.unidospelovolei.data.GrupoRepository
+import com.unidospelovolei.data.GrupoStorage
 import com.unidospelovolei.data.MatchesRepository
 import com.unidospelovolei.data.MembroRepository
+import com.unidospelovolei.data.MeusGruposRepository
 import com.unidospelovolei.data.MuralStorage
 import com.unidospelovolei.data.PlayersRepository
 import com.unidospelovolei.data.ProfileRepository
@@ -72,6 +74,8 @@ class AppContainer(
         )
     }
 
+    val grupoAtivo by lazy { GrupoAtivo(appContext) }
+
     val authRepository by lazy {
         AuthRepository(
             supabase = supabase,
@@ -80,26 +84,28 @@ class AppContainer(
         )
     }
 
-    val contasRepository by lazy { ContasRepository(supabase) }
-    val profileRepository by lazy { ProfileRepository(database) }
-    val membroRepository by lazy { MembroRepository(database) }
-    val chamadaRepository by lazy { ChamadaRepository(database) }
-    val grupoRepository by lazy { GrupoRepository(database) }
-    val muralStorage by lazy { MuralStorage(supabase) }
+    val meusGruposRepository by lazy { MeusGruposRepository(database, supabase, grupoAtivo) }
+    val grupoStorage by lazy { GrupoStorage(supabase) }
+    val profileRepository by lazy { ProfileRepository(database, grupoAtivo) }
+    val membroRepository by lazy { MembroRepository(database, grupoAtivo) }
+    val chamadaRepository by lazy { ChamadaRepository(database, grupoAtivo) }
+    val grupoRepository by lazy { GrupoRepository(database, grupoAtivo) }
+    val muralStorage by lazy { MuralStorage(supabase, grupoAtivo) }
     val enderecoRepository by lazy { EnderecoRepository() }
-    val financeiroRepository by lazy { FinanceiroRepository(database, supabase) }
-    val avaliacaoRepository by lazy { AvaliacaoRepository(database) }
-    val playersRepository by lazy { PlayersRepository(database) }
-    val teamsRepository by lazy { TeamsRepository(database) }
-    val matchesRepository by lazy { MatchesRepository(database) }
-    val standingsRepository by lazy { StandingsRepository(database) }
-    val gameDaysRepository by lazy { GameDaysRepository(database) }
+    val financeiroRepository by lazy { FinanceiroRepository(database, supabase, grupoAtivo) }
+    val avaliacaoRepository by lazy { AvaliacaoRepository(database, grupoAtivo) }
+    val playersRepository by lazy { PlayersRepository(database, grupoAtivo) }
+    val teamsRepository by lazy { TeamsRepository(database, grupoAtivo) }
+    val matchesRepository by lazy { MatchesRepository(database, grupoAtivo) }
+    val standingsRepository by lazy { StandingsRepository(database, grupoAtivo) }
+    val gameDaysRepository by lazy { GameDaysRepository(database, grupoAtivo) }
 
     val syncService by lazy {
         SyncService(
             db = database,
             connector = connector,
             authRepository = authRepository,
+            grupoAtivo = grupoAtivo,
             scope = scope,
         )
     }

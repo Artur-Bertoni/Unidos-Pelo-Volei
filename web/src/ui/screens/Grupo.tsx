@@ -18,7 +18,15 @@ import {
   type StatusPresenca,
   type TipoEvento,
 } from '../../domain/models';
-import { CampoTexto, Cartao, Dialogo, EstadoVazio, RotuloPequeno, Selo } from '../components/Componentes';
+import {
+  CampoMascarado,
+  CampoTexto,
+  Cartao,
+  Dialogo,
+  EstadoVazio,
+  RotuloPequeno,
+  Selo,
+} from '../components/Componentes';
 import { IconeEditar, IconeLixeira, IconeVoltar } from '../components/Icons';
 
 export type SecaoDoGrupo = 'mural' | 'agenda' | 'chamada' | 'regras';
@@ -101,6 +109,7 @@ interface GrupoProps {
   salvando: boolean;
   onSecao: (secao: SecaoDoGrupo) => void;
   onNovoPost: () => void;
+  onEditarPost: (post: Post) => void;
   onExcluirPost: (postId: string) => void;
   onReagir: (postId: string, emoji: string) => void;
   onNovoEvento: () => void;
@@ -125,6 +134,7 @@ export function GrupoScreen({
   salvando,
   onSecao,
   onNovoPost,
+  onEditarPost,
   onExcluirPost,
   onReagir,
   onNovoEvento,
@@ -173,14 +183,24 @@ export function GrupoScreen({
                     {post.fixado && <span aria-label="Fixado">📌</span>}
                     <strong className="expandir">{post.titulo}</strong>
                     {isAdmin && (
-                      <button
-                        type="button"
-                        className="botao-icone"
-                        aria-label="Excluir publicação"
-                        onClick={() => onExcluirPost(post.id)}
-                      >
-                        <IconeLixeira />
-                      </button>
+                      <>
+                        <button
+                          type="button"
+                          className="botao-icone"
+                          aria-label="Editar publicação"
+                          onClick={() => onEditarPost(post)}
+                        >
+                          <IconeEditar />
+                        </button>
+                        <button
+                          type="button"
+                          className="botao-icone"
+                          aria-label="Excluir publicação"
+                          onClick={() => onExcluirPost(post.id)}
+                        >
+                          <IconeLixeira />
+                        </button>
+                      </>
                     )}
                   </div>
                   {post.corpo !== '' && <p className="subtitulo">{post.corpo}</p>}
@@ -395,11 +415,18 @@ const corDaPresenca = (status: StatusPresenca): string => {
   return 'var(--vermelho)';
 };
 
+const salvarRotulo = (salvando: boolean, imagem: File | null, post: Post | null): string => {
+  if (salvando && imagem !== null) return 'Enviando…';
+  return post === null ? 'Publicar' : 'Salvar';
+};
+
 export function PostDialogo({
+  post,
   salvando,
   onSalvar,
   onFechar,
 }: {
+  post: Post | null;
   salvando: boolean;
   onSalvar: (
     titulo: string,
@@ -407,18 +434,27 @@ export function PostDialogo({
     fixado: boolean,
     imagem: File | null,
     emoji: string,
+    imagemMantida: string | null,
   ) => void;
   onFechar: () => void;
 }) {
-  const [titulo, setTitulo] = useState('');
-  const [corpo, setCorpo] = useState('');
-  const [fixado, setFixado] = useState(false);
-  const [emoji, setEmoji] = useState(EMOJI_PADRAO);
+  const [titulo, setTitulo] = useState(post?.titulo ?? '');
+  const [corpo, setCorpo] = useState(post?.corpo ?? '');
+  const [fixado, setFixado] = useState(post?.fixado ?? false);
+  const [emoji, setEmoji] = useState(post?.emoji ?? EMOJI_PADRAO);
   const [imagem, setImagem] = useState<File | null>(null);
+  const [imagemMantida, setImagemMantida] = useState<string | null>(post?.imagemUrl ?? null);
+  const seletorDeImagem = useRef<HTMLInputElement>(null);
+
+  const removerImagem = () => {
+    setImagem(null);
+    setImagemMantida(null);
+    if (seletorDeImagem.current !== null) seletorDeImagem.current.value = '';
+  };
 
   return (
     <Dialogo
-      titulo="Publicar no mural"
+      titulo={post === null ? 'Publicar no mural' : 'Editar recado'}
       onFechar={onFechar}
       acoes={
         <>
@@ -429,9 +465,9 @@ export function PostDialogo({
             type="button"
             className="botao-texto"
             disabled={titulo.trim() === '' || salvando}
-            onClick={() => onSalvar(titulo, corpo, fixado, imagem, emoji)}
+            onClick={() => onSalvar(titulo, corpo, fixado, imagem, emoji, imagemMantida)}
           >
-            {salvando && imagem !== null ? 'Enviando…' : 'Publicar'}
+            {salvarRotulo(salvando, imagem, post)}
           </button>
         </>
       }
@@ -447,20 +483,32 @@ export function PostDialogo({
         />
       </label>
 
-      <label className="campo">
+      <div className="campo">
         <span className="campo-rotulo">Imagem</span>
         <input
+          ref={seletorDeImagem}
           type="file"
           className="campo-entrada"
           accept="image/jpeg,image/png,image/webp,image/gif"
-          onChange={(e) => setImagem(e.target.files?.[0] ?? null)}
+          onChange={(e) => {
+            const escolhida = e.target.files?.[0] ?? null;
+            setImagem(escolhida);
+            if (escolhida !== null) setImagemMantida(null);
+          }}
         />
-        {imagem !== null && (
-          <span className="subtitulo" style={{ fontSize: 11 }}>
-            {`${imagem.name} · ${Math.round(imagem.size / 1024)} KB`}
-          </span>
+        {(imagem !== null || imagemMantida !== null) && (
+          <div className="linha-entre">
+            <span className="subtitulo" style={{ fontSize: 11 }}>
+              {imagem !== null
+                ? `${imagem.name} · ${Math.round(imagem.size / 1024)} KB`
+                : 'Imagem já publicada.'}
+            </span>
+            <button type="button" className="botao-texto secundario" onClick={removerImagem}>
+              Remover
+            </button>
+          </div>
         )}
-      </label>
+      </div>
 
       <div className="campo">
         <span className="campo-rotulo">Reação padrão</span>
@@ -617,17 +665,19 @@ export function EventoDialogo({
       <CampoTexto valor={titulo} rotulo="Título" onMudar={setTitulo} />
       <div className="linha" style={{ gap: 8 }}>
         <div className="expandir">
-          <CampoTexto
+          <CampoMascarado
             valor={data}
             rotulo="Data (dd/mm/aaaa)"
-            onMudar={(valor) => setData(mascaraDeData(valor))}
+            mascara={mascaraDeData}
+            onMudar={setData}
           />
         </div>
         <div className="expandir">
-          <CampoTexto
+          <CampoMascarado
             valor={hora}
             rotulo="Hora"
-            onMudar={(valor) => setHora(mascaraDeHora(valor))}
+            mascara={mascaraDeHora}
+            onMudar={setHora}
           />
         </div>
       </div>

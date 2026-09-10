@@ -1,5 +1,6 @@
 import type { Regime, VinculoPedido } from '../domain/models';
 import { db } from '../lib/powersync/db';
+import { exigirGrupo } from './grupoAtivo';
 import { agoraIso, novoId } from './mappers';
 
 export async function pedirVinculo(
@@ -7,15 +8,17 @@ export async function pedirVinculo(
   profileNome: string | null,
   playerId: string,
 ): Promise<void> {
+  const grupo = exigirGrupo();
   await db.writeTransaction(async (tx) => {
-    await tx.execute('DELETE FROM vinculo_pedidos WHERE profile_id = ? AND status = ?', [
-      profileId,
-      'pendente',
-    ]);
     await tx.execute(
-      `INSERT INTO vinculo_pedidos (id, profile_id, player_id, profile_nome, status, criado_em)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-      [novoId(), profileId, playerId, profileNome, 'pendente', agoraIso()],
+      'DELETE FROM vinculo_pedidos WHERE grupo_id = ? AND profile_id = ? AND status = ?',
+      [grupo, profileId, 'pendente'],
+    );
+    await tx.execute(
+      `INSERT INTO vinculo_pedidos (
+         id, grupo_id, profile_id, player_id, profile_nome, status, criado_em
+       ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [novoId(), grupo, profileId, playerId, profileNome, 'pendente', agoraIso()],
     );
   });
 }
@@ -30,6 +33,7 @@ export async function decidirPedido(
   decididoPor: string,
 ): Promise<void> {
   const agora = agoraIso();
+  const grupo = exigirGrupo();
   await db.writeTransaction(async (tx) => {
     await tx.execute(
       `UPDATE vinculo_pedidos
@@ -39,8 +43,9 @@ export async function decidirPedido(
     );
     if (aprovado) {
       await tx.execute(
-        'UPDATE players SET profile_id = NULL, updated_at = ? WHERE profile_id = ? AND id <> ?',
-        [agora, pedido.profileId, pedido.playerId],
+        `UPDATE players SET profile_id = NULL, updated_at = ?
+         WHERE grupo_id = ? AND profile_id = ? AND id <> ?`,
+        [agora, grupo, pedido.profileId, pedido.playerId],
       );
       await tx.execute('UPDATE players SET profile_id = ?, updated_at = ? WHERE id = ?', [
         pedido.profileId,
@@ -71,16 +76,18 @@ export async function vincularJogador(
   profileId: string | null,
 ): Promise<void> {
   const agora = agoraIso();
+  const grupo = exigirGrupo();
   await db.writeTransaction(async (tx) => {
     if (profileId !== null) {
       await tx.execute(
-        'UPDATE players SET profile_id = NULL, updated_at = ? WHERE profile_id = ? AND id <> ?',
-        [agora, profileId, playerId],
+        `UPDATE players SET profile_id = NULL, updated_at = ?
+         WHERE grupo_id = ? AND profile_id = ? AND id <> ?`,
+        [agora, grupo, profileId, playerId],
       );
-      await tx.execute('DELETE FROM vinculo_pedidos WHERE profile_id = ? AND status = ?', [
-        profileId,
-        'pendente',
-      ]);
+      await tx.execute(
+        'DELETE FROM vinculo_pedidos WHERE grupo_id = ? AND profile_id = ? AND status = ?',
+        [grupo, profileId, 'pendente'],
+      );
     }
     await tx.execute('UPDATE players SET profile_id = ?, updated_at = ? WHERE id = ?', [
       profileId,
@@ -122,9 +129,10 @@ export async function salvarContato(
     } else {
       await tx.execute(
         `INSERT INTO player_contatos (
-           id, player_id, profile_id, telefone, contato_emergencia, nascimento_ano, atualizado_em
-         ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [novoId(), playerId, profileId, fone, emergencia, nascimentoAno, agora],
+           id, grupo_id, player_id, profile_id, telefone, contato_emergencia,
+           nascimento_ano, atualizado_em
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [novoId(), exigirGrupo(), playerId, profileId, fone, emergencia, nascimentoAno, agora],
       );
     }
   });

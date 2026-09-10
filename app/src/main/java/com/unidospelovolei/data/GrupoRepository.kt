@@ -12,40 +12,48 @@ import kotlinx.coroutines.flow.Flow
 
 class GrupoRepository(
     private val db: PowerSyncDatabase,
+    private val grupoAtivo: GrupoAtivo,
 ) {
     fun observePosts(profileId: String): Flow<List<Post>> =
-        db.watch(
+        db.observarNoGrupo(
+            grupoAtivo,
             """
+            WITH meus AS (SELECT * FROM posts WHERE grupo_id = ?)
             SELECT
                 p.id, p.autor_nome, p.titulo, p.corpo, p.imagem_url, p.emoji,
                 p.fixado, p.publicado_em,
                 (SELECT COUNT(*) FROM post_reacoes r WHERE r.post_id = p.id) AS reacoes,
                 (SELECT COUNT(*) FROM post_reacoes r WHERE r.post_id = p.id AND r.profile_id = ?) AS reagi
-            FROM posts p
+            FROM meus p
             ORDER BY p.fixado DESC, p.publicado_em DESC
             """.trimIndent(),
             listOf(profileId),
         ) { it.toPost() }
 
     fun observeEventos(): Flow<List<Evento>> =
-        db.watch(
+        db.observarNoGrupo(
+            grupoAtivo,
             """
             SELECT id, titulo, descricao, tipo, inicio, local
             FROM eventos
+            WHERE grupo_id = ?
             ORDER BY inicio
             """.trimIndent(),
         ) { it.toEvento() }
 
     fun observePaginas(): Flow<List<Pagina>> =
-        db.watch(
+        db.observarNoGrupo(
+            grupoAtivo,
             """
             SELECT id, slug, categoria, titulo, corpo, ordem
             FROM paginas
+            WHERE grupo_id = ?
             ORDER BY categoria, ordem, titulo COLLATE NOCASE
             """.trimIndent(),
         ) { it.toPagina() }
 
-    suspend fun publicar(
+    suspend fun salvarPost(
+        postId: String?,
         autorProfileId: String,
         autorNome: String?,
         titulo: String,
@@ -55,26 +63,46 @@ class GrupoRepository(
         emoji: String,
     ) {
         val agora = agoraIso()
-        db.execute(
-            """
-            INSERT INTO posts (
-                id, autor_profile_id, autor_nome, titulo, corpo, imagem_url, emoji,
-                fixado, publicado_em, atualizado_em
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """.trimIndent(),
-            listOf(
-                novoId(),
-                autorProfileId,
-                autorNome,
-                titulo.trim(),
-                corpo.trim(),
-                imagemUrl?.trim()?.ifBlank { null },
-                emoji.ifBlank { EMOJI_PADRAO },
-                if (fixado) 1 else 0,
-                agora,
-                agora,
-            ),
-        )
+        if (postId == null) {
+            db.execute(
+                """
+                INSERT INTO posts (
+                    id, grupo_id, autor_profile_id, autor_nome, titulo, corpo, imagem_url, emoji,
+                    fixado, publicado_em, atualizado_em
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """.trimIndent(),
+                listOf(
+                    novoId(),
+                    grupoAtivo.exigir(),
+                    autorProfileId,
+                    autorNome,
+                    titulo.trim(),
+                    corpo.trim(),
+                    imagemUrl?.trim()?.ifBlank { null },
+                    emoji.ifBlank { EMOJI_PADRAO },
+                    if (fixado) 1 else 0,
+                    agora,
+                    agora,
+                ),
+            )
+        } else {
+            db.execute(
+                """
+                UPDATE posts
+                SET titulo = ?, corpo = ?, imagem_url = ?, emoji = ?, fixado = ?, atualizado_em = ?
+                WHERE id = ?
+                """.trimIndent(),
+                listOf(
+                    titulo.trim(),
+                    corpo.trim(),
+                    imagemUrl?.trim()?.ifBlank { null },
+                    emoji.ifBlank { EMOJI_PADRAO },
+                    if (fixado) 1 else 0,
+                    agora,
+                    postId,
+                ),
+            )
+        }
     }
 
     suspend fun excluirPost(postId: String) {
@@ -89,6 +117,7 @@ class GrupoRepository(
         profileId: String,
         emoji: String,
     ) {
+        val grupo = grupoAtivo.exigir()
         db.writeTransactionAsync { tx ->
             val existente =
                 tx
@@ -100,8 +129,11 @@ class GrupoRepository(
 
             if (existente == null) {
                 tx.execute(
-                    "INSERT INTO post_reacoes (id, post_id, profile_id, emoji, criado_em) VALUES (?, ?, ?, ?, ?)",
-                    listOf(novoId(), postId, profileId, emoji.ifBlank { EMOJI_PADRAO }, agoraIso()),
+                    """
+                    INSERT INTO post_reacoes (id, grupo_id, post_id, profile_id, emoji, criado_em)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                    """.trimIndent(),
+                    listOf(novoId(), grupo, postId, profileId, emoji.ifBlank { EMOJI_PADRAO }, agoraIso()),
                 )
             } else {
                 tx.execute("DELETE FROM post_reacoes WHERE id = ?", listOf(existente))
@@ -121,11 +153,13 @@ class GrupoRepository(
         if (eventoId == null) {
             db.execute(
                 """
-                INSERT INTO eventos (id, titulo, descricao, tipo, inicio, local, criado_por, criado_em)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO eventos (
+                    id, grupo_id, titulo, descricao, tipo, inicio, local, criado_por, criado_em
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """.trimIndent(),
                 listOf(
                     novoId(),
+                    grupoAtivo.exigir(),
                     titulo.trim(),
                     descricao?.trim()?.ifBlank { null },
                     tipo.value,
@@ -189,10 +223,19 @@ class GrupoRepository(
 
         db.execute(
             """
-            INSERT INTO paginas (id, slug, categoria, titulo, corpo, ordem, atualizado_por, atualizado_em)
-            VALUES (?, ?, ?, ?, '', 99, ?, ?)
+            INSERT INTO paginas (
+                id, grupo_id, slug, categoria, titulo, corpo, ordem, atualizado_por, atualizado_em
+            ) VALUES (?, ?, ?, ?, ?, '', 99, ?, ?)
             """.trimIndent(),
-            listOf(novoId(), slug, categoria.value, titulo.trim(), atualizadoPor, agoraIso()),
+            listOf(
+                novoId(),
+                grupoAtivo.exigir(),
+                slug,
+                categoria.value,
+                titulo.trim(),
+                atualizadoPor,
+                agoraIso(),
+            ),
         )
     }
 

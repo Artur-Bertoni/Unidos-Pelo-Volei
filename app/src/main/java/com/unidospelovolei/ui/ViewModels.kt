@@ -10,6 +10,7 @@ import com.unidospelovolei.ui.evolucao.EvolucaoViewModel
 import com.unidospelovolei.ui.financeiro.FinanceiroViewModel
 import com.unidospelovolei.ui.games.GamesViewModel
 import com.unidospelovolei.ui.grupo.GrupoViewModel
+import com.unidospelovolei.ui.grupos.GruposViewModel
 import com.unidospelovolei.ui.main.MainViewModel
 import com.unidospelovolei.ui.membro.MembroViewModel
 import com.unidospelovolei.ui.players.PlayersViewModel
@@ -24,8 +25,18 @@ fun rememberVoleiViewModelFactory(container: AppContainer): ViewModelProvider.Fa
                 MainViewModel(
                     authRepository = container.authRepository,
                     profileRepository = container.profileRepository,
+                    meusGruposRepository = container.meusGruposRepository,
+                    grupoAtivo = container.grupoAtivo,
                     matchesRepository = container.matchesRepository,
                     syncService = container.syncService,
+                )
+            }
+            initializer {
+                GruposViewModel(
+                    authRepository = container.authRepository,
+                    repositorio = container.meusGruposRepository,
+                    grupoStorage = container.grupoStorage,
+                    grupoAtivo = container.grupoAtivo,
                 )
             }
             initializer {
@@ -63,7 +74,7 @@ fun rememberVoleiViewModelFactory(container: AppContainer): ViewModelProvider.Fa
                     gameDaysRepository = container.gameDaysRepository,
                     membroRepository = container.membroRepository,
                     chamadaRepository = container.chamadaRepository,
-                    contasRepository = container.contasRepository,
+                    meusGruposRepository = container.meusGruposRepository,
                 )
             }
             initializer {

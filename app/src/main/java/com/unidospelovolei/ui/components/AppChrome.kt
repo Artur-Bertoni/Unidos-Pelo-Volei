@@ -2,6 +2,7 @@ package com.unidospelovolei.ui.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,6 +18,7 @@ import androidx.compose.material.icons.filled.CloudDone
 import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.CloudSync
 import androidx.compose.material.icons.filled.EmojiEvents
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Forum
 import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.Person
@@ -60,10 +62,14 @@ enum class SinalSync(
 
 @Composable
 fun AppHeader(
+    titulo: String,
     subtitulo: String,
     sinal: SinalSync,
     onSair: (() -> Unit)?,
     modifier: Modifier = Modifier,
+    logoUrl: String? = null,
+    iniciais: String = "",
+    onTrocarGrupo: (() -> Unit)? = null,
 ) {
     Column(modifier = modifier.fillMaxWidth().background(VoleiColors.FundoCabecalho)) {
         Row(
@@ -71,17 +77,37 @@ fun AppHeader(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            LogoUpv()
+            if (iniciais.isBlank()) {
+                LogoUpv()
+            } else {
+                AvatarRemoto(url = logoUrl, iniciais = iniciais, descricao = null, tamanho = 40.dp)
+            }
 
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "UNIDOS PELO VÔLEI",
-                    color = Color.White,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Black,
-                    letterSpacing = 0.4.sp,
-                    maxLines = 1,
-                )
+            Column(
+                modifier =
+                    Modifier
+                        .weight(1f)
+                        .let { if (onTrocarGrupo == null) it else it.clickable(onClick = onTrocarGrupo) },
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = titulo.uppercase(),
+                        color = Color.White,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Black,
+                        letterSpacing = 0.4.sp,
+                        maxLines = 1,
+                        modifier = Modifier.weight(1f, fill = false),
+                    )
+                    if (onTrocarGrupo != null) {
+                        Icon(
+                            imageVector = Icons.Filled.ExpandMore,
+                            contentDescription = "Trocar de grupo",
+                            tint = VoleiColors.TextoSecundario,
+                            modifier = Modifier.size(16.dp),
+                        )
+                    }
+                }
                 Text(
                     text = subtitulo,
                     color = VoleiColors.TextoSecundario,

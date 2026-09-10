@@ -30,6 +30,7 @@ import com.unidospelovolei.data.Push
 import com.unidospelovolei.data.TokenPendente
 import com.unidospelovolei.domain.model.Evento
 import com.unidospelovolei.domain.model.Pagina
+import com.unidospelovolei.domain.model.Post
 import com.unidospelovolei.domain.model.Team
 import com.unidospelovolei.ui.components.AbaPrincipal
 import com.unidospelovolei.ui.components.AppHeader
@@ -49,6 +50,10 @@ import com.unidospelovolei.ui.grupo.GrupoScreen
 import com.unidospelovolei.ui.grupo.GrupoViewModel
 import com.unidospelovolei.ui.grupo.PaginaScreen
 import com.unidospelovolei.ui.grupo.PostDialog
+import com.unidospelovolei.ui.grupos.ChavesScreen
+import com.unidospelovolei.ui.grupos.GruposScreen
+import com.unidospelovolei.ui.grupos.GruposViewModel
+import com.unidospelovolei.ui.grupos.MembrosScreen
 import com.unidospelovolei.ui.login.ConfiguracaoPendenteScreen
 import com.unidospelovolei.ui.login.LoginScreen
 import com.unidospelovolei.ui.main.EstadoSincronizacao
@@ -74,6 +79,12 @@ import com.unidospelovolei.ui.tour.TourScreen
 
 private sealed interface Destino {
     data object Abas : Destino
+
+    data object Grupos : Destino
+
+    data object Chaves : Destino
+
+    data object Membros : Destino
 
     data object Jogadores : Destino
 
@@ -145,6 +156,8 @@ fun AppRoot(
                     },
                     modifier = modifier,
                 )
+            } else if (estado.precisaEscolherGrupo) {
+                PortaDeEntrada(container = container, modifier = modifier)
             } else {
                 HomeScreen(
                     container = container,
@@ -154,6 +167,43 @@ fun AppRoot(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun PortaDeEntrada(
+    container: AppContainer,
+    modifier: Modifier = Modifier,
+) {
+    val factory = rememberVoleiViewModelFactory(container)
+    val gruposViewModel: GruposViewModel = viewModel(factory = factory)
+    val grupos by gruposViewModel.estado.collectAsStateWithLifecycle()
+    val snackbar = remember { SnackbarHostState() }
+    val mensagem = grupos.erro ?: grupos.aviso
+
+    LaunchedEffect(mensagem) {
+        mensagem?.let {
+            snackbar.showSnackbar(it)
+            gruposViewModel.limparMensagens()
+        }
+    }
+
+    Scaffold(
+        modifier = modifier.fillMaxSize(),
+        containerColor = VoleiColors.Fundo,
+        snackbarHost = { SnackbarHost(snackbar) },
+    ) { padding ->
+        GruposScreen(
+            estado = grupos,
+            onVoltar = null,
+            onSelecionar = { gruposViewModel.selecionar(it.id) },
+            onEntrarComChave = gruposViewModel::entrarComChave,
+            onCriarGrupo = gruposViewModel::criarGrupo,
+            onSair = { gruposViewModel.sair(it.id) },
+            onAbrirChaves = {},
+            onAbrirMembros = {},
+            modifier = Modifier.fillMaxSize().padding(padding),
+        )
     }
 }
 
@@ -175,6 +225,7 @@ private fun HomeScreen(
     val grupoViewModel: GrupoViewModel = viewModel(factory = factory)
     val financeiroViewModel: FinanceiroViewModel = viewModel(factory = factory)
     val evolucaoViewModel: EvolucaoViewModel = viewModel(factory = factory)
+    val gruposViewModel: GruposViewModel = viewModel(factory = factory)
 
     val jogos by gamesViewModel.estado.collectAsStateWithLifecycle()
     val classificacao by standingsViewModel.estado.collectAsStateWithLifecycle()
@@ -184,6 +235,7 @@ private fun HomeScreen(
     val grupo by grupoViewModel.estado.collectAsStateWithLifecycle()
     val financeiro by financeiroViewModel.estado.collectAsStateWithLifecycle()
     val evolucao by evolucaoViewModel.estado.collectAsStateWithLifecycle()
+    val grupos by gruposViewModel.estado.collectAsStateWithLifecycle()
 
     val contas by membroViewModel.contasDoGrupo.collectAsStateWithLifecycle()
     val carregandoContas by membroViewModel.buscandoContas.collectAsStateWithLifecycle()
@@ -209,6 +261,7 @@ private fun HomeScreen(
     var criandoTime by remember { mutableStateOf(false) }
     var editandoFicha by remember { mutableStateOf(false) }
     var criandoPost by remember { mutableStateOf(false) }
+    var editandoPost by remember { mutableStateOf<Post?>(null) }
     var editandoEvento by remember { mutableStateOf<Evento?>(null) }
     var criandoEvento by remember { mutableStateOf(false) }
     var configurandoFinanceiro by remember { mutableStateOf(false) }
@@ -216,7 +269,7 @@ private fun HomeScreen(
     val snackbar = remember { SnackbarHostState() }
     val mensagemDeErro =
         estado.erro ?: jogos.erro ?: classificacao.erro ?: times.erro ?: jogadores.erro
-            ?: membro.erro ?: grupo.erro ?: financeiro.erro ?: evolucao.erro
+            ?: membro.erro ?: grupo.erro ?: financeiro.erro ?: evolucao.erro ?: grupos.erro
 
     LaunchedEffect(mensagemDeErro) {
         mensagemDeErro?.let {
@@ -230,10 +283,11 @@ private fun HomeScreen(
             grupoViewModel.limparErro()
             financeiroViewModel.limparErro()
             evolucaoViewModel.limparErro()
+            gruposViewModel.limparMensagens()
         }
     }
 
-    val mensagemDeAviso = jogos.aviso ?: grupo.aviso ?: financeiro.aviso ?: evolucao.aviso
+    val mensagemDeAviso = jogos.aviso ?: grupo.aviso ?: financeiro.aviso ?: evolucao.aviso ?: grupos.aviso
 
     LaunchedEffect(mensagemDeAviso) {
         mensagemDeAviso?.let {
@@ -242,10 +296,64 @@ private fun HomeScreen(
             grupoViewModel.limparAviso()
             financeiroViewModel.limparAviso()
             evolucaoViewModel.limparAviso()
+            gruposViewModel.limparMensagens()
         }
     }
 
     when (val atual = destino) {
+        is Destino.Grupos -> {
+            GruposScreen(
+                estado = grupos,
+                onVoltar = { destino = Destino.Abas },
+                onSelecionar = {
+                    gruposViewModel.selecionar(it.id)
+                    destino = Destino.Abas
+                },
+                onEntrarComChave = gruposViewModel::entrarComChave,
+                onCriarGrupo = gruposViewModel::criarGrupo,
+                onSair = { gruposViewModel.sair(it.id) },
+                onAbrirChaves = { destino = Destino.Chaves },
+                onAbrirMembros = { destino = Destino.Membros },
+                modifier = modifier,
+                onSalvarIdentidade = gruposViewModel::salvarIdentidade,
+            )
+            return
+        }
+
+        is Destino.Chaves -> {
+            ChavesScreen(
+                nomeDoGrupo = estado.nomeDoGrupo,
+                chaves = grupos.chaves,
+                carregando = grupos.carregandoLista,
+                salvando = grupos.salvando,
+                onVoltar = { destino = Destino.Grupos },
+                onCarregar = gruposViewModel::carregarChaves,
+                onCriar = gruposViewModel::criarChave,
+                onAlternar = gruposViewModel::alternarChave,
+                onExcluir = gruposViewModel::excluirChave,
+                modifier = modifier,
+                falha = grupos.falhaNaLista,
+            )
+            return
+        }
+
+        is Destino.Membros -> {
+            MembrosScreen(
+                nomeDoGrupo = estado.nomeDoGrupo,
+                membros = grupos.membros,
+                meuId = perfilId,
+                carregando = grupos.carregandoLista,
+                salvando = grupos.salvando,
+                onVoltar = { destino = Destino.Grupos },
+                onCarregar = gruposViewModel::carregarMembros,
+                onDefinirPapel = gruposViewModel::definirPapel,
+                onRemover = gruposViewModel::removerMembro,
+                modifier = modifier,
+                falha = grupos.falhaNaLista,
+            )
+            return
+        }
+
         is Destino.Jogadores -> {
             PlayersScreen(
                 estado = jogadores,
@@ -375,6 +483,9 @@ private fun HomeScreen(
         snackbarHost = { SnackbarHost(snackbar) },
         topBar = {
             AppHeader(
+                titulo = estado.nomeDoGrupo,
+                logoUrl = estado.grupoAtual?.logoUrl,
+                iniciais = estado.grupoAtual?.iniciais.orEmpty(),
                 subtitulo = subtituloDoFormato(estado.formato.times, estado.formato.quadras),
                 sinal =
                     when (estado.sincronizacao) {
@@ -383,6 +494,7 @@ private fun HomeScreen(
                         EstadoSincronizacao.OFFLINE -> SinalSync.OFFLINE
                     },
                 onSair = mainViewModel::sair,
+                onTrocarGrupo = { destino = Destino.Grupos },
             )
         },
         bottomBar = {
@@ -434,6 +546,7 @@ private fun HomeScreen(
                         isAdmin = estado.isAdmin,
                         onSecao = grupoViewModel::abrir,
                         onNovoPost = { criandoPost = true },
+                        onEditarPost = { editandoPost = it },
                         onExcluirPost = grupoViewModel::excluirPost,
                         onReagir = grupoViewModel::alternarReacao,
                         onNovoEvento = { criandoEvento = true },
@@ -460,19 +573,36 @@ private fun HomeScreen(
                             destino = Destino.PainelFinanceiro
                         },
                         onAbrirAvaliacao = { destino = Destino.Avaliacao },
+                        onAbrirGrupos = { destino = Destino.Grupos },
+                        nomeDoGrupo = estado.nomeDoGrupo,
+                        quantosGrupos = estado.meusGrupos.size,
                     )
             }
         }
     }
 
-    if (criandoPost) {
+    if (criandoPost || editandoPost != null) {
         PostDialog(
+            post = editandoPost,
             salvando = grupo.salvando,
-            onSalvar = { titulo, corpo, fixado, imagem, emoji ->
-                grupoViewModel.publicar(titulo, corpo, fixado, membro.profile?.nome, imagem, emoji)
+            onSalvar = { titulo, corpo, fixado, imagem, emoji, imagemMantida ->
+                grupoViewModel.salvarPost(
+                    postId = editandoPost?.id,
+                    titulo = titulo,
+                    corpo = corpo,
+                    fixado = fixado,
+                    autorNome = membro.profile?.nome,
+                    imagem = imagem,
+                    emoji = emoji,
+                    imagemMantida = imagemMantida,
+                )
                 criandoPost = false
+                editandoPost = null
             },
-            onFechar = { criandoPost = false },
+            onFechar = {
+                criandoPost = false
+                editandoPost = null
+            },
         )
     }
 

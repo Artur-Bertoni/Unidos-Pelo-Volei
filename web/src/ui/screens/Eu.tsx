@@ -37,6 +37,7 @@ interface EuProps {
   jogoLocal: string | null;
   minhaResposta: StatusPresenca | null;
   extras: ReactNode;
+  topo: ReactNode;
   onResponderChamada: (status: StatusPresenca) => void;
   meuJogador: Player | null;
   meuPedido: VinculoPedido | null;
@@ -68,6 +69,7 @@ export function EuScreen({
   jogoLocal,
   minhaResposta,
   extras,
+  topo,
   onResponderChamada,
   meuJogador,
   meuPedido,
@@ -92,6 +94,7 @@ export function EuScreen({
   return (
     <div className="conteudo">
       <div className="lista" style={{ padding: 16, gap: 12 }}>
+        {topo}
         {perfil?.isAdmin && (
           <Cartao onClick={onAbrirAprovacoes}>
             <div className="linha" style={{ padding: 16, gap: 12 }}>
@@ -462,7 +465,7 @@ export function AprovacoesScreen({
           </span>
         </div>
         <button type="button" className="botao-texto" onClick={onAbrirVinculos}>
-          Vincular à mão
+          Vincular manualmente
         </button>
       </div>
 
@@ -470,7 +473,7 @@ export function AprovacoesScreen({
         {fila.length === 0 ? (
           <EstadoVazio
             titulo="Nenhum pedido na fila"
-            descricao="Quando alguém entrar e escolher o próprio nome, o pedido aparece aqui. Você também pode ligar jogador e conta na mão, em Vincular à mão."
+            descricao="Quando alguém entrar e escolher o próprio nome, o pedido aparece aqui. Você também pode ligar jogador e conta na mão, em Vincular manualmente."
           />
         ) : (
           <div className="lista" style={{ padding: 16, gap: 12 }}>

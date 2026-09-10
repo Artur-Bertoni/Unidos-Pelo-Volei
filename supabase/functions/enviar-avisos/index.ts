@@ -9,11 +9,17 @@ interface Dispositivo {
   plataforma: 'android' | 'web';
 }
 
+interface Grupo {
+  id: string;
+  nome: string;
+}
+
 interface Corpo {
   tipo?: 'convite' | 'cobranca-resposta' | 'avulso';
   titulo?: string;
   corpo?: string;
   data?: string;
+  grupo_id?: string;
 }
 
 const supabase = createClient(
@@ -89,10 +95,16 @@ async function enviarWebPush(
   }
 }
 
-async function alvosDoConvite(data: string, somenteSemResposta: boolean): Promise<Set<string>> {
+/** Quem, dentro de um grupo, recebe o aviso: só quem tem ficha ligada a uma conta. */
+async function alvosDoGrupo(
+  grupoId: string,
+  data: string,
+  somenteSemResposta: boolean,
+): Promise<Set<string>> {
   const { data: jogadores } = await supabase
     .from('players')
     .select('id, profile_id')
+    .eq('grupo_id', grupoId)
     .not('profile_id', 'is', null);
 
   const perfis = new Set((jogadores ?? []).map((j) => j.profile_id as string));
@@ -101,6 +113,7 @@ async function alvosDoConvite(data: string, somenteSemResposta: boolean): Promis
   const { data: respostas } = await supabase
     .from('presencas')
     .select('profile_id')
+    .eq('grupo_id', grupoId)
     .eq('data', data);
 
   (respostas ?? []).forEach((r) => {
@@ -109,49 +122,39 @@ async function alvosDoConvite(data: string, somenteSemResposta: boolean): Promis
   return perfis;
 }
 
-Deno.serve(async (requisicao) => {
-  if (requisicao.method !== 'POST') {
-    return new Response('Use POST.', { status: 405 });
-  }
+async function membrosDoGrupo(grupoId: string): Promise<Set<string>> {
+  const { data } = await supabase
+    .from('grupo_membros')
+    .select('profile_id')
+    .eq('grupo_id', grupoId);
+  return new Set((data ?? []).map((linha) => linha.profile_id as string));
+}
 
-  const corpo: Corpo = await requisicao.json().catch(() => ({}));
-  const tipo = corpo.tipo ?? 'convite';
-  const data = corpo.data ?? proximoSabado();
-  const partes = data.split('-');
-  const diaEMes = partes.length === 3 ? `${partes[2]}/${partes[1]}` : data;
-
-  const titulo =
-    corpo.titulo ??
-    (tipo === 'cobranca-resposta' ? 'Você ainda não respondeu' : 'Tem jogo no sábado');
-  const texto =
-    corpo.corpo ??
-    (tipo === 'cobranca-resposta'
-      ? `O sábado ${diaEMes} está chegando e a gente ainda não sabe se você vem.`
-      : `Sábado ${diaEMes} tem vôlei. Você vai? Responda no app.`);
-
+async function avisarGrupo(
+  grupo: Grupo,
+  tipo: 'convite' | 'cobranca-resposta' | 'avulso',
+  data: string,
+  titulo: string,
+  texto: string,
+  credencialFcm: { token: string; projectId: string } | null,
+): Promise<{ grupo: string; enviados: number; falhas: number }> {
   const perfis =
     tipo === 'avulso'
-      ? null
-      : await alvosDoConvite(data, tipo === 'cobranca-resposta');
+      ? await membrosDoGrupo(grupo.id)
+      : await alvosDoGrupo(grupo.id, data, tipo === 'cobranca-resposta');
 
-  let consulta = supabase
+  if (perfis.size === 0) {
+    return { grupo: grupo.nome, enviados: 0, falhas: 0 };
+  }
+
+  const { data: dispositivos, error } = await supabase
     .from('dispositivos')
     .select('id, profile_id, token, plataforma')
-    .eq('ativo', true);
+    .eq('ativo', true)
+    .in('profile_id', [...perfis]);
 
-  if (perfis !== null) {
-    if (perfis.size === 0) {
-      return Response.json({ enviados: 0, falhas: 0, motivo: 'ninguem-para-avisar' });
-    }
-    consulta = consulta.in('profile_id', [...perfis]);
-  }
+  if (error) throw new Error(error.message);
 
-  const { data: dispositivos, error } = await consulta;
-  if (error) {
-    return Response.json({ erro: error.message }, { status: 500 });
-  }
-
-  const credencialFcm = await tokenDoFirebase();
   let enviados = 0;
   const mortos: string[] = [];
 
@@ -171,11 +174,57 @@ Deno.serve(async (requisicao) => {
   }
 
   await supabase.from('avisos').insert({
+    grupo_id: grupo.id,
     tipo: tipo === 'avulso' ? 'mural' : 'lembrete',
     titulo,
     corpo: texto,
     referencia: data,
   });
 
-  return Response.json({ enviados, falhas: mortos.length });
+  return { grupo: grupo.nome, enviados, falhas: mortos.length };
+}
+
+Deno.serve(async (requisicao) => {
+  if (requisicao.method !== 'POST') {
+    return new Response('Use POST.', { status: 405 });
+  }
+
+  const corpo: Corpo = await requisicao.json().catch(() => ({}));
+  const tipo = corpo.tipo ?? 'convite';
+  const data = corpo.data ?? proximoSabado();
+  const partes = data.split('-');
+  const diaEMes = partes.length === 3 ? `${partes[2]}/${partes[1]}` : data;
+
+  if (tipo === 'avulso' && !corpo.grupo_id) {
+    return Response.json({ erro: 'Aviso avulso precisa do grupo_id.' }, { status: 400 });
+  }
+
+  const titulo =
+    corpo.titulo ??
+    (tipo === 'cobranca-resposta' ? 'Você ainda não respondeu' : 'Tem jogo no sábado');
+  const texto =
+    corpo.corpo ??
+    (tipo === 'cobranca-resposta'
+      ? `O sábado ${diaEMes} está chegando e a gente ainda não sabe se você vem.`
+      : `Sábado ${diaEMes} tem vôlei. Você vai? Responda no app.`);
+
+  let consulta = supabase.from('grupos').select('id, nome').eq('ativo', true);
+  if (corpo.grupo_id) consulta = consulta.eq('id', corpo.grupo_id);
+
+  const { data: grupos, error } = await consulta;
+  if (error) {
+    return Response.json({ erro: error.message }, { status: 500 });
+  }
+
+  const credencialFcm = await tokenDoFirebase();
+  const resultados = [];
+  for (const grupo of (grupos ?? []) as Grupo[]) {
+    resultados.push(await avisarGrupo(grupo, tipo, data, titulo, texto, credencialFcm));
+  }
+
+  return Response.json({
+    grupos: resultados,
+    enviados: resultados.reduce((total, r) => total + r.enviados, 0),
+    falhas: resultados.reduce((total, r) => total + r.falhas, 0),
+  });
 });

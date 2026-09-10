@@ -4,6 +4,14 @@ Controle de jogadores, times, chaveamento, placar e histórico do grupo de vôle
 sábado, com backend real, login Google, sincronização multiusuário em tempo real e
 sorteio de times equilibrado por gênero e habilidade.
 
+O app é **aberto para qualquer um baixar e fechado por grupo**. Quem entra não cai
+em grupo nenhum: precisa de uma **chave de acesso** dada pela diretoria de um grupo,
+ou cria o próprio grupo em dois toques. Tudo — jogadores, times, chaveamento,
+placar, mural, agenda, regras e financeiro — pertence a um grupo, e a mesma conta
+pode participar de vários e trocar entre eles pelo cabeçalho. O **Unidos Pelo Vôlei**
+é só o primeiro grupo cadastrado. Isso está detalhado em
+[Grupos de jogo e chave de acesso](#grupos-de-jogo-e-chave-de-acesso).
+
 São **dois clientes sobre o mesmo backend**:
 
 | Cliente | Pasta | Para quem |
@@ -43,6 +51,7 @@ vezes.
   - [Publicando a web](#publicando-a-web)
   - [Páginas públicas](#páginas-públicas)
 - [As cinco abas](#as-cinco-abas)
+- [Grupos de jogo e chave de acesso](#grupos-de-jogo-e-chave-de-acesso)
 - [Quem é quem no app](#quem-é-quem-no-app)
 - [Confirmação de presença e lembretes](#confirmação-de-presença-e-lembretes)
 - [Mural, agenda e regras](#mural-agenda-e-regras)
@@ -76,12 +85,16 @@ vezes.
 | 14 | Confirmação antecipada do sábado (**Vou / Talvez / Não vou**), pela pessoa ou pela diretoria | aba **EU** e aba **SOCIAL** → **Chamada** |
 | 15 | **Trazer confirmados**: quem respondeu que vem vira presença na lista de hoje | aba **SOCIAL** → **Chamada** (só diretoria) |
 | 16 | Lembrete por notificação na sexta à noite e no sábado de manhã | push no Android e no PWA |
-| 17 | Mural de recados da diretoria, com imagem anexada e emoji de reação escolhido por publicação — é a tela que abre | aba **SOCIAL** → **Mural** |
+| 17 | Mural de recados da diretoria, com imagem anexada e emoji de reação escolhido por publicação, editável depois de publicado — é a tela que abre | aba **SOCIAL** → **Mural** |
 | 18 | Agenda de eventos, mais aniversários e tempo de casa calculados sozinhos | aba **SOCIAL** → **Agenda** |
 | 19 | Páginas de regras do vôlei de areia em quarteto, regras do grupo e campeonatos, editáveis pela diretoria | aba **SOCIAL** → **Regras** |
 | 20 | Mensalidade e diária, extrato pessoal e Pix Copia e Cola | aba **EU**; painel do grupo só para a diretoria |
 | 21 | Avaliação anônima entre companheiros de time e painel de evolução com dicas; bolinha verde na aba **EU** quando alguém espera a sua nota | aba **EU** → **Avaliar agora** |
-| 22 | Mini tour no primeiro login, terminando na tela de pedir vínculo a um jogador | primeira entrada |
+| 22 | Mini tour no primeiro login, terminando na escolha do grupo | primeira entrada |
+| 23 | **Grupos de jogo**: entre com uma chave de acesso, crie o seu grupo e troque entre os grupos que você participa | aba **EU** → cartão do grupo, ou o nome do grupo no cabeçalho |
+| 24 | **Chaves de acesso**: a diretoria cria códigos com validade, limite de usos e papel de entrada, e revoga quando quiser | aba **EU** → grupo → **Chaves de acesso** |
+| 25 | **Membros do grupo**: promover à diretoria, rebaixar a atleta e tirar quem saiu | aba **EU** → grupo → **Membros do grupo** |
+| 26 | **Nome e logo do grupo** editáveis pela diretoria, com as iniciais como reserva | aba **EU** → grupo → **Nome e logo do grupo** |
 
 O indicador **Online / Conectando / Offline** no cabeçalho mostra o estado do sync.
 
@@ -237,11 +250,15 @@ com.unidospelovolei
 ├── data/
 │   ├── AppSchema.kt         espelho local das tabelas sincronizadas
 │   ├── AuthRepository.kt    login Google + Supabase Auth
+│   ├── GrupoAtivo.kt        qual grupo está em uso, guardado por conta no aparelho
+│   ├── Escopo.kt            observarNoGrupo(): refaz a query quando o grupo muda
+│   ├── MeusGruposRepository.kt  entrar com chave, criar grupo, chaves e membros
 │   ├── SyncService.kt       liga/desliga o sync conforme a sessão
 │   └── *Repository.kt       leitura via watch() e escrita no SQLite local
 └── ui/
     ├── theme/ components/   identidade visual
-    ├── main/                sessão, papel do usuário, estado do sync
+    ├── main/                sessão, papel no grupo, estado do sync
+    ├── grupos/              meus grupos, chaves de acesso e membros
     └── games/ standings/ teams/ players/ login/
 ```
 
@@ -268,8 +285,10 @@ com.unidospelovolei
 │   │   ├── 20260901170000_financeiro.sql       cobranças, pagamentos e Pix
 │   │   ├── 20260901180000_avaliacao.sql        avaliação anônima e evolução
 │   │   ├── 20260904120000_areia_quarteto_vinculo_e_mural.sql  quarteto, vínculo manual e mural com imagem
-│   │   └── 20260904130000_regras_do_volei_unidos.sql  as regras como o grupo joga
-│   └── seed.sql                      zera os dados e recria 9 times e 38 jogadores
+│   │   ├── 20260904130000_regras_do_volei_unidos.sql  as regras como o grupo joga
+│   │   ├── 20260909120000_grupos.sql   grupos de jogo, chaves de acesso e RLS por grupo
+│   │   └── 20260909130000_identidade_do_grupo.sql  bucket das logos de grupo
+│   └── seed.sql                      zera os dados do Unidos e recria 9 times e 38 jogadores
 │   └── functions/
 │       └── enviar-avisos/            Edge Function que dispara os lembretes
 ├── powersync/
@@ -343,13 +362,40 @@ com.unidospelovolei
 11. `supabase/migrations/20260901180000_avaliacao.sql`
 12. `supabase/migrations/20260904120000_areia_quarteto_vinculo_e_mural.sql`
 13. `supabase/migrations/20260904130000_regras_do_volei_unidos.sql`
+14. `supabase/migrations/20260909120000_grupos.sql`
+15. `supabase/migrations/20260909130000_identidade_do_grupo.sql`
 
 E, se quiser dados de exemplo, `supabase/seed.sql`.
 
 > **Atenção:** o `seed.sql` começa apagando `player_day_stats`, `game_days`,
-> `matches`, `rounds`, `team_players`, `players` e `teams`, para você sempre
-> reiniciar de um estado limpo. Ele **não** toca em `profiles`, então quem já é
-> admin continua admin. Rode só em banco de teste.
+> `matches`, `rounds`, `team_players`, `players` e `teams` **do grupo Unidos**, para
+> você sempre reiniciar de um estado limpo. Ele **não** toca em `profiles` nem em
+> `grupo_membros`, então quem já é diretoria continua diretoria. Rode só em banco de
+> teste.
+
+> A migration `..._grupos.sql` é a que torna o app multi-grupo. Ela cria
+> `grupos`, `grupo_membros` e `grupo_chaves`, adiciona `grupo_id` em todas as tabelas
+> de conteúdo, move o papel de `profiles` para `grupo_membros` e reescreve a RLS
+> inteira. Num banco que já existia, tudo o que estava lá vira o grupo
+> **Unidos Pelo Vôlei** (id fixo `00000000-0000-4000-8000-000000000001`) e todo mundo
+> que já tinha conta entra nele com o papel que tinha. A primeira chave de acesso do
+> grupo é criada junto. Ela também conserta um trigger antigo: `posts` chamava o
+> `touch_updated_at()`, que escreve em `updated_at`, coluna que `posts` não tem — o
+> app nunca editou post, então o erro nunca apareceu. Agora o trigger é o
+> `touch_atualizado_em()`, com o nome de coluna certo. Pegue o código da chave com:
+>
+> ```sql
+> select codigo from public.grupo_chaves
+> where grupo_id = '00000000-0000-4000-8000-000000000001';
+> ```
+>
+> Virar membro é só a porta: a pessoa ainda aparece sem ficha até a diretoria ligar
+> o perfil a um jogador, no pedido de vínculo.
+>
+> **Publique as sync rules novas junto com ela.** As duas coisas mudam ao mesmo tempo
+> e a versão antiga do arquivo não conhece `grupo_id`. Como as queries dos streams
+> mudaram, o primeiro sync depois disso baixa tudo de novo em cada aparelho — é uma
+> vez só, e nada se perde: o que estava na fila de upload sobe antes.
 
 **Pela CLI** — faz o mesmo, com a vantagem de registrar o que já rodou em cada
 projeto, o que ajuda quando você mantém dev e prod em paralelo. O repositório já
@@ -534,7 +580,18 @@ Google reconhecer o APK que está pedindo a credencial.
 > um projeto só.
 
 As sync rules mandam para o dispositivo o campeonato inteiro (jogadores, times,
-rodadas e partidas) e, do `profiles`, apenas a linha do próprio usuário.
+rodadas e partidas) **dos grupos em que a pessoa é membro**, mais a lista desses
+grupos, e do `profiles` apenas a linha do próprio usuário. Todo stream de conteúdo
+tem a mesma cláusula:
+
+```sql
+WHERE grupo_id IN (SELECT grupo_id FROM grupo_membros WHERE profile_id = auth.user_id())
+```
+
+Isso usa subconsulta em stream, disponível na **edition 3** das sync rules — o
+`config.edition: 3` no topo do arquivo não é opcional. Quem participa de dois grupos
+baixa os dois e troca entre eles offline; `grupo_chaves` fica de fora de propósito,
+para os códigos de convite não descerem para o aparelho de ninguém.
 
 ---
 
@@ -924,7 +981,8 @@ configuração, não release nova.
 
 O app abre no **SOCIAL**, no mural: é a primeira coisa que todo mundo vê, e é onde a
 diretoria fala com o grupo. As outras quatro são **JOGOS** (chaveamento e placar),
-**CLASSIFICAÇÃO**, **TIMES** e **EU**.
+**CLASSIFICAÇÃO**, **TIMES** e **EU**. As cinco mostram sempre o **grupo do
+cabeçalho** — tocar no nome dele abre a troca de grupo.
 
 A aba **EU** ganha uma **bolinha verde** no ícone quando tem companheiro de time
 esperando a sua nota. É o único aviso desse tipo no app, e ele some sozinho quando a
@@ -933,10 +991,15 @@ fila de avaliações zera.
 ### O primeiro login
 
 Quem entra pela primeira vez não cai direto nas abas: passa por um **mini tour** de
-seis telas, uma por aba, terminando no convite para achar o próprio nome na lista de
-jogadores. O último botão leva direto para a aba **EU**, já na tela de pedir vínculo,
-e ali tem o recado: *"Não encontrou seu nome na lista? Entre em contato com a
-diretoria para adicioná-lo aqui!"*.
+sete telas — a primeira explica que tudo acontece dentro de um grupo de jogo, as
+cinco do meio são uma por aba, e a última é o convite para entrar no grupo.
+
+Terminado o tour, quem ainda não escolheu um grupo cai na tela **Meus grupos**, que
+não tem botão de voltar: sem grupo o app não tem o que mostrar. Ali só existem dois
+caminhos, **Entrar com uma chave** e **Criar um grupo**. Depois de entrar, o app
+segue para a aba **EU**, já na tela de pedir vínculo, e ali tem o recado: *"Não
+encontrou seu nome na lista? Entre em contato com a diretoria para adicioná-lo
+aqui!"*.
 
 O tour é marcado como visto no armazenamento local do aparelho — `SharedPreferences`
 no Android, `localStorage` na web — e não em `profiles`. É preferência de
@@ -958,24 +1021,150 @@ e o **nível de cada jogador do elenco** aparecem só para quem é diretoria.
 > para o atleta. Se um dia isso precisar virar segredo de verdade, o caminho é
 > separar `skill_level` numa stream de sync exclusiva da diretoria.
 
+## Grupos de jogo e chave de acesso
+
+O app está na Play Store e na web aberta: qualquer pessoa baixa e entra com o Google.
+Por isso **a conta sozinha não dá acesso a nada**. O que dá acesso é ser membro de um
+**grupo de jogo**, e todo dado do app pertence a um grupo.
+
+`grupos` é a raiz de tudo. `grupo_membros` diz quem participa e com que papel
+(`diretoria` ou `atleta`) — uma linha por pessoa **por grupo**, então dá para ser
+diretoria no seu grupo e atleta no grupo do amigo. Todas as tabelas de conteúdo
+ganharam `grupo_id`: `players`, `teams`, `team_players`, `rounds`, `matches`,
+`game_days`, `player_day_stats`, `vinculo_pedidos`, `player_contatos`,
+`config_grupo`, `presencas`, `avisos`, `posts`, `post_reacoes`, `eventos`,
+`paginas`, `config_financeiro`, `cobrancas`, `pagamentos`, `avaliacoes`,
+`avaliacao_registros` e `player_evolucao`. Ficam de fora só o que é da pessoa e não
+do grupo (`profiles`, `dispositivos`) e o conteúdo comum do app (`dicas`).
+
+### Entrar em um grupo
+
+A entrada é por **chave de acesso**: um código de 8 caracteres, sem letras
+ambíguas (nada de O, 0, I ou 1), que a diretoria cria e manda por WhatsApp. Não
+existe lista pública de grupos e ninguém descobre um grupo sem a chave.
+
+O app chama a função `entrar_no_grupo(codigo)`, `security definer`, que:
+
+1. normaliza o que a pessoa digitou (`AB12-CD34`, `ab12cd34` e `AB12 CD34` são a
+   mesma chave);
+2. confere se a chave existe, está ativa, não venceu e não estourou o limite de usos;
+3. cria a linha em `grupo_membros` com o papel que a chave concede;
+4. incrementa o contador de usos e devolve o id e o nome do grupo.
+
+Quem já é membro pode reusar a chave à vontade: a função devolve o grupo sem gastar
+um uso. A tabela `grupo_chaves` **não sincroniza para o dispositivo** — os códigos
+vivem só no servidor e a tela de chaves os lê pelo Postgrest, sob uma policy que só
+deixa a diretoria daquele grupo enxergar. É a mesma escolha do painel financeiro:
+tela de diretoria, online, e nada de código de convite dormindo no SQLite de todo
+mundo.
+
+Cada chave tem **rótulo** (para você saber onde mandou), **limite de usos**,
+**validade em dias** e o **papel que concede**. Uma chave de diretoria é o jeito de
+trazer um co-organizador sem mexer no banco. Desligar a chave não tira ninguém que
+já entrou — o que morre é o convite.
+
+Na web dá para mandar o link pronto: `https://…/?chave=AB12CD34` abre o app já com o
+diálogo de entrada preenchido, e a chave some da URL assim que a pessoa entra. No
+Android o botão **Convidar** monta a mensagem e abre o compartilhamento do sistema.
+
+### Criar um grupo
+
+`criar_grupo(nome, cidade)` cria o grupo, coloca quem chamou como diretoria e roda o
+`preparar_grupo`, que deixa o grupo **usável no primeiro minuto**: os 9 times
+coloridos, a configuração de horário, a configuração financeira zerada, as três
+páginas de regras e a primeira chave de acesso. Sem isso o grupo novo abriria numa
+tela vazia e a pessoa teria que cadastrar time por time antes de entender o app.
+
+Os modelos ficam em `modelos_de_time` e `modelos_de_pagina`, duas tabelas pequenas e
+globais — mudar o padrão de todo grupo novo é um `update` nelas, não uma edição de
+função. Um limite de 10 grupos criados por conta segura o abuso do botão.
+
+### Nome e logo do grupo
+
+A diretoria muda o nome, a cidade e a **logo** em **EU → grupo → Nome e logo do
+grupo**. Depois que existe um grupo escolhido, **é a logo dele que fica no cabeçalho**,
+no lugar da bola do app, e ela também aparece na lista de grupos e na tela de edição.
+Quando o grupo ainda não tem logo, o lugar dela não volta para a bola do app: entra um
+círculo com as **iniciais do nome**, o mesmo em todo canto. A bola do app só sobra
+onde ainda não há grupo — o login e o tour.
+
+O arquivo vai para o bucket `grupos`, no caminho `<grupo_id>/logo-<uuid>.<ext>`, com
+as mesmas policies do mural: leitura pública, escrita só para a diretoria daquele
+grupo, checada por `e_diretoria(grupo_do_caminho(name))`. O limite é 2 MB e os
+formatos são JPG, PNG e WEBP.
+
+A `grupos` sincroniza, então nome, cidade e `logo_url` são gravados na tabela local e
+sobem pelo PowerSync como qualquer outra edição — dá para renomear o grupo sem
+internet e a mudança aparece para todo mundo quando a conexão volta. O upload da
+imagem, esse sim, precisa de rede, porque vai direto ao Storage.
+
+### Sair, promover e tirar do grupo
+
+Sair é `sair_do_grupo(grupo)`. A única diretoria de um grupo com mais gente **não sai
+sem promover alguém antes** — a função recusa com essa mensagem. Se a última pessoa
+sair, um trigger passa a diretoria para o membro mais antigo; se não sobrar ninguém,
+o grupo é marcado como inativo em vez de virar um grupo órfão com chave funcionando.
+
+Quando alguém sai ou é tirado do grupo, o mesmo trigger solta a ficha do jogador
+(`players.profile_id` volta a `NULL`) e limpa o pedido de vínculo pendente. A ficha,
+o histórico e as estatísticas continuam no grupo, agora sem dono.
+
+### Como o isolamento é garantido
+
+Em três camadas, e as três precisam concordar:
+
+| Camada | O que faz |
+|---|---|
+| **Sync rules** | Cada stream filtra por `grupo_id IN (SELECT grupo_id FROM grupo_membros WHERE profile_id = auth.user_id())`. O aparelho só baixa os grupos de quem está logado. |
+| **RLS** | `sou_membro(grupo_id)` para ler e `e_diretoria(grupo_id)` para escrever, em toda tabela de grupo. Substituíram o antigo `is_admin()`, que era global. |
+| **Consulta local** | Todo `SELECT` do app carrega `WHERE grupo_id = ?` com o **grupo ativo**. Como o SQLite local tem os N grupos da pessoa, sem esse filtro o placar de um grupo apareceria no outro. |
+
+Nas tabelas filhas um trigger `herdar_grupo` preenche e confere o `grupo_id` a partir
+do pai (`matches` herda de `rounds`, `presencas` herda de `players`, e assim por
+diante). Se um cliente esquecer a coluna, o servidor completa; se mandar o grupo
+errado, o servidor recusa. É a rede de segurança da terceira camada.
+
+### O grupo ativo
+
+O grupo escolhido é **preferência de aparelho**, guardada por conta em
+`SharedPreferences` no Android e `localStorage` na web — mesma decisão do tour. Não
+vale uma coluna no banco: trocar de grupo é instantâneo e offline, e o servidor não
+precisa saber em qual grupo você está olhando agora.
+
+No Android um `GrupoAtivo` expõe um `StateFlow` e os repositórios consultam por ele
+(`observarNoGrupo` refaz a query quando o grupo muda). Na web um módulo pequeno faz
+o mesmo com `useSyncExternalStore`, e `exigirGrupo()` é o que as escritas chamam.
+Nenhum ViewModel e nenhuma tela precisou aprender o que é grupo — só o cabeçalho, a
+aba **EU** e as telas novas.
+
+O nome do grupo fica no cabeçalho, com uma seta: é ele que evita o pior erro
+possível num app multi-grupo, que é digitar o placar do sábado no grupo errado.
+
 ## Quem é quem no app
 
-O app tem **dois papéis**, guardados em `profiles.papel`: `diretoria` e `atleta`.
-A diretoria faz tudo que o admin já fazia — jogadores, times, sorteio, placar — e
-ganha o financeiro do grupo, o mural, a agenda, as regras e a fila de aprovações. O
-atleta confirma a própria presença, edita a própria ficha, vê o próprio extrato e o
-próprio painel de evolução.
+O app tem **dois papéis por grupo**, guardados em `grupo_membros.papel`: `diretoria`
+e `atleta`. A diretoria faz tudo que o admin já fazia — jogadores, times, sorteio,
+placar — e ganha o financeiro do grupo, o mural, a agenda, as regras, a fila de
+aprovações, as chaves de acesso e a lista de membros. O atleta confirma a própria
+presença, edita a própria ficha, vê o próprio extrato e o próprio painel de evolução.
 
-`is_admin` **continua existindo** e continua sendo o que a RLS lê. Um trigger a
-mantém em sincronia com `papel` nos dois sentidos: mudar `papel` atualiza
-`is_admin`, e o `update` antigo em `is_admin` atualiza `papel`. Por isso as policies
-que já estavam escritas não precisaram de uma linha de alteração, e os dois clientes
-seguem lendo a mesma coluna de sempre.
+O papel é **do grupo, não da conta**. `profiles.papel` e `profiles.is_admin` deixaram
+de existir, e com eles a função `is_admin()`: no lugar entraram `sou_membro(grupo)` e
+`e_diretoria(grupo)`, que toda policy consulta. O que o app mostra como
+`perfil.isAdmin` é o papel no **grupo ativo**, resolvido por um `LEFT JOIN` com
+`grupo_membros` na hora de ler o perfil.
 
-Para promover alguém, depois do primeiro login:
+Para promover alguém o caminho normal é a tela **EU → grupo → Membros do grupo**. Se
+precisar pelo SQL:
 
 ```sql
-update public.profiles set papel = 'diretoria' where email = 'voce@gmail.com';
+update public.grupo_membros m
+set papel = 'diretoria'
+from public.profiles p, public.grupos g
+where m.profile_id = p.id
+  and m.grupo_id = g.id
+  and p.email = 'voce@gmail.com'
+  and g.slug = 'unidos-pelo-volei';
 ```
 
 ### Conta e jogador
@@ -994,16 +1183,19 @@ sobem pelo PowerSync, que aplica tudo via Postgrest sob a RLS, então não há c
 chamar função privilegiada de dentro do app — e fazer pela tabela mantém a aprovação
 funcionando offline, como o resto.
 
-O caminho da fila não é o único. Em **EU → Contas e jogadores → Vincular à mão** a
+O caminho da fila não é o único. Em **EU → Contas e jogadores → Vincular manualmente** a
 diretoria vê a lista inteira de jogadores e liga qualquer um a qualquer conta que já
 tenha entrado no app pelo menos uma vez, sem esperar o atleta achar o próprio nome.
 O mesmo botão **desvincula**: a conta perde o acesso à ficha, ao extrato e às
 avaliações daquele jogador, e o jogador continua no grupo, agora sem dono.
 
-A lista de contas dessa tela vem do Postgrest na hora (`profiles` só sincroniza o
-seu próprio perfil), então ela precisa de internet — é a mesma escolha já feita para
-o painel financeiro do grupo. Vincular à mão limpa o pedido pendente daquela conta,
-para ninguém ficar preso na fila depois de já estar resolvido.
+A lista de contas dessa tela vem do Postgrest na hora — são os membros do grupo
+ativo, lidos de `grupo_membros` com `profiles` embutido —, então ela precisa de
+internet; é a mesma escolha já feita para o painel financeiro do grupo. Ela mostra
+só quem é do grupo: `profiles` sincroniza apenas o seu próprio perfil, e a policy de
+leitura só libera o perfil de quem divide um grupo com você. Vincular manualmente limpa o
+pedido pendente daquela conta, para ninguém ficar preso na fila depois de já estar
+resolvido.
 
 Se preferir o SQL direto, ele continua valendo:
 
@@ -1100,6 +1292,17 @@ O mural é da diretoria: só ela publica, o grupo lê e reage. Cada publicação
 levar uma **imagem** e escolhe o **emoji de reação** do grupo — 👏 é o padrão, mas dá
 para trocar por 🔥, 🏐, 🎉 e mais alguns. O emoji fica gravado no post, então o botão
 de reagir muda de cara de recado para recado.
+
+Recado publicado com pressa se conserta no lugar: o lápis no cartão abre a mesma
+tela da publicação, já preenchida, e salva por cima. Dá para corrigir o texto,
+trocar o emoji, fixar ou desafixar e mexer na imagem — trocar por outra, tirar de
+vez ou deixar como está. O autor e a data de publicação não mudam, só o
+`atualizado_em`. Editar é da diretoria, como publicar e apagar: a policy de
+`update` em `posts` já era dela desde a migração de grupos.
+
+Trocar ou tirar a imagem mexe só na coluna `imagem_url`: o arquivo antigo continua no
+bucket, como já acontece ao apagar um recado. Faxina de arquivo solto é serviço de
+rotina no Storage, não do app.
 
 As imagens vão para o bucket `mural` do Supabase Storage: leitura pública, escrita só
 para a diretoria, 5 MB e JPG/PNG/WEBP/GIF. Elas **não** passam pelo PowerSync — o
@@ -1246,6 +1449,31 @@ Onde o enunciado deixava espaço, foi escolhida a opção mais simples que atend
   incremental é complexidade que o MVP não pede.
 - **`minSdk` 26**, o que cobre Android 8 em diante e evita `desugaring` para
   `java.time`.
+- **O grupo ativo é filtro de consulta, não de sincronização.** O aparelho baixa
+  todos os grupos da pessoa e o app filtra por `grupo_id` na hora de ler. Assinar e
+  cancelar streams a cada troca de grupo daria o mesmo resultado com um download a
+  cada troca e sem offline no grupo que não está aberto — quem participa de dois
+  grupos costuma ter dois grupos pequenos, não dois campeonatos.
+- **A chave de acesso não sincroniza.** `grupo_chaves` fica fora das sync rules e é
+  lida pelo Postgrest só pela diretoria do grupo. Um convite que desce para o SQLite
+  de todo membro é um convite vazado.
+- **Sem lista pública de grupos.** Entrar depende de alguém te passar a chave. Um
+  diretório de grupos convidaria gente estranha a pedir entrada em grupo de sábado
+  de bairro, que é exatamente o que a chave existe para evitar.
+- **Papel vive em `grupo_membros`, não em `profiles`.** Ser diretoria é uma relação
+  com um grupo, não um atributo da pessoa; `profiles.is_admin` e `profiles.papel`
+  foram removidos junto com a função `is_admin()`.
+- **No Android, o que fala com o Postgrest usa `JsonObject`, não classe
+  `@Serializable`.** O build não aplica o plugin de compilação do
+  `kotlinx.serialization`, então uma classe anotada compila normalmente mas **não
+  ganha serializer**: a falha só aparece em produção, como
+  *"Serializer for class 'X' is not found"*, no momento da chamada. `JsonObject` tem
+  serializer embutido e funciona sem plugin. As poucas leituras e escritas online
+  (chaves, membros, painel financeiro) montam e leem o JSON à mão, com os auxiliares
+  de [`Json.kt`](app/src/main/java/com/unidospelovolei/data/Json.kt). **Não volte a
+  anotar DTO com `@Serializable`** sem antes aplicar o plugin
+  `org.jetbrains.kotlin.plugin.serialization` no `app/build.gradle.kts` — se aplicar,
+  aí sim as classes voltam a valer a pena.
 
 ## Fora do escopo do MVP
 
@@ -1255,10 +1483,13 @@ aqui porque não constam do escopo descrito:
 - **Exportar resultados** (o botão verde de exportar planilha do protótipo).
 - Foto na ficha do jogador: a coluna `players.foto_url` existe, mas só o mural usa o
   Supabase Storage por enquanto.
-- Múltiplos campeonatos ou temporadas em paralelo: `rounds`, `matches` e
-  `standings` continuam assumindo um único campeonato em andamento. A aba de
-  campeonatos é conteúdo, não gestão.
-- Comentário no mural (só reação), e edição do papel dentro do app (é feita por SQL).
+- Múltiplos campeonatos ou temporadas em paralelo **dentro do mesmo grupo**:
+  `rounds`, `matches` e `standings` continuam assumindo um único campeonato em
+  andamento por grupo. A aba de campeonatos é conteúdo, não gestão.
+- Comentário no mural (só reação).
+- Convite por link no Android: a web aceita `?chave=...`, o app trata o código
+  colado. App Link com domínio próprio fica para quando o domínio existir.
+- Transferir jogadores, histórico ou financeiro de um grupo para outro.
 - Baixa automática de Pix: não há integração bancária. A diretoria dá baixa na mão.
 
 ---
@@ -1282,8 +1513,43 @@ as sync rules publicadas, e se `POWERSYNC_URL` aponta para a instância certa. N
 caminho local, lembre que o emulador enxerga a máquina como `10.0.2.2`, nunca
 `localhost`.
 
+**Entrei no app e ele pede uma chave de acesso.**
+É o esperado: a conta sozinha não dá acesso a grupo nenhum. Peça a chave a quem
+organiza o seu grupo, ou crie o seu em **Criar um grupo**. Veja
+[Grupos de jogo e chave de acesso](#grupos-de-jogo-e-chave-de-acesso).
+
+**Crio a chave e ela não aparece na lista.**
+A tela de chaves fala com o Postgrest na hora, não com o banco local, e mostra a
+mensagem que o servidor devolveu em vez de um "precisa de internet" genérico. Leia o
+recado: `permission denied` é grant faltando, `new row violates row-level security
+policy` é você não ser diretoria **naquele** grupo, `Could not find the table` é o
+cache de schema do Postgrest (resolve com **Reload schema cache** em *Project
+Settings → API*), e `Serializer for class ... is not found` é DTO anotado com
+`@Serializable` num build sem o plugin de serialização — veja
+[Decisões de projeto](#decisões-de-projeto). Para ver o que existe de fato:
+
+```sql
+select c.codigo, c.ativa, c.usos, g.nome
+from public.grupo_chaves c
+join public.grupos g on g.id = c.grupo_id;
+```
+
+**"Chave nao encontrada" com o código certo.**
+Confira se a chave não foi desativada, se não venceu e se não estourou o limite de
+usos — os três casos têm mensagem própria, e "não encontrada" é só quando o código
+não existe mesmo. Maiúscula, minúscula e o hífen do meio não importam.
+
+**Entrei no grupo mas o app está vazio.**
+O grupo entra na hora, os dados vêm pelo sync logo depois. Se ficar vazio, confira o
+indicador do cabeçalho: sem internet a entrada é registrada, mas nada desce.
+
+**Troquei de grupo e vejo os dados do outro.**
+Alguma consulta ficou sem o `WHERE grupo_id = ?`. Todo `SELECT` de tabela de grupo
+passa pelo `observarNoGrupo` no Android e pelos hooks com `useGrupoAtivo()` na web.
+
 **Sincroniza a leitura mas as edições não sobem.**
-É a RLS fazendo o trabalho dela: o usuário não é da diretoria. Rode o `update` de
+É a RLS fazendo o trabalho dela: o usuário não é da diretoria **naquele grupo**. Use
+**EU → grupo → Membros do grupo**, ou o `update` de
 [Quem é quem no app](#quem-é-quem-no-app).
 
 Vale saber como isso aparece: um `INSERT` sem permissão devolve erro, mas
