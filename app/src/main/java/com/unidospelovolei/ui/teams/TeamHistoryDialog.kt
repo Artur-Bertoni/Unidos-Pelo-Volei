@@ -146,7 +146,7 @@ private fun SecaoElenco(
                     Text(
                         "${elenco.count { it.genero == Genero.MASCULINO }}H / " +
                             "${elenco.count { it.genero == Genero.FEMININO }}M" +
-                            if (isAdmin) " • força ${elenco.sumOf { it.skillLevel }}" else "",
+                            if (isAdmin) " • força %.1f".format(elenco.sumOf { it.media }) else "",
                         color = VoleiColors.VerdeClaro,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
@@ -181,7 +181,7 @@ private fun SecaoElenco(
                         )
                         if (isAdmin) {
                             Text(
-                                "nível ${jogador.skillLevel}",
+                                "nível %.1f".format(jogador.media),
                                 color = VoleiColors.TextoTerciario,
                                 fontSize = 11.sp,
                             )

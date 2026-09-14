@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Genero, Player, Team, TeamRoster } from './models';
-import { forcaTotal, homensDo, mulheresDo } from './models';
+import { forcaTotal, homensDo, mulheresDo, notasUniformes } from './models';
 import { KotlinRandom } from './random';
 import { generateSchedule, TIMES_POR_QUADRA, type ScheduledRound } from './roundRobin';
 import type { ElencoPassado } from './teamDraft';
@@ -29,7 +29,8 @@ const jogadores = (niveis: number[], genero: Genero = 'masculino', prefixo = 'p'
   niveis.map((nivel, indice) => ({
     id: `${prefixo}${indice}`,
     nome: `Jogador ${prefixo}${indice}`,
-    skillLevel: nivel,
+    notas: notasUniformes(nivel),
+    media: nivel,
     genero,
     ativo: true,
     ...semFicha,
@@ -94,7 +95,15 @@ describe('TeamDraft', () => {
   it('sorteio ignora jogadores inativos', () => {
     const comInativo: Player[] = [
       ...grupoMisto(5, 4),
-      { id: 'x', nome: 'Fora', skillLevel: 5, genero: 'masculino', ativo: false, ...semFicha },
+      {
+        id: 'x',
+        nome: 'Fora',
+        notas: notasUniformes(5),
+        media: 5,
+        genero: 'masculino',
+        ativo: false,
+        ...semFicha,
+      },
     ];
 
     const elencos = distribute(comInativo, times(3), undefined, new KotlinRandom(1));

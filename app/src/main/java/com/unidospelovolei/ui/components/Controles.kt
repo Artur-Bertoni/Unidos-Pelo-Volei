@@ -19,6 +19,7 @@ import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarBorder
+import androidx.compose.material.icons.automirrored.filled.StarHalf
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
@@ -240,7 +241,7 @@ fun CampoBusca(
 
 @Composable
 fun Estrelas(
-    nivel: Int,
+    nivel: Double,
     modifier: Modifier = Modifier,
     tamanho: Dp = 14.dp,
     espacamento: Dp = 2.dp,
@@ -252,11 +253,17 @@ fun Estrelas(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         (1..5).forEach { valor ->
-            val preenchida = valor <= nivel
+            val restante = nivel - (valor - 1)
+            val icone =
+                when {
+                    restante >= 0.75 -> Icons.Filled.Star
+                    restante >= 0.25 -> Icons.AutoMirrored.Filled.StarHalf
+                    else -> Icons.Filled.StarBorder
+                }
             Icon(
-                imageVector = if (preenchida) Icons.Filled.Star else Icons.Filled.StarBorder,
+                imageVector = icone,
                 contentDescription = onMudar?.let { "Nível $valor" },
-                tint = if (preenchida) VoleiColors.Dourado else VoleiColors.TextoTerciario,
+                tint = if (restante >= 0.25) VoleiColors.Dourado else VoleiColors.TextoTerciario,
                 modifier =
                     Modifier
                         .size(tamanho)

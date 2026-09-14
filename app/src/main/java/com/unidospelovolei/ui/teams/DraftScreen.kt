@@ -85,7 +85,7 @@ fun DraftScreen(
                         text =
                             "${previa.sumOf { it.players.size }} jogadores presentes " +
                                 "(${previa.sumOf { it.homens }}H / ${previa.sumOf { it.mulheres }}M) • " +
-                                "força de ${forcas.minOrNull() ?: 0} a ${forcas.maxOrNull() ?: 0}",
+                                "força de %.1f a %.1f".format(forcas.minOrNull() ?: 0.0, forcas.maxOrNull() ?: 0.0),
                         color = VoleiColors.TextoSecundario,
                         fontSize = 12.sp,
                     )
@@ -144,7 +144,7 @@ private fun CartaoElenco(
                     fontWeight = FontWeight.Bold,
                 )
                 Text(
-                    "força ${elenco.forcaTotal}",
+                    "força %.1f".format(elenco.forcaTotal),
                     color = VoleiColors.VerdeClaro,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold,
@@ -153,7 +153,7 @@ private fun CartaoElenco(
             Text(
                 text =
                     elenco.players.joinToString(", ") {
-                        "${it.nome} (${it.skillLevel}${if (it.genero == Genero.FEMININO) "F" else "M"})"
+                        "%s (%.1f%s)".format(it.nome, it.media, if (it.genero == Genero.FEMININO) "F" else "M")
                     },
                 color = VoleiColors.TextoSecundario,
                 fontSize = 12.sp,

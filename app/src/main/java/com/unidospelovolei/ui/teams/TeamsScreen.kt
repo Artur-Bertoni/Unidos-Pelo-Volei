@@ -199,7 +199,7 @@ private fun BotaoAcao(
 private fun CartaoTime(
     time: Team,
     jogadores: Int,
-    forca: Int?,
+    forca: Double?,
     onClick: () -> Unit,
     onEditar: (() -> Unit)?,
     onAlternarAtivo: (() -> Unit)?,
@@ -233,7 +233,7 @@ private fun CartaoTime(
                     when {
                         !time.ativo -> "fora de hoje"
                         jogadores == 0 -> "sem elenco"
-                        forca != null -> "$jogadores jog. • força $forca"
+                        forca != null -> "%d jog. • força %.1f".format(jogadores, forca)
                         else -> "$jogadores jogadores"
                     },
                 color = VoleiColors.TextoTerciario,

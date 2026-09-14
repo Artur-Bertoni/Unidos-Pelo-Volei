@@ -22,10 +22,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Logout
-import androidx.compose.material.icons.filled.People
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -66,14 +64,10 @@ fun GruposScreen(
     onEntrarComChave: (String) -> Unit,
     onCriarGrupo: (String, String?) -> Unit,
     onSair: (MeuGrupo) -> Unit,
-    onAbrirChaves: () -> Unit,
-    onAbrirMembros: () -> Unit,
     modifier: Modifier = Modifier,
-    onSalvarIdentidade: ((String, String?, ImagemEscolhida?, Boolean) -> Unit)? = null,
 ) {
     var entrando by remember { mutableStateOf(false) }
     var criando by remember { mutableStateOf(false) }
-    var editando by remember { mutableStateOf(false) }
     var saindoDe by remember { mutableStateOf<MeuGrupo?>(null) }
 
     Scaffold(modifier = modifier.fillMaxSize(), containerColor = VoleiColors.Fundo) { padding ->
@@ -133,31 +127,6 @@ fun GruposScreen(
                         onSair = { saindoDe = grupo },
                     )
                 }
-
-                if (estado.souDiretoria) {
-                    item {
-                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                            AtalhoDaDiretoria(
-                                icone = Icons.Filled.Edit,
-                                titulo = "Nome e logo do grupo",
-                                descricao = "Troque como o ${estado.grupoAtual?.nome.orEmpty()} aparece no app",
-                                onClick = { editando = true },
-                            )
-                            AtalhoDaDiretoria(
-                                icone = Icons.Filled.Key,
-                                titulo = "Chaves de acesso",
-                                descricao = "Crie e revogue os códigos que liberam a entrada no grupo",
-                                onClick = onAbrirChaves,
-                            )
-                            AtalhoDaDiretoria(
-                                icone = Icons.Filled.People,
-                                titulo = "Membros do grupo",
-                                descricao = "Promova alguém à diretoria ou tire quem saiu",
-                                onClick = onAbrirMembros,
-                            )
-                        }
-                    }
-                }
             }
 
             Column(
@@ -209,19 +178,6 @@ fun GruposScreen(
                 criando = false
             },
             onFechar = { criando = false },
-        )
-    }
-
-    val grupoParaEditar = estado.grupoAtual
-    if (editando && grupoParaEditar != null && onSalvarIdentidade != null) {
-        EditarGrupoDialog(
-            grupo = grupoParaEditar,
-            salvando = estado.salvando,
-            onSalvar = { nome, cidade, logo, remover ->
-                onSalvarIdentidade(nome, cidade, logo, remover)
-                editando = false
-            },
-            onFechar = { editando = false },
         )
     }
 
@@ -310,30 +266,6 @@ private fun CartaoDoGrupo(
 }
 
 @Composable
-private fun AtalhoDaDiretoria(
-    icone: androidx.compose.ui.graphics.vector.ImageVector,
-    titulo: String,
-    descricao: String,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Cartao(modifier = modifier.fillMaxWidth().clickable(onClick = onClick)) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Icon(icone, contentDescription = null, tint = VoleiColors.Azul, modifier = Modifier.size(20.dp))
-            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(titulo, color = VoleiColors.TextoPrimario, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                Text(descricao, color = VoleiColors.TextoSecundario, fontSize = 12.sp)
-            }
-            Text("›", color = VoleiColors.TextoSecundario, fontSize = 18.sp)
-        }
-    }
-}
-
-@Composable
 fun LogoDoGrupo(
     grupo: MeuGrupo,
     modifier: Modifier = Modifier,
@@ -349,7 +281,7 @@ fun LogoDoGrupo(
 }
 
 @Composable
-private fun EditarGrupoDialog(
+fun EditarGrupoDialog(
     grupo: MeuGrupo,
     salvando: Boolean,
     onSalvar: (String, String?, ImagemEscolhida?, Boolean) -> Unit,

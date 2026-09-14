@@ -181,3 +181,40 @@ export const IconeEditar = ({ tamanho = 16 }: IconeProps) => (
     <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z" />
   </svg>
 );
+
+export const IconeCarteira = ({ tamanho = 22 }: IconeProps) => (
+  <svg {...base(tamanho)}>
+    <path d="M3 7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v1" />
+    <path d="M3 7v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-6a2 2 0 0 0-2-2H5a2 2 0 0 1-2-2z" />
+    <circle cx="16.5" cy="13.5" r="1.2" />
+  </svg>
+);
+
+export const IconeGrafico = ({ tamanho = 22 }: IconeProps) => (
+  <svg {...base(tamanho)}>
+    <path d="M4 19V5" />
+    <path d="M4 19h16" />
+    <path d="M7 15l3.5-4 3 2.5L20 7" />
+  </svg>
+);
+
+export const IconeEngrenagem = ({ tamanho = 22 }: IconeProps) => (
+  <svg {...base(tamanho)}>
+    <circle cx="12" cy="12" r="3" />
+    <path d="M12 2.8v2.4M12 18.8v2.4M4.5 7.5l2 1.2M17.5 15.3l2 1.2M4.5 16.5l2-1.2M17.5 8.7l2-1.2" />
+  </svg>
+);
+
+export const IconeRelogio = ({ tamanho = 22 }: IconeProps) => (
+  <svg {...base(tamanho)}>
+    <circle cx="12" cy="12" r="9" />
+    <path d="M12 7v5l3 2" />
+  </svg>
+);
+
+export const IconeChave = ({ tamanho = 22 }: IconeProps) => (
+  <svg {...base(tamanho)}>
+    <circle cx="8" cy="15" r="4" />
+    <path d="M10.8 12.2L20 3M17 6l2.5 2.5M14.5 8.5L17 11" />
+  </svg>
+);

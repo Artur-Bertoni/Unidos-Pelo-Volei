@@ -1,6 +1,7 @@
 package com.unidospelovolei.domain
 
 import com.unidospelovolei.domain.model.Genero
+import com.unidospelovolei.domain.model.NotasPorFundamento
 import com.unidospelovolei.domain.model.Player
 import com.unidospelovolei.domain.model.Team
 import com.unidospelovolei.domain.scheduling.ElencoPassado
@@ -28,7 +29,8 @@ class SchedulingTest {
             Player(
                 id = "$prefixo$indice",
                 nome = "Jogador $prefixo$indice",
-                skillLevel = nivel,
+                notas = NotasPorFundamento.uniformes(nivel.toDouble()),
+                media = nivel.toDouble(),
                 genero = genero,
                 ativo = true,
             )
@@ -91,7 +93,14 @@ class SchedulingTest {
     fun `sorteio ignora jogadores inativos`() {
         val comInativo =
             grupoMisto(homens = 5, mulheres = 4) +
-                Player(id = "x", nome = "Fora", skillLevel = 5, genero = Genero.MASCULINO, ativo = false)
+                Player(
+                    id = "x",
+                    nome = "Fora",
+                    notas = NotasPorFundamento.uniformes(5.0),
+                    media = 5.0,
+                    genero = Genero.MASCULINO,
+                    ativo = false,
+                )
 
         val elencos = TeamDraft.distribute(comInativo, times(3), random = Random(1))
 

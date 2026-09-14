@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.unidospelovolei.data.GameDaysRepository
 import com.unidospelovolei.data.PlayersRepository
 import com.unidospelovolei.domain.model.Genero
+import com.unidospelovolei.domain.model.NotasPorFundamento
 import com.unidospelovolei.domain.model.Player
 import com.unidospelovolei.domain.model.PlayerPerformance
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -81,15 +82,12 @@ class PlayersViewModel(
 
     fun criar(
         nome: String,
-        skillLevel: Int,
+        notas: NotasPorFundamento,
         genero: Genero,
         ativo: Boolean,
-    ) = executar { playersRepository.create(nome, skillLevel.coerceIn(1, 5), genero, ativo) }
+    ) = executar { playersRepository.create(nome, notas.noLimite(), genero, ativo) }
 
-    fun salvar(player: Player) =
-        executar {
-            playersRepository.update(player.copy(skillLevel = player.skillLevel.coerceIn(1, 5)))
-        }
+    fun salvar(player: Player) = executar { playersRepository.update(player.copy(notas = player.notas.noLimite())) }
 
     fun alternarPresenca(player: Player) = executar { playersRepository.setAtivo(player.id, !player.ativo) }
 

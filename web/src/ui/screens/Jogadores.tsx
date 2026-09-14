@@ -1,11 +1,16 @@
 import { useState } from 'react';
 import {
   aniversarioDe,
+  FUNDAMENTOS,
+  mediaDasNotas,
+  notasUniformes,
   REGIMES,
   regimeDe,
+  rotuloDoFundamento,
   rotuloDoRegime,
   saldoDoDesempenho,
   type Genero,
+  type NotasPorFundamento,
   type Player,
   type PlayerPerformance,
   type Regime,
@@ -103,7 +108,7 @@ export const JogadoresScreen = ({
   onAlternarPresenca: (jogador: Player) => void;
   onMarcarTodosPresentes: () => void;
   onLimparPresencas: () => void;
-  onCriar: (nome: string, nivel: number, genero: Genero, ativo: boolean) => void;
+  onCriar: (nome: string, notas: NotasPorFundamento, genero: Genero, ativo: boolean) => void;
   onSalvar: (jogador: Player) => void;
   onExcluir: (playerId: string) => void;
 }) => {
@@ -293,7 +298,14 @@ const LinhaJogador = ({
             corFundo="var(--selo-fase-fundo)"
           />
         </div>
-        {isAdmin && <Estrelas nivel={jogador.skillLevel} />}
+        {isAdmin && (
+          <div className="linha" style={{ gap: 6 }}>
+            <Estrelas nivel={jogador.media} />
+            <span className="subtitulo" style={{ fontSize: 11 }}>
+              {jogador.media.toFixed(1)}
+            </span>
+          </div>
+        )}
         {fichaResumida(jogador) && (
           <span className="subtitulo" style={{ fontSize: 11, color: 'var(--texto-terciario)' }}>
             {fichaResumida(jogador)}
@@ -328,13 +340,13 @@ const PlayerEditorDialog = ({
   onFechar,
 }: {
   jogador: Player | null;
-  onSalvarNovo: (nome: string, nivel: number, genero: Genero, ativo: boolean) => void;
+  onSalvarNovo: (nome: string, notas: NotasPorFundamento, genero: Genero, ativo: boolean) => void;
   onSalvarExistente: (jogador: Player) => void;
   onExcluir: (playerId: string) => void;
   onFechar: () => void;
 }) => {
   const [nome, setNome] = useState(jogador?.nome ?? '');
-  const [nivel, setNivel] = useState(jogador?.skillLevel ?? 3);
+  const [notas, setNotas] = useState<NotasPorFundamento>(jogador?.notas ?? notasUniformes(3));
   const [genero, setGenero] = useState<Genero>(jogador?.genero ?? 'masculino');
   const [ativo, setAtivo] = useState(jogador?.ativo ?? true);
   const [regime, setRegime] = useState<Regime>(regimeDe(jogador?.regime));
@@ -369,8 +381,16 @@ const PlayerEditorDialog = ({
             style={{ color: valido ? 'var(--verde)' : 'var(--texto-terciario)' }}
             onClick={() =>
               jogador
-                ? onSalvarExistente({ ...jogador, nome, skillLevel: nivel, genero, ativo, regime })
-                : onSalvarNovo(nome, nivel, genero, ativo)
+                ? onSalvarExistente({
+                    ...jogador,
+                    nome,
+                    notas,
+                    media: mediaDasNotas(notas),
+                    genero,
+                    ativo,
+                    regime,
+                  })
+                : onSalvarNovo(nome, notas, genero, ativo)
             }
           >
             Salvar
@@ -380,8 +400,26 @@ const PlayerEditorDialog = ({
     >
       <CampoTexto valor={nome} rotulo="Nome" onMudar={setNome} />
       <div className="campo">
-        <span className="campo-rotulo">Nível de habilidade</span>
-        <Estrelas nivel={nivel} tamanho={32} onMudar={setNivel} />
+        <div className="linha-entre">
+          <span className="campo-rotulo">Habilidade por fundamento</span>
+          <strong style={{ fontSize: 13 }}>média {mediaDasNotas(notas).toFixed(1)}</strong>
+        </div>
+        {FUNDAMENTOS.map((fundamento) => (
+          <div key={fundamento} className="linha-entre" style={{ paddingTop: 4 }}>
+            <span className="subtitulo" style={{ fontSize: 13 }}>
+              {rotuloDoFundamento(fundamento)}
+            </span>
+            <Estrelas
+              nivel={notas[fundamento]}
+              tamanho={24}
+              onMudar={(valor) => setNotas({ ...notas, [fundamento]: valor })}
+            />
+          </div>
+        ))}
+        <span className="subtitulo" style={{ fontSize: 11, paddingTop: 6 }}>
+          A nota geral é a média destas seis. A partir daqui as avaliações dos companheiros vão
+          movendo cada fundamento a cada sábado encerrado.
+        </span>
       </div>
       <div className="campo">
         <span className="campo-rotulo">Gênero</span>

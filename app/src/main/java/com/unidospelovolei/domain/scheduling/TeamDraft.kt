@@ -96,7 +96,7 @@ object TeamDraft {
                 team = time,
                 players =
                     melhor[indice].sortedWith(
-                        compareByDescending<Player> { it.skillLevel }.thenBy { it.nome.lowercase() },
+                        compareByDescending<Player> { it.media }.thenBy { it.nome.lowercase() },
                     ),
             )
         }
@@ -117,7 +117,7 @@ object TeamDraft {
         listOf(Genero.FEMININO, Genero.MASCULINO).forEach { genero ->
             val restante = vagas.getValue(genero)
 
-            val fila = porGenero.getValue(genero).shuffled(random).sortedByDescending { it.skillLevel }
+            val fila = porGenero.getValue(genero).shuffled(random).sortedByDescending { it.media }
             fila.forEach { jogador ->
                 val destino = melhorDestino(jogador, elencos, restante, capacidade, historico, random)
                 elencos[destino] += jogador
@@ -192,7 +192,7 @@ object TeamDraft {
             }
 
         return disponiveis.minBy { time ->
-            elencos[time].sumOf { it.skillLevel } +
+            elencos[time].sumOf { it.media } +
                 PESO_HISTORICO_NA_ESCOLHA * historico.penalidade(jogador.id, elencos[time]) +
                 random.nextDouble() * RUIDO_NA_ESCOLHA
         }
@@ -202,8 +202,8 @@ object TeamDraft {
         elencos: List<List<Player>>,
         historico: HistoricoDeDuplas,
     ): Double {
-        val forcas = elencos.map { elenco -> elenco.sumOf { it.skillLevel } }
-        val amplitude = (forcas.max() - forcas.min()).toDouble()
+        val forcas = elencos.map { elenco -> elenco.sumOf { it.media } }
+        val amplitude = forcas.max() - forcas.min()
         val desequilibrio =
             elencos.sumOf { elenco ->
                 val mulheres = elenco.count { it.genero == Genero.FEMININO }

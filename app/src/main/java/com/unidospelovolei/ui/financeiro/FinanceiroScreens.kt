@@ -12,7 +12,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.AlertDialog
@@ -34,6 +36,8 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.unidospelovolei.domain.financeiro.PixBrCode
+import com.unidospelovolei.domain.financeiro.TipoDaChavePix
 import com.unidospelovolei.domain.model.StatusPagamento
 import com.unidospelovolei.ui.components.CampoTexto
 import com.unidospelovolei.ui.components.Cartao
@@ -41,15 +45,37 @@ import com.unidospelovolei.ui.components.EstadoVazio
 import com.unidospelovolei.ui.components.RotuloPequeno
 import com.unidospelovolei.ui.components.Selo
 import com.unidospelovolei.ui.grupo.BotaoDeAcao
+import com.unidospelovolei.ui.membro.CabecalhoDaSubtela
 import com.unidospelovolei.ui.theme.VoleiColors
 
 fun reais(centavos: Int): String = "R$ %d,%02d".format(centavos / 100, centavos % 100)
 
 @Composable
+fun MeuFinanceiroScreen(
+    estado: FinanceiroUiState,
+    onVoltar: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Scaffold(modifier = modifier.fillMaxSize(), containerColor = VoleiColors.Fundo) { padding ->
+        Column(modifier = Modifier.fillMaxSize().padding(padding)) {
+            CabecalhoDaSubtela(
+                titulo = "Financeiro",
+                subtitulo = "O que você já pagou e o que falta",
+                onVoltar = onVoltar,
+            )
+            LazyColumn(
+                contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                item { CartaoDoExtrato(estado = estado) }
+            }
+        }
+    }
+}
+
+@Composable
 fun CartaoDoExtrato(
     estado: FinanceiroUiState,
-    onAbrirPainel: () -> Unit,
-    isAdmin: Boolean,
     modifier: Modifier = Modifier,
 ) {
     val copiar = LocalClipboardManager.current
@@ -57,18 +83,7 @@ fun CartaoDoExtrato(
 
     Cartao(modifier = modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                RotuloPequeno("Meu financeiro", modifier = Modifier.weight(1f))
-                if (isAdmin) {
-                    Text(
-                        "Ver do grupo",
-                        color = VoleiColors.Azul,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.clickable(onClick = onAbrirPainel),
-                    )
-                }
-            }
+            RotuloPequeno("Meu financeiro")
 
             Text(
                 text = if (emAberto > 0) reais(emAberto) else "Tudo em dia",
@@ -261,15 +276,17 @@ private fun BotaoDeStatus(
 @Composable
 fun ConfigFinanceiroDialog(
     estado: FinanceiroUiState,
-    onSalvar: (String, String, String, Int, Int) -> Unit,
+    onSalvar: (String, TipoDaChavePix, String, String, Int, Int) -> Unit,
     onFechar: () -> Unit,
 ) {
     val config = estado.config
     var chave by remember(config?.id) { mutableStateOf(config?.pixChave.orEmpty()) }
+    var tipo by remember(config?.id) { mutableStateOf(config?.pixTipo ?: TipoDaChavePix.ALEATORIA) }
     var nome by remember(config?.id) { mutableStateOf(config?.pixNome.orEmpty()) }
     var cidade by remember(config?.id) { mutableStateOf(config?.pixCidade.orEmpty()) }
     var mensalidade by remember(config?.id) { mutableStateOf(emReais(config?.mensalidadeCentavos ?: 0)) }
     var diaria by remember(config?.id) { mutableStateOf(emReais(config?.diariaCentavos ?: 0)) }
+    val chaveOk = PixBrCode.chaveValida(chave, tipo)
 
     AlertDialog(
         onDismissRequest = onFechar,
@@ -277,8 +294,31 @@ fun ConfigFinanceiroDialog(
         titleContentColor = VoleiColors.TextoPrimario,
         title = { Text("Chave Pix e valores", fontWeight = FontWeight.Bold) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Text("Tipo da chave Pix", color = VoleiColors.TextoSecundario, fontSize = 12.sp)
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    TipoDaChavePix.entries.forEach { opcao ->
+                        ChipDeTipoDaChave(
+                            rotulo = opcao.rotulo,
+                            selecionado = opcao == tipo,
+                            onClick = { tipo = opcao },
+                        )
+                    }
+                }
                 CampoTexto(chave, "Chave Pix", { chave = it }, Modifier.fillMaxWidth())
+                Text(
+                    text =
+                        if (chaveOk) {
+                            "No código Pix ela vai como ${PixBrCode.normalizarChave(chave, tipo)}"
+                        } else {
+                            tipo.dica
+                        },
+                    color = if (chaveOk) VoleiColors.TextoTerciario else VoleiColors.Vermelho,
+                    fontSize = 11.sp,
+                )
                 CampoTexto(nome, "Nome do recebedor", { nome = it }, Modifier.fillMaxWidth())
                 CampoTexto(cidade, "Cidade", { cidade = it }, Modifier.fillMaxWidth())
                 CampoTexto(mensalidade, "Mensalidade (R$)", { mensalidade = it }, Modifier.fillMaxWidth())
@@ -292,16 +332,37 @@ fun ConfigFinanceiroDialog(
         },
         confirmButton = {
             TextButton(
+                enabled = chaveOk,
                 onClick = {
-                    onSalvar(chave, nome, cidade, emCentavos(mensalidade), emCentavos(diaria))
+                    onSalvar(chave, tipo, nome, cidade, emCentavos(mensalidade), emCentavos(diaria))
                 },
             ) {
-                Text("Salvar", color = VoleiColors.VerdeClaro)
+                Text("Salvar", color = if (chaveOk) VoleiColors.VerdeClaro else VoleiColors.TextoTerciario)
             }
         },
         dismissButton = {
             TextButton(onClick = onFechar) { Text("Cancelar", color = VoleiColors.TextoSecundario) }
         },
+    )
+}
+
+@Composable
+private fun ChipDeTipoDaChave(
+    rotulo: String,
+    selecionado: Boolean,
+    onClick: () -> Unit,
+) {
+    Text(
+        text = rotulo,
+        color = if (selecionado) VoleiColors.TextoPrimario else VoleiColors.TextoSecundario,
+        fontSize = 12.sp,
+        fontWeight = if (selecionado) FontWeight.Bold else FontWeight.Normal,
+        modifier =
+            Modifier
+                .clip(RoundedCornerShape(8.dp))
+                .background(if (selecionado) VoleiColors.Verde else VoleiColors.CartaoInterno)
+                .clickable(onClick = onClick)
+                .padding(horizontal = 9.dp, vertical = 6.dp),
     )
 }
 

@@ -2,6 +2,7 @@ package com.unidospelovolei.data
 
 import com.powersync.PowerSyncDatabase
 import com.unidospelovolei.domain.model.Genero
+import com.unidospelovolei.domain.model.NotasPorFundamento
 import com.unidospelovolei.domain.model.Player
 import com.unidospelovolei.domain.model.Regime
 import com.unidospelovolei.domain.model.StatusVinculo
@@ -30,7 +31,7 @@ class PlayersRepository(
             SELECT $COLUNAS
             FROM players
             WHERE grupo_id = ? AND ativo = 1
-            ORDER BY skill_level DESC, nome COLLATE NOCASE
+            ORDER BY nota_media DESC, nome COLLATE NOCASE
             """.trimIndent(),
         ) { it.toPlayer() }
 
@@ -45,26 +46,22 @@ class PlayersRepository(
 
     suspend fun create(
         nome: String,
-        skillLevel: Int,
+        notas: NotasPorFundamento,
         genero: Genero,
         ativo: Boolean,
     ) {
         val agora = agoraIso()
         db.execute(
             """
-            INSERT INTO players (id, grupo_id, nome, skill_level, genero, ativo, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO players (
+                id, grupo_id, nome, nota_saque, nota_passe, nota_ataque,
+                nota_bloqueio, nota_defesa, nota_atitude, nota_media, skill_level,
+                genero, ativo, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """.trimIndent(),
-            listOf(
-                novoId(),
-                grupoAtivo.exigir(),
-                nome.trim(),
-                skillLevel,
-                genero.value,
-                if (ativo) 1 else 0,
-                agora,
-                agora,
-            ),
+            listOf(novoId(), grupoAtivo.exigir(), nome.trim()) +
+                valoresDasNotas(notas) +
+                listOf(genero.value, if (ativo) 1 else 0, agora, agora),
         )
     }
 
@@ -72,18 +69,21 @@ class PlayersRepository(
         db.execute(
             """
             UPDATE players
-            SET nome = ?, skill_level = ?, genero = ?, ativo = ?, regime = ?, updated_at = ?
+            SET nome = ?, nota_saque = ?, nota_passe = ?, nota_ataque = ?,
+                nota_bloqueio = ?, nota_defesa = ?, nota_atitude = ?,
+                nota_media = ?, skill_level = ?,
+                genero = ?, ativo = ?, regime = ?, updated_at = ?
             WHERE id = ?
             """.trimIndent(),
-            listOf(
-                player.nome.trim(),
-                player.skillLevel,
-                player.genero.value,
-                if (player.ativo) 1 else 0,
-                player.regime.value,
-                agoraIso(),
-                player.id,
-            ),
+            listOf(player.nome.trim()) +
+                valoresDasNotas(player.notas) +
+                listOf(
+                    player.genero.value,
+                    if (player.ativo) 1 else 0,
+                    player.regime.value,
+                    agoraIso(),
+                    player.id,
+                ),
         )
     }
 
@@ -171,6 +171,22 @@ class PlayersRepository(
     private companion object {
         const val COLUNAS =
             "id, nome, skill_level, genero, ativo, profile_id, foto_url, " +
+                "nota_saque, nota_passe, nota_ataque, nota_bloqueio, nota_defesa, " +
+                "nota_atitude, nota_media, " +
                 "nascimento_dia, nascimento_mes, entrou_em, regime"
+
+        fun valoresDasNotas(notas: NotasPorFundamento): List<Any> {
+            val media = notas.media
+            return listOf(
+                notas.saque,
+                notas.passe,
+                notas.ataque,
+                notas.bloqueio,
+                notas.defesa,
+                notas.atitude,
+                media,
+                kotlin.math.round(media).toInt().coerceIn(1, 5),
+            )
+        }
     }
 }

@@ -51,12 +51,15 @@ vezes.
   - [Publicando a web](#publicando-a-web)
   - [Páginas públicas](#páginas-públicas)
 - [As cinco abas](#as-cinco-abas)
+  - [A aba EU é um índice, não uma página](#a-aba-eu-é-um-índice-não-uma-página)
+  - [O botão Voltar do aparelho](#o-botão-voltar-do-aparelho)
+  - [Configurações, o índice da diretoria](#configurações-o-índice-da-diretoria)
 - [Grupos de jogo e chave de acesso](#grupos-de-jogo-e-chave-de-acesso)
 - [Quem é quem no app](#quem-é-quem-no-app)
 - [Confirmação de presença e lembretes](#confirmação-de-presença-e-lembretes)
 - [Mural, agenda e regras](#mural-agenda-e-regras)
 - [Financeiro](#financeiro)
-- [Avaliação entre colegas](#avaliação-entre-colegas)
+- [Nota por fundamento e avaliação entre colegas](#nota-por-fundamento-e-avaliação-entre-colegas)
 - [Testes](#testes)
 - [Decisões de projeto](#decisões-de-projeto)
 - [Fora do escopo do MVP](#fora-do-escopo-do-mvp)
@@ -68,7 +71,7 @@ vezes.
 
 | # | Funcionalidade | Onde fica |
 |---|---|---|
-| 1 | CRUD de jogadores com nível de habilidade em estrelas de 1 a 5 e gênero — o nível **só a diretoria vê e edita** | aba **TIMES** → botão **Jogadores** |
+| 1 | CRUD de jogadores com nota de 1 a 5 em cada um dos seis fundamentos e gênero — as notas **só a diretoria vê e edita**, e a estrela geral é a média delas | aba **TIMES** → botão **Jogadores** |
 | 2 | Presença do dia: busca pelo nome, filtro de presentes/ausentes, chave **Presente?** na linha, **Marcar todos** e **Limpar presenças** — tudo só para a diretoria | aba **TIMES** → botão **Jogadores** |
 | 3 | Gestão de times coloridos (nome, cor, sigla de 2 letras), com ativar/desativar o time do dia, **Ajustar** ao tanto de gente e excluir | aba **TIMES** → **Novo time** / lápis / chave no cartão |
 | 4 | Sorteio dos times mirando 2 homens e 2 mulheres, equilibrando a força e evitando repetir duplas | aba **TIMES** → **Distribuir** |
@@ -80,21 +83,21 @@ vezes.
 | 10 | Login com Google; usuário comum só lê, admin edita | tela inicial |
 | 11 | Funciona offline e sincroniza ao reconectar | em todo o app |
 | 12 | Cada pessoa vira dona da própria ficha: escolhe o nome na lista e a diretoria confirma — ou a diretoria liga jogador e conta na mão | aba **EU** |
-| 13 | Ficha do membro com aniversário, telefone e contato de emergência | aba **EU** → lápis |
-| 13b | Cada um escolhe como paga: **Mensalista** ou **Diarista** | aba **EU** → lápis |
+| 13 | Ficha do membro com aniversário, telefone e contato de emergência | aba **EU** → **Detalhes da conta** → lápis |
+| 13b | Cada um escolhe como paga: **Mensalista** ou **Diarista** | aba **EU** → **Detalhes da conta** → lápis |
 | 14 | Confirmação antecipada do sábado (**Vou / Talvez / Não vou**), pela pessoa ou pela diretoria | aba **EU** e aba **SOCIAL** → **Chamada** |
 | 15 | **Trazer confirmados**: quem respondeu que vem vira presença na lista de hoje | aba **SOCIAL** → **Chamada** (só diretoria) |
 | 16 | Lembrete por notificação na sexta à noite e no sábado de manhã | push no Android e no PWA |
 | 17 | Mural de recados da diretoria, com imagem anexada e emoji de reação escolhido por publicação, editável depois de publicado — é a tela que abre | aba **SOCIAL** → **Mural** |
 | 18 | Agenda de eventos, mais aniversários e tempo de casa calculados sozinhos | aba **SOCIAL** → **Agenda** |
 | 19 | Páginas de regras do vôlei de areia em quarteto, regras do grupo e campeonatos, editáveis pela diretoria | aba **SOCIAL** → **Regras** |
-| 20 | Mensalidade e diária, extrato pessoal e Pix Copia e Cola | aba **EU**; painel do grupo só para a diretoria |
-| 21 | Avaliação anônima entre companheiros de time e painel de evolução com dicas; bolinha verde na aba **EU** quando alguém espera a sua nota | aba **EU** → **Avaliar agora** |
+| 20 | Mensalidade e diária, extrato pessoal e Pix Copia e Cola | aba **EU** → **Financeiro**; painel do grupo em **Configurações** |
+| 21 | Avaliação anônima entre companheiros de time e painel de evolução com dicas; bolinha verde na aba **EU** quando alguém espera a sua nota | aba **EU** → **Avaliar colegas** e **Histórico** |
 | 22 | Mini tour no primeiro login, terminando na escolha do grupo | primeira entrada |
-| 23 | **Grupos de jogo**: entre com uma chave de acesso, crie o seu grupo e troque entre os grupos que você participa | aba **EU** → cartão do grupo, ou o nome do grupo no cabeçalho |
-| 24 | **Chaves de acesso**: a diretoria cria códigos com validade, limite de usos e papel de entrada, e revoga quando quiser | aba **EU** → grupo → **Chaves de acesso** |
-| 25 | **Membros do grupo**: promover à diretoria, rebaixar a atleta e tirar quem saiu | aba **EU** → grupo → **Membros do grupo** |
-| 26 | **Nome e logo do grupo** editáveis pela diretoria, com as iniciais como reserva | aba **EU** → grupo → **Nome e logo do grupo** |
+| 23 | **Grupos de jogo**: entre com uma chave de acesso, crie o seu grupo e troque entre os grupos que você participa | aba **EU** → **Grupos**, ou o nome do grupo no cabeçalho |
+| 24 | **Chaves de acesso**: a diretoria cria códigos com validade, limite de usos e papel de entrada, e revoga quando quiser | aba **EU** → **Configurações** → **Chaves de acesso** |
+| 25 | **Membros do grupo**: promover à diretoria, rebaixar a atleta e tirar quem saiu | aba **EU** → **Configurações** → **Membros do grupo** |
+| 26 | **Nome, cidade e logo do grupo** editáveis pela diretoria, com as iniciais como reserva | aba **EU** → **Configurações** → **Nome, cidade e logo** |
 
 O indicador **Online / Conectando / Offline** no cabeçalho mostra o estado do sync.
 
@@ -144,7 +147,10 @@ três critérios, nesta ordem de importância.
    dias já encerrados (com peso decaindo pela recência), do elenco que está
    valendo agora e dos sorteios que acabaram de aparecer na tela.
 3. *Habilidade.* Dentro do que sobra, o jogador vai para o time mais fraco até
-   ali, o que aproxima a força total dos elencos.
+   ali, o que aproxima a força total dos elencos. A força de um jogador é a média
+   das seis notas por fundamento (`nota_media`), em ponto flutuante — ela se move
+   sozinha com as avaliações dos colegas, como conta a seção
+   [Nota por fundamento](#nota-por-fundamento-e-avaliação-entre-colegas).
 
 Cada tentativa é uma montagem gulosa com desempate aleatório, e entre 240
 tentativas fica a de menor custo. Por isso dois toques em **Sortear de novo**
@@ -287,7 +293,9 @@ com.unidospelovolei
 │   │   ├── 20260904120000_areia_quarteto_vinculo_e_mural.sql  quarteto, vínculo manual e mural com imagem
 │   │   ├── 20260904130000_regras_do_volei_unidos.sql  as regras como o grupo joga
 │   │   ├── 20260909120000_grupos.sql   grupos de jogo, chaves de acesso e RLS por grupo
-│   │   └── 20260909130000_identidade_do_grupo.sql  bucket das logos de grupo
+│   │   ├── 20260909130000_identidade_do_grupo.sql  bucket das logos de grupo
+│   │   ├── 20260914120000_notas_por_fundamento.sql  nota por fundamento e histórico da evolução
+│   │   └── 20260914130000_tipo_da_chave_pix.sql  tipo da chave Pix, para normalizar o formato
 │   └── seed.sql                      zera os dados do Unidos e recria 9 times e 38 jogadores
 │   └── functions/
 │       └── enviar-avisos/            Edge Function que dispara os lembretes
@@ -364,6 +372,8 @@ com.unidospelovolei
 13. `supabase/migrations/20260904130000_regras_do_volei_unidos.sql`
 14. `supabase/migrations/20260909120000_grupos.sql`
 15. `supabase/migrations/20260909130000_identidade_do_grupo.sql`
+16. `supabase/migrations/20260914120000_notas_por_fundamento.sql`
+17. `supabase/migrations/20260914130000_tipo_da_chave_pix.sql`
 
 E, se quiser dados de exemplo, `supabase/seed.sql`.
 
@@ -469,6 +479,13 @@ O que cada migration faz:
 - **financeiro** — `players.regime`, `config_financeiro`, `cobrancas` e `pagamentos`.
 - **avaliacao** — `avaliacoes` (só insert), `avaliacao_registros`,
   `player_evolucao` e `dicas`.
+- **tipo_da_chave_pix** — `config_financeiro.pix_tipo`, que diz se a chave é CPF,
+  CNPJ, celular, e-mail ou aleatória, para o BR Code sair no formato que o banco
+  reconhece.
+- **notas_por_fundamento** — troca a estrela única por `players.nota_saque` até
+  `players.nota_atitude` mais a `nota_media` derivada, cria
+  `player_nota_historico` e a função `recalcular_nota`, que move a nota dia a dia
+  com as avaliações dos colegas.
 - **areia_quarteto_vinculo_e_mural** — derruba `players.posicao`; deixa o atleta
   escolher o próprio regime, menos a isenção; reduz os tipos de evento a
   `jogo`/`confraternizacao`/`campeonato` (migrando `amistoso` e `outro`); acrescenta
@@ -988,6 +1005,61 @@ A aba **EU** ganha uma **bolinha verde** no ícone quando tem companheiro de tim
 esperando a sua nota. É o único aviso desse tipo no app, e ele some sozinho quando a
 fila de avaliações zera.
 
+### A aba EU é um índice, não uma página
+
+A EU não é mais uma pilha de cartões. Ela abre com o **cartão de presença do próximo
+sábado** no topo e, embaixo, uma **grade de dois blocos por linha**, cada um com
+ícone, nome e uma linha dizendo o que tem lá dentro:
+
+| Bloco | O que abre |
+|---|---|
+| **Grupos** | A lista dos seus grupos, para trocar, entrar com chave, criar ou sair |
+| **Detalhes da conta** | A ficha: nome, como paga, aniversário, telefone e desde quando está no grupo |
+| **Financeiro** | O seu extrato, o que está em aberto e o Pix Copia e Cola |
+| **Histórico** | Sábados, jogos, vitórias e saldo, mais as seis notas e o gráfico da evolução |
+| **Avaliar colegas** | A fila de companheiros esperando a sua nota, com selo vermelho quando tem alguém |
+| **Configurações** | Só aparece para a diretoria |
+
+Quem ainda não foi ligado a um jogador vê o fluxo de identificação acima da grade e os
+quatro blocos que dependem de ficha ficam apagados, com uma linha explicando o porquê.
+**Grupos** e **Configurações** continuam funcionando, porque nenhum dos dois depende de
+ter jogador.
+
+### O botão Voltar do aparelho
+
+O app não usa biblioteca de navegação: o destino é estado de composable no Android e
+estado de componente na web. Sem nada interceptando, o Voltar do aparelho fechava o
+app inteiro de dentro de qualquer subtela.
+
+Cada plataforma resolve do seu jeito, mas as duas obedecem ao mesmo mapa de pais:
+chaves, membros, pedidos de vínculo, contas e jogadores e o painel financeiro voltam
+para **Configurações**; todo o resto volta para as abas; e estando nas abas fora do
+SOCIAL, o Voltar leva para o SOCIAL antes de deixar sair.
+
+- No Android é um `BackHandler`, ligado só enquanto existe para onde voltar. Quando
+  não existe, ele fica desligado e o sistema fecha o app como sempre. Diálogos não
+  precisam de nada: o `AlertDialog` do Compose já fecha sozinho no Voltar.
+- Na web o mesmo mapa roda sobre o History API. Ao entrar na primeira subtela o app
+  empilha uma entrada de colchão, e o `popstate` consome essa entrada para navegar
+  para trás dentro do app. Na raiz não há colchão, então o Voltar sai de verdade. Os
+  botões de voltar da própria interface chamam `history.back()` em vez de trocar o
+  estado direto, para a pilha do navegador e a do app nunca saírem de sincronia.
+
+### Configurações, o índice da diretoria
+
+Tudo que só a diretoria faz e não é do dia de jogo passou a morar num lugar só:
+
+- **Pedidos de vínculo** e **Contas e jogadores**, que antes eram um cartão solto na EU.
+- **Chaves de acesso**, **Membros do grupo** e **Nome, cidade e logo**, que antes
+  ficavam dentro da tela de grupos.
+- **Painel financeiro**, que antes era o link "Ver do grupo" dentro do extrato pessoal.
+- **Horário e local do sábado**, que antes não tinha tela nenhuma: a coluna existia em
+  `config_grupo` e só dava para mudar no banco.
+
+Cada uma dessas ações tem **um caminho só**. O cabeçalho continua trocando de grupo, e
+a lista de jogadores e o sorteio continuam na aba TIMES, porque são do dia de jogo, não
+da administração.
+
 ### O primeiro login
 
 Quem entra pela primeira vez não cai direto nas abas: passa por um **mini tour** de
@@ -1007,19 +1079,20 @@ dispositivo, não dado do grupo: não vale uma coluna no banco nem uma volta no 
 reinstalar o app mostrando o tour de novo é comportamento aceitável.
 
 A lista de **Jogadores**, dentro de TIMES, é a lista única do grupo: todo mundo abre
-e vê nome, gênero e aniversário de cada um. O **nível de habilidade em estrelas é só
-da diretoria** — o atleta não vê o dos outros nem o próprio, e nem sabe que existe
-uma escala. Também são só da diretoria a chave **Presente?**, os filtros
+e vê nome, gênero e aniversário de cada um. As **notas por fundamento e a estrela
+geral são só da diretoria** nessa lista — o atleta não vê a dos outros. A própria ele
+vê, mas na aba **EU**, junto do gráfico de evolução. Também são só da diretoria a
+chave **Presente?**, os filtros
 **Todos / Presentes / Ausentes**, os botões de presença em massa, o botão de criar e a
 edição. Para o atleta a lista é leitura, com um selo indicando quem já tem acesso ao app.
 
 A mesma régua vale no cartão do time e na janela de detalhes dele: a **força do time**
 e o **nível de cada jogador do elenco** aparecem só para quem é diretoria.
 
-> O nível continua descendo para o aparelho de todo mundo pelo sync — a lista de
-> jogadores é uma stream só. O que muda é que nenhuma tela do app mostra o nível
-> para o atleta. Se um dia isso precisar virar segredo de verdade, o caminho é
-> separar `skill_level` numa stream de sync exclusiva da diretoria.
+> As notas continuam descendo para o aparelho de todo mundo pelo sync — a lista de
+> jogadores é uma stream só. O que muda é que nenhuma tela do app mostra a nota dos
+> outros para o atleta. Se um dia isso precisar virar segredo de verdade, o caminho é
+> separar as colunas `nota_*` numa stream de sync exclusiva da diretoria.
 
 ## Grupos de jogo e chave de acesso
 
@@ -1034,8 +1107,9 @@ ganharam `grupo_id`: `players`, `teams`, `team_players`, `rounds`, `matches`,
 `game_days`, `player_day_stats`, `vinculo_pedidos`, `player_contatos`,
 `config_grupo`, `presencas`, `avisos`, `posts`, `post_reacoes`, `eventos`,
 `paginas`, `config_financeiro`, `cobrancas`, `pagamentos`, `avaliacoes`,
-`avaliacao_registros` e `player_evolucao`. Ficam de fora só o que é da pessoa e não
-do grupo (`profiles`, `dispositivos`) e o conteúdo comum do app (`dicas`).
+`avaliacao_registros`, `player_evolucao` e `player_nota_historico`. Ficam de fora só o
+que é da pessoa e não do grupo (`profiles`, `dispositivos`) e o conteúdo comum do app
+(`dicas`).
 
 ### Entrar em um grupo
 
@@ -1081,7 +1155,7 @@ função. Um limite de 10 grupos criados por conta segura o abuso do botão.
 
 ### Nome e logo do grupo
 
-A diretoria muda o nome, a cidade e a **logo** em **EU → grupo → Nome e logo do
+A diretoria muda o nome, a cidade e a **logo** em **EU → Configurações → Nome, cidade e logo do
 grupo**. Depois que existe um grupo escolhido, **é a logo dele que fica no cabeçalho**,
 no lugar da bola do app, e ela também aparece na lista de grupos e na tela de edição.
 Quando o grupo ainda não tem logo, o lugar dela não volta para a bola do app: entra um
@@ -1154,7 +1228,7 @@ de existir, e com eles a função `is_admin()`: no lugar entraram `sou_membro(gr
 `perfil.isAdmin` é o papel no **grupo ativo**, resolvido por um `LEFT JOIN` com
 `grupo_membros` na hora de ler o perfil.
 
-Para promover alguém o caminho normal é a tela **EU → grupo → Membros do grupo**. Se
+Para promover alguém o caminho normal é a tela **EU → Configurações → Membros do grupo**. Se
 precisar pelo SQL:
 
 ```sql
@@ -1174,8 +1248,8 @@ where m.profile_id = p.id
 
 O caminho normal é o atleta abrir a aba **EU**, achar o próprio nome na lista de
 jogadores ainda sem dono e tocar em **Sou eu**. Isso grava uma linha em
-`vinculo_pedidos` com status `pendente`. Alguém da diretoria abre **Pedidos de
-acesso** e confirma; um trigger no Postgres preenche `players.profile_id`.
+`vinculo_pedidos` com status `pendente`. Alguém da diretoria abre **EU → Configurações → Pedidos de
+vínculo** e confirma; um trigger no Postgres preenche `players.profile_id`.
 
 Esse é o padrão que se repete em todo o app: **a escrita vai para uma tabela
 sincronizada e o trigger faz o efeito privilegiado**. As escritas dos dois clientes
@@ -1183,7 +1257,7 @@ sobem pelo PowerSync, que aplica tudo via Postgrest sob a RLS, então não há c
 chamar função privilegiada de dentro do app — e fazer pela tabela mantém a aprovação
 funcionando offline, como o resto.
 
-O caminho da fila não é o único. Em **EU → Contas e jogadores → Vincular manualmente** a
+O caminho da fila não é o único. Em **EU → Configurações → Contas e jogadores** a
 diretoria vê a lista inteira de jogadores e liga qualquer um a qualquer conta que já
 tenha entrado no app pelo menos uma vez, sem esperar o atleta achar o próprio nome.
 O mesmo botão **desvincula**: a conta perde o acesso à ficha, ao extrato e às
@@ -1206,10 +1280,12 @@ from public.profiles f
 where f.email = 'fulano@gmail.com' and p.nome = 'Fulano';
 ```
 
-O atleta pode editar a própria ficha, mas não tudo: um trigger recusa mudança em
-`skill_level`, `genero`, `ativo`, `entrou_em` e `profile_id` para quem não é
-diretoria, e recusa entrar ou sair do regime `isento` — isenção é concessão da
-diretoria. Nome, foto, aniversário e a escolha entre **Mensalista** e **Diarista** são
+O atleta pode editar a própria ficha, mas não tudo: um trigger recusa mudança nas
+seis colunas `nota_*`, em `genero`, `ativo`, `entrou_em` e `profile_id` para quem não
+é diretoria, e recusa entrar ou sair do regime `isento` — isenção é concessão da
+diretoria. `nota_media` e `skill_level` não são checados por serem derivados: outro
+trigger os recalcula a partir das seis notas em toda escrita, então mandar um valor
+inventado não adianta. Nome, foto, aniversário e a escolha entre **Mensalista** e **Diarista** são
 dele.
 
 Não existe mais campo de **posição** na ficha. O grupo joga quarteto na areia, onde
@@ -1231,6 +1307,11 @@ diretor respondendo por ela, porque muita gente avisa pelo WhatsApp.
 No sábado de manhã, o botão **Trazer confirmados** liga `ativo` de quem respondeu
 `vou` e desliga o resto. Daí para frente o dia segue igual: sorteio, chaveamento,
 placar e Encerrar dia não sabem que a chamada existe.
+
+A **hora e o local** que aparecem nesse cartão vivem em `config_grupo` e agora têm
+tela: **EU → Configurações → Horário e local do sábado**. A hora é validada no formato
+de 24 horas antes de salvar, e o local aceita texto livre. Os dois descem para todo
+mundo pelo sync e aparecem no cartão de presença de cada um.
 
 ### Ligando o push
 
@@ -1356,6 +1437,28 @@ CRC16 no fim, cerca de sessenta linhas em cada cliente, sem dependência e
 funcionando offline. Os dois portes têm os mesmos testes, incluindo um que confere
 que produzem exatamente a mesma string.
 
+### O tipo da chave importa, e o app cuida do formato
+
+O campo 01 do BR Code tem que levar a chave **no formato exato em que ela está
+registrada no banco**. Celular é `+55` seguido de DDD e número, tudo junto; CPF e CNPJ
+são só dígitos; e-mail e chave aleatória vão em caixa baixa. Se a chave for embutida
+como a pessoa digitou, o código é gerado, o CRC bate, o banco lê e responde *"essa
+chave Pix não está registrada"* — que é o sintoma mais confuso possível, porque nada
+no código parece errado.
+
+Por isso `config_financeiro.pix_tipo` diz de que tipo é a chave, e
+`normalizarChave` aplica a regra daquele tipo na hora de salvar e de novo na hora de
+gerar o código. A diretoria digita como quiser — `(47) 99999-8888` vira
+`+5547999998888` sozinho — e o diálogo mostra embaixo do campo como a chave vai entrar
+no código, ou o que está faltando quando ela ainda não é válida.
+
+O tipo é escolhido à mão porque **não dá para adivinhar**: onze dígitos podem ser um
+CPF ou um celular com DDD sem código de país, e chutar errado quebraria a chave de
+quem usa CPF. A migration que criou a coluna deduziu o tipo onde era possível —
+arroba vira e-mail, quatorze dígitos viram CNPJ, começar com `+` vira celular — e
+deixou o caso ambíguo como `aleatoria`, que é o modo "usa como está digitado" e
+preserva o comportamento antigo.
+
 O extrato do atleta sincroniza e funciona offline. **O painel com o dinheiro de
 todo mundo, não**: ele lê direto do Postgrest quando a diretoria abre. É uma escolha
 deliberada — o PowerSync baixa linhas cruas para o aparelho, e sincronizar o extrato
@@ -1363,31 +1466,85 @@ do grupo inteiro deixaria tudo legível no SQLite de qualquer celular da diretor
 Ler online mantém a RLS sendo a única guardiã e evita ter que colocar o papel dentro
 do JWT.
 
-## Avaliação entre colegas
+## Nota por fundamento e avaliação entre colegas
 
-No fim do sábado, cada um dá nota de 1 a 5 aos **três companheiros de time** em seis
-fundamentos: saque, passe, ataque, bloqueio, defesa e atitude. Semanas depois, cada
-um vê a própria média e uma dica do que treinar no ponto mais fraco.
+A habilidade de um jogador não é mais uma estrela só. São **seis notas**, uma por
+fundamento — saque, passe, ataque, bloqueio, defesa e atitude — cada uma entre 1,00 e
+5,00, guardadas em `players.nota_saque` até `players.nota_atitude`. A **nota geral** é
+a média das seis, mantida por trigger em `players.nota_media`, e é ela que as estrelas
+mostram e que o sorteio lê. `players.skill_level` continua existindo como o
+arredondamento dessa média, também por trigger, para não quebrar nada que ainda o leia.
 
-O anonimato não é só esconder o nome na tela:
+A diretoria **não digita mais uma estrela só** ao cadastrar alguém: dá as seis notas,
+na mesma escala em que os colegas avaliam. Esse é o ponto de partida, e fica gravado
+no histórico como um ponto de origem `diretoria`.
+
+### Como a nota se mexe sozinha
+
+No fim do sábado, cada um dá nota de 1 a 5 aos **três companheiros de time** nos
+mesmos seis fundamentos. Quando um dia de jogo junta **pelo menos duas** avaliações
+para a mesma pessoa, a nota dela anda em direção ao que o time achou:
+
+```
+nota = nota + 0,15 × (média_do_dia − nota)
+```
+
+com o passo limitado a **0,25 por dia** e a nota presa entre 1,00 e 5,00. É devagar de
+propósito: um sábado ruim não derruba ninguém, e uma sequência de cinco sábados ruins
+tira cerca de meia estrela. O limite de dois avaliadores por dia existe pelo anonimato
+— com uma nota só, quem recebe conseguiria deduzir de quem veio olhando o próprio
+gráfico.
+
+O cálculo é **refeito do zero** a cada avaliação nova, em `recalcular_nota`: parte do
+último ponto `diretoria`, percorre em ordem os dias encerrados depois dele e aplica o
+passo dia a dia. Por isso uma avaliação que chega atrasada não desalinha a linha, e o
+resultado nunca depende da ordem em que as notas foram enviadas.
+
+A diretoria pode reajustar as seis notas quando quiser. O ajuste entra no histórico
+como novo ponto `diretoria` e **vira o novo ponto de partida**: os sábados seguintes
+passam a puxar a partir dali, e os pontos anteriores continuam no gráfico.
+
+A migration **não aplica retroativamente** as avaliações que já estavam no banco. Ela
+copia a estrela antiga para os seis fundamentos e grava esse ponto de partida com a
+data de hoje, então só os sábados encerrados depois dela contam. Notas dadas quando a
+regra era "a avaliação não mexe no sorteio" não deveriam mudar a força de ninguém sem
+aviso. Quem quiser o contrário troca o `now()` do `insert` final da migration por
+`coalesce(p.created_at, now())` antes de rodar: a primeira avaliação nova reconstrói a
+linha inteira desde a entrada do jogador.
+
+### O gráfico
+
+`player_nota_historico` guarda uma linha por evento — o ajuste da diretoria e cada
+sábado que mexeu na nota — com as seis notas, a média e quantos avaliaram naquele dia.
+Na aba **EU** o jogador vê as seis barras com a variação no período, filtros de
+**3 meses / 6 meses / este ano / tudo** e um gráfico de linha. A linha mostra a média
+geral por padrão; tocar numa barra troca para aquele fundamento. Ponto dourado é
+ajuste da diretoria, ponto verde é sábado avaliado. No fim do ano o filtro **Este ano**
+já é a retrospectiva.
+
+### O que continua anônimo
 
 - `avaliacoes` **não entra na publication do PowerSync**, e no schema dos clientes é
   declarada como somente-inserção. A nota sobe para o servidor e **nunca desce para
   aparelho nenhum** — nem para o de quem é diretoria.
 - A RLS de `avaliacoes` tem policy de `insert` e **nenhuma de `select`**. Ninguém lê
   a nota individual pelo app, em nenhum papel.
-- O que sincroniza de volta é `player_evolucao`, mantida por trigger, com médias e
-  contagem, filtrada para o próprio dono.
-- Há um **mínimo de cinco avaliações** antes de qualquer número aparecer. Com time
-  de quatro, quem recebe três notas consegue adivinhar de quem vieram; com cinco,
-  vindas de sábados diferentes, não consegue mais.
+- `player_nota_historico` só desce para o dono (`profile_id = auth.user_id()` na sync
+  rule, e a policy aceita também a diretoria para consulta direta pela API).
 - `avaliacao_registros` guarda só o *fato* de você ter avaliado alguém, sem a nota,
   para o app saber o que já foi preenchido sem vazar nada.
+- `player_evolucao` continua existindo com as médias cruas recebidas e a contagem
+  total. O app usa dela só o total de avaliações recebidas; quem manda na nota agora é
+  `players`.
 
-**A nota dos colegas não mexe no sorteio.** `skill_level` continua sendo a estrela
-que a diretoria dá e continua sendo a única coisa que o `TeamDraft` lê. Se a média
-dos colegas alimentasse o sorteio, a força dos times mudaria sozinha toda semana e a
-nota viraria assunto político dentro do grupo.
+### O que mudou no sorteio
+
+**Agora a nota dos colegas chega ao sorteio**, porque o sorteio lê `nota_media` e ela
+se move. A escolha foi deliberada: a nota de partida da diretoria envelhece, e o time
+equilibrado do sábado é o que reflete como as pessoas estão jogando agora. O ritmo
+lento é o que impede a força dos times de balançar de semana em semana. O `TeamDraft`
+passou a somar a média em ponto flutuante em vez de inteiros, o que também deixa o
+equilíbrio mais fino do que era com estrelas cheias.
 
 O app reage sozinho: em segundos o sync traz o profile atualizado e os botões de
 edição aparecem, sem precisar reiniciar.
@@ -1549,7 +1706,7 @@ passa pelo `observarNoGrupo` no Android e pelos hooks com `useGrupoAtivo()` na w
 
 **Sincroniza a leitura mas as edições não sobem.**
 É a RLS fazendo o trabalho dela: o usuário não é da diretoria **naquele grupo**. Use
-**EU → grupo → Membros do grupo**, ou o `update` de
+**EU → Configurações → Membros do grupo**, ou o `update` de
 [Quem é quem no app](#quem-é-quem-no-app).
 
 Vale saber como isso aparece: um `INSERT` sem permissão devolve erro, mas

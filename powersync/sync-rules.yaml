@@ -57,4 +57,5 @@ streams:
     auto_subscribe: true
     queries:
       - SELECT * FROM player_evolucao WHERE profile_id = auth.user_id()
+      - SELECT * FROM player_nota_historico WHERE profile_id = auth.user_id()
       - SELECT * FROM avaliacao_registros WHERE profile_id = auth.user_id()

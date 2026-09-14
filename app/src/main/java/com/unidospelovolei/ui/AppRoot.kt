@@ -1,5 +1,6 @@
 package com.unidospelovolei.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -36,10 +37,15 @@ import com.unidospelovolei.ui.components.AbaPrincipal
 import com.unidospelovolei.ui.components.AppHeader
 import com.unidospelovolei.ui.components.BarraDeAbas
 import com.unidospelovolei.ui.components.SinalSync
+import com.unidospelovolei.ui.configuracoes.AcaoDaDiretoria
+import com.unidospelovolei.ui.configuracoes.ConfigDoJogoDialog
+import com.unidospelovolei.ui.configuracoes.ConfiguracoesScreen
 import com.unidospelovolei.ui.evolucao.AvaliacaoScreen
+import com.unidospelovolei.ui.evolucao.CartaoDaEvolucao
 import com.unidospelovolei.ui.evolucao.EvolucaoViewModel
 import com.unidospelovolei.ui.financeiro.ConfigFinanceiroDialog
 import com.unidospelovolei.ui.financeiro.FinanceiroViewModel
+import com.unidospelovolei.ui.financeiro.MeuFinanceiroScreen
 import com.unidospelovolei.ui.financeiro.PainelFinanceiroScreen
 import com.unidospelovolei.ui.games.GamesScreen
 import com.unidospelovolei.ui.games.GamesViewModel
@@ -51,6 +57,7 @@ import com.unidospelovolei.ui.grupo.GrupoViewModel
 import com.unidospelovolei.ui.grupo.PaginaScreen
 import com.unidospelovolei.ui.grupo.PostDialog
 import com.unidospelovolei.ui.grupos.ChavesScreen
+import com.unidospelovolei.ui.grupos.EditarGrupoDialog
 import com.unidospelovolei.ui.grupos.GruposScreen
 import com.unidospelovolei.ui.grupos.GruposViewModel
 import com.unidospelovolei.ui.grupos.MembrosScreen
@@ -59,8 +66,11 @@ import com.unidospelovolei.ui.login.LoginScreen
 import com.unidospelovolei.ui.main.EstadoSincronizacao
 import com.unidospelovolei.ui.main.MainViewModel
 import com.unidospelovolei.ui.membro.AprovacoesScreen
+import com.unidospelovolei.ui.membro.ContaScreen
+import com.unidospelovolei.ui.membro.DestinoDaEu
 import com.unidospelovolei.ui.membro.EuScreen
 import com.unidospelovolei.ui.membro.FichaDialog
+import com.unidospelovolei.ui.membro.HistoricoScreen
 import com.unidospelovolei.ui.membro.MembroViewModel
 import com.unidospelovolei.ui.membro.VinculosScreen
 import com.unidospelovolei.ui.players.PlayersScreen
@@ -98,6 +108,14 @@ private sealed interface Destino {
 
     data object Avaliacao : Destino
 
+    data object Conta : Destino
+
+    data object MeuFinanceiro : Destino
+
+    data object Historico : Destino
+
+    data object Configuracoes : Destino
+
     data class Conteudo(
         val pagina: Pagina,
     ) : Destino
@@ -106,6 +124,18 @@ private sealed interface Destino {
         val matchId: String,
     ) : Destino
 }
+
+private fun paiDe(destino: Destino): Destino? =
+    when (destino) {
+        is Destino.Abas -> null
+        is Destino.Chaves,
+        is Destino.Membros,
+        is Destino.Aprovacoes,
+        is Destino.Vinculos,
+        is Destino.PainelFinanceiro,
+        -> Destino.Configuracoes
+        else -> Destino.Abas
+    }
 
 @Composable
 fun AppRoot(
@@ -200,8 +230,6 @@ private fun PortaDeEntrada(
             onEntrarComChave = gruposViewModel::entrarComChave,
             onCriarGrupo = gruposViewModel::criarGrupo,
             onSair = { gruposViewModel.sair(it.id) },
-            onAbrirChaves = {},
-            onAbrirMembros = {},
             modifier = Modifier.fillMaxSize().padding(padding),
         )
     }
@@ -260,6 +288,8 @@ private fun HomeScreen(
     var editandoTime by remember { mutableStateOf<Team?>(null) }
     var criandoTime by remember { mutableStateOf(false) }
     var editandoFicha by remember { mutableStateOf(false) }
+    var editandoIdentidade by remember { mutableStateOf(false) }
+    var editandoConfigDoJogo by remember { mutableStateOf(false) }
     var criandoPost by remember { mutableStateOf(false) }
     var editandoPost by remember { mutableStateOf<Post?>(null) }
     var editandoEvento by remember { mutableStateOf<Evento?>(null) }
@@ -300,6 +330,18 @@ private fun HomeScreen(
         }
     }
 
+    val voltarLeva = paiDe(destino)
+    BackHandler(enabled = voltarLeva != null || aba != AbaPrincipal.SOCIAL) {
+        when {
+            destino is Destino.Distribuicao -> {
+                teamsViewModel.descartarDistribuicao()
+                destino = Destino.Abas
+            }
+            voltarLeva != null -> destino = voltarLeva
+            else -> aba = AbaPrincipal.SOCIAL
+        }
+    }
+
     when (val atual = destino) {
         is Destino.Grupos -> {
             GruposScreen(
@@ -312,10 +354,7 @@ private fun HomeScreen(
                 onEntrarComChave = gruposViewModel::entrarComChave,
                 onCriarGrupo = gruposViewModel::criarGrupo,
                 onSair = { gruposViewModel.sair(it.id) },
-                onAbrirChaves = { destino = Destino.Chaves },
-                onAbrirMembros = { destino = Destino.Membros },
                 modifier = modifier,
-                onSalvarIdentidade = gruposViewModel::salvarIdentidade,
             )
             return
         }
@@ -326,7 +365,7 @@ private fun HomeScreen(
                 chaves = grupos.chaves,
                 carregando = grupos.carregandoLista,
                 salvando = grupos.salvando,
-                onVoltar = { destino = Destino.Grupos },
+                onVoltar = { destino = Destino.Configuracoes },
                 onCarregar = gruposViewModel::carregarChaves,
                 onCriar = gruposViewModel::criarChave,
                 onAlternar = gruposViewModel::alternarChave,
@@ -344,7 +383,7 @@ private fun HomeScreen(
                 meuId = perfilId,
                 carregando = grupos.carregandoLista,
                 salvando = grupos.salvando,
-                onVoltar = { destino = Destino.Grupos },
+                onVoltar = { destino = Destino.Configuracoes },
                 onCarregar = gruposViewModel::carregarMembros,
                 onDefinirPapel = gruposViewModel::definirPapel,
                 onRemover = gruposViewModel::removerMembro,
@@ -391,7 +430,7 @@ private fun HomeScreen(
             AprovacoesScreen(
                 fila = membro.fila,
                 salvando = membro.salvando,
-                onVoltar = { destino = Destino.Abas },
+                onVoltar = { destino = Destino.Configuracoes },
                 onDecidir = membroViewModel::decidir,
                 onAbrirVinculos = { destino = Destino.Vinculos },
                 modifier = modifier,
@@ -405,7 +444,7 @@ private fun HomeScreen(
                 contas = contas,
                 carregandoContas = carregandoContas,
                 salvando = membro.salvando,
-                onVoltar = { destino = Destino.Abas },
+                onVoltar = { destino = Destino.Configuracoes },
                 onCarregarContas = membroViewModel::carregarContas,
                 onVincular = membroViewModel::vincularManualmente,
                 onDesvincular = membroViewModel::desvincular,
@@ -417,7 +456,7 @@ private fun HomeScreen(
         is Destino.PainelFinanceiro -> {
             PainelFinanceiroScreen(
                 estado = financeiro,
-                onVoltar = { destino = Destino.Abas },
+                onVoltar = { destino = Destino.Configuracoes },
                 onRecarregar = financeiroViewModel::carregarPainel,
                 onDefinirStatus = { pagamentoId, status ->
                     perfilId?.let { financeiroViewModel.definirStatus(pagamentoId, status, it) }
@@ -430,8 +469,8 @@ private fun HomeScreen(
             if (configurandoFinanceiro) {
                 ConfigFinanceiroDialog(
                     estado = financeiro,
-                    onSalvar = { chave, nome, cidade, mensalidade, diaria ->
-                        financeiroViewModel.salvarConfig(chave, nome, cidade, mensalidade, diaria)
+                    onSalvar = { chave, tipo, nome, cidade, mensalidade, diaria ->
+                        financeiroViewModel.salvarConfig(chave, tipo, nome, cidade, mensalidade, diaria)
                         configurandoFinanceiro = false
                     },
                     onFechar = { configurandoFinanceiro = false },
@@ -448,6 +487,102 @@ private fun HomeScreen(
                 onEnviar = evolucaoViewModel::avaliar,
                 modifier = modifier,
             )
+            return
+        }
+
+        is Destino.Conta -> {
+            ContaScreen(
+                estado = membro,
+                onEditarFicha = { editandoFicha = true },
+                onVoltar = { destino = Destino.Abas },
+                modifier = modifier,
+            )
+            if (editandoFicha) {
+                membro.meuJogador?.let { jogador ->
+                    FichaDialog(
+                        jogador = jogador,
+                        contato = membro.meuContato,
+                        salvando = membro.salvando,
+                        onSalvar = { nome, dia, mes, telefone, emergencia, ano, regime ->
+                            membroViewModel.salvarFicha(nome, dia, mes, telefone, emergencia, ano, regime)
+                            editandoFicha = false
+                        },
+                        onFechar = { editandoFicha = false },
+                    )
+                }
+            }
+            return
+        }
+
+        is Destino.MeuFinanceiro -> {
+            MeuFinanceiroScreen(
+                estado = financeiro,
+                onVoltar = { destino = Destino.Abas },
+                modifier = modifier,
+            )
+            return
+        }
+
+        is Destino.Historico -> {
+            HistoricoScreen(
+                desempenho = membro.meuDesempenho,
+                onVoltar = { destino = Destino.Abas },
+                modifier = modifier,
+            ) {
+                CartaoDaEvolucao(
+                    estado = evolucao,
+                    jogador = membro.meuJogador,
+                )
+            }
+            return
+        }
+
+        is Destino.Configuracoes -> {
+            ConfiguracoesScreen(
+                nomeDoGrupo = estado.nomeDoGrupo,
+                pedidosPendentes = membro.fila.size,
+                onVoltar = { destino = Destino.Abas },
+                onAbrir = { acao ->
+                    when (acao) {
+                        AcaoDaDiretoria.APROVACOES -> destino = Destino.Aprovacoes
+                        AcaoDaDiretoria.VINCULOS -> destino = Destino.Vinculos
+                        AcaoDaDiretoria.CHAVES -> destino = Destino.Chaves
+                        AcaoDaDiretoria.MEMBROS -> destino = Destino.Membros
+                        AcaoDaDiretoria.IDENTIDADE -> editandoIdentidade = true
+                        AcaoDaDiretoria.PAINEL_FINANCEIRO -> {
+                            financeiroViewModel.carregarPainel()
+                            destino = Destino.PainelFinanceiro
+                        }
+                        AcaoDaDiretoria.CONFIG_DO_JOGO -> editandoConfigDoJogo = true
+                    }
+                },
+                modifier = modifier,
+            )
+            if (editandoIdentidade) {
+                grupos.grupoAtual?.let { grupoAtual ->
+                    EditarGrupoDialog(
+                        grupo = grupoAtual,
+                        salvando = grupos.salvando,
+                        onSalvar = { nome, cidade, logo, remover ->
+                            gruposViewModel.salvarIdentidade(nome, cidade, logo, remover)
+                            editandoIdentidade = false
+                        },
+                        onFechar = { editandoIdentidade = false },
+                    )
+                }
+            }
+            if (editandoConfigDoJogo) {
+                ConfigDoJogoDialog(
+                    jogoHora = membro.config?.jogoHora,
+                    jogoLocal = membro.config?.jogoLocal,
+                    salvando = grupo.salvando,
+                    onSalvar = { hora, local ->
+                        grupoViewModel.salvarConfig(hora, local)
+                        editandoConfigDoJogo = false
+                    },
+                    onFechar = { editandoConfigDoJogo = false },
+                )
+            }
             return
         }
 
@@ -560,22 +695,24 @@ private fun HomeScreen(
                 AbaPrincipal.EU ->
                     EuScreen(
                         estado = membro,
-                        financeiro = financeiro,
-                        evolucao = evolucao,
+                        nomeDoGrupo = estado.nomeDoGrupo,
+                        quantosGrupos = estado.meusGrupos.size,
+                        avaliacoesPendentes = evolucao.pendentes.size,
                         onBuscar = membroViewModel::buscar,
                         onPedirVinculo = membroViewModel::pedirVinculo,
                         onCancelarPedido = membroViewModel::cancelarPedido,
-                        onEditarFicha = { editandoFicha = true },
-                        onAbrirAprovacoes = { destino = Destino.Aprovacoes },
                         onResponderChamada = membroViewModel::responderChamada,
-                        onAbrirPainelFinanceiro = {
-                            financeiroViewModel.carregarPainel()
-                            destino = Destino.PainelFinanceiro
+                        onAbrir = { alvo ->
+                            destino =
+                                when (alvo) {
+                                    DestinoDaEu.GRUPOS -> Destino.Grupos
+                                    DestinoDaEu.CONTA -> Destino.Conta
+                                    DestinoDaEu.FINANCEIRO -> Destino.MeuFinanceiro
+                                    DestinoDaEu.HISTORICO -> Destino.Historico
+                                    DestinoDaEu.AVALIACAO -> Destino.Avaliacao
+                                    DestinoDaEu.CONFIGURACOES -> Destino.Configuracoes
+                                }
                         },
-                        onAbrirAvaliacao = { destino = Destino.Avaliacao },
-                        onAbrirGrupos = { destino = Destino.Grupos },
-                        nomeDoGrupo = estado.nomeDoGrupo,
-                        quantosGrupos = estado.meusGrupos.size,
                     )
             }
         }

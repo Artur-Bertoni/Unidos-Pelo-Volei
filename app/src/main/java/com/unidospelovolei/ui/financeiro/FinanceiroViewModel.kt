@@ -5,11 +5,14 @@ import androidx.lifecycle.viewModelScope
 import com.unidospelovolei.data.FinanceiroRepository
 import com.unidospelovolei.data.PlayersRepository
 import com.unidospelovolei.domain.financeiro.PixBrCode
+import com.unidospelovolei.domain.financeiro.TipoDaChavePix
 import com.unidospelovolei.domain.model.Cobranca
 import com.unidospelovolei.domain.model.ConfigFinanceiro
 import com.unidospelovolei.domain.model.ItemDoExtrato
 import com.unidospelovolei.domain.model.Player
 import com.unidospelovolei.domain.model.StatusPagamento
+import java.time.LocalDate
+import java.time.YearMonth
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -17,8 +20,6 @@ import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import java.time.LocalDate
-import java.time.YearMonth
 
 data class LinhaDoPainelFinanceiro(
     val pagamentoId: String,
@@ -47,6 +48,7 @@ data class FinanceiroUiState(
         val chave = atual.pixChave?.takeIf { it.isNotBlank() } ?: return null
         return PixBrCode.gerar(
             chave = chave,
+            tipo = atual.pixTipo,
             nome = atual.pixNome.orEmpty(),
             cidade = atual.pixCidade.orEmpty(),
             valorCentavos = valorCentavos,
@@ -137,6 +139,7 @@ class FinanceiroViewModel(
 
     fun salvarConfig(
         pixChave: String?,
+        pixTipo: TipoDaChavePix,
         pixNome: String?,
         pixCidade: String?,
         mensalidadeCentavos: Int,
@@ -146,6 +149,7 @@ class FinanceiroViewModel(
         financeiroRepository.salvarConfig(
             id = atual.id,
             pixChave = pixChave,
+            pixTipo = pixTipo,
             pixNome = pixNome,
             pixCidade = pixCidade,
             mensalidadeCentavos = mensalidadeCentavos,

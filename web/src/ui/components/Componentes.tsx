@@ -314,27 +314,48 @@ export const Estrelas = ({
   nivel: number;
   tamanho?: number;
   onMudar?: (valor: number) => void;
-}) => (
-  <div className="estrelas" style={{ gap: onMudar ? 8 : 2 }}>
-    {[1, 2, 3, 4, 5].map((valor) =>
-      onMudar ? (
-        <button
-          key={valor}
-          type="button"
-          className={`estrela ${valor <= nivel ? 'cheia' : ''}`}
-          aria-label={`Nível ${valor}`}
-          onClick={() => onMudar(valor)}
-        >
-          <IconeEstrela tamanho={tamanho} cheia={valor <= nivel} />
-        </button>
-      ) : (
-        <span key={valor} className={`estrela ${valor <= nivel ? 'cheia' : ''}`}>
-          <IconeEstrela tamanho={tamanho} cheia={valor <= nivel} />
-        </span>
-      ),
-    )}
-  </div>
-);
+}) => {
+  if (onMudar) {
+    return (
+      <div className="estrelas" style={{ gap: 8 }}>
+        {[1, 2, 3, 4, 5].map((valor) => (
+          <button
+            key={valor}
+            type="button"
+            className={`estrela ${valor <= nivel ? 'cheia' : ''}`}
+            aria-label={`Nível ${valor}`}
+            onClick={() => onMudar(valor)}
+          >
+            <IconeEstrela tamanho={tamanho} cheia={valor <= nivel} />
+          </button>
+        ))}
+      </div>
+    );
+  }
+
+  const preenchimento = Math.min(Math.max(nivel / 5, 0), 1) * 100;
+
+  return (
+    <div className="estrelas-medida" aria-label={`Nota ${nivel.toFixed(1)} de 5`}>
+      <div className="estrelas" style={{ gap: 2 }}>
+        {[1, 2, 3, 4, 5].map((valor) => (
+          <span key={valor} className="estrela">
+            <IconeEstrela tamanho={tamanho} />
+          </span>
+        ))}
+      </div>
+      <div className="estrelas-preenchimento" style={{ width: `${preenchimento}%` }}>
+        <div className="estrelas" style={{ gap: 2 }}>
+          {[1, 2, 3, 4, 5].map((valor) => (
+            <span key={valor} className="estrela cheia">
+              <IconeEstrela tamanho={tamanho} cheia />
+            </span>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
 
 export const Interruptor = ({
   ligado,

@@ -76,12 +76,12 @@ const CartaoElenco = ({ elenco }: { elenco: TeamRoster }) => (
           {homensDo(elenco)}H/{mulheresDo(elenco)}M
         </span>
         <span style={{ color: 'var(--verde-claro)', fontSize: 12, fontWeight: 700 }}>
-          força {forcaTotal(elenco)}
+          força {forcaTotal(elenco).toFixed(1)}
         </span>
       </div>
       <span className="subtitulo">
         {elenco.players
-          .map((jogador) => `${jogador.nome} (${jogador.skillLevel}${jogador.genero === 'feminino' ? 'F' : 'M'})`)
+          .map((jogador) => `${jogador.nome} (${jogador.media.toFixed(1)}${jogador.genero === 'feminino' ? 'F' : 'M'})`)
           .join(', ')}
       </span>
     </div>

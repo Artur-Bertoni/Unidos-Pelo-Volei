@@ -34,7 +34,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -46,7 +45,9 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.unidospelovolei.domain.model.Fundamento
 import com.unidospelovolei.domain.model.Genero
+import com.unidospelovolei.domain.model.NotasPorFundamento
 import com.unidospelovolei.domain.model.Player
 import com.unidospelovolei.domain.model.PlayerPerformance
 import com.unidospelovolei.domain.model.Regime
@@ -71,7 +72,7 @@ fun PlayersScreen(
     onAlternarPresenca: (Player) -> Unit,
     onMarcarTodosPresentes: () -> Unit,
     onLimparPresencas: () -> Unit,
-    onCriar: (String, Int, Genero, Boolean) -> Unit,
+    onCriar: (String, NotasPorFundamento, Genero, Boolean) -> Unit,
     onSalvar: (Player) -> Unit,
     onExcluir: (String) -> Unit,
     modifier: Modifier = Modifier,
@@ -350,7 +351,19 @@ private fun LinhaJogador(
                         corFundo = VoleiColors.SeloFaseFundo,
                     )
                 }
-                if (isAdmin) Estrelas(nivel = jogador.skillLevel)
+                if (isAdmin) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Estrelas(nivel = jogador.media)
+                        Text(
+                            "%.1f".format(jogador.media),
+                            color = VoleiColors.TextoTerciario,
+                            fontSize = 11.sp,
+                        )
+                    }
+                }
                 fichaResumida(jogador)?.let { ficha ->
                     Text(ficha, color = VoleiColors.TextoTerciario, fontSize = 11.sp)
                 }
@@ -396,13 +409,13 @@ private fun resumoDoDesempenho(desempenho: PlayerPerformance): String {
 @Composable
 private fun PlayerEditorDialog(
     jogador: Player?,
-    onSalvarNovo: (String, Int, Genero, Boolean) -> Unit,
+    onSalvarNovo: (String, NotasPorFundamento, Genero, Boolean) -> Unit,
     onSalvarExistente: (Player) -> Unit,
     onExcluir: (String) -> Unit,
     onFechar: () -> Unit,
 ) {
     var nome by remember { mutableStateOf(jogador?.nome.orEmpty()) }
-    var nivel by remember { mutableIntStateOf(jogador?.skillLevel ?: 3) }
+    var notas by remember { mutableStateOf(jogador?.notas ?: NotasPorFundamento()) }
     var genero by remember { mutableStateOf(jogador?.genero ?: Genero.MASCULINO) }
     var ativo by remember { mutableStateOf(jogador?.ativo ?: true) }
     var regime by remember { mutableStateOf(jogador?.regime ?: Regime.MENSALISTA) }
@@ -440,12 +453,39 @@ private fun PlayerEditorDialog(
                     onMudar = { nome = it },
                     modifier = Modifier.fillMaxWidth(),
                 )
-                Text("Nível de habilidade", color = VoleiColors.TextoSecundario, fontSize = 12.sp)
-                Estrelas(
-                    nivel = nivel,
-                    tamanho = 38.dp,
-                    espacamento = 8.dp,
-                    onMudar = { nivel = it },
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Text("Habilidade por fundamento", color = VoleiColors.TextoSecundario, fontSize = 12.sp)
+                    Text(
+                        "média %.1f".format(notas.media),
+                        color = VoleiColors.TextoPrimario,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                    )
+                }
+                Fundamento.entries.forEach { fundamento ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        Text(fundamento.rotulo, color = VoleiColors.TextoSecundario, fontSize = 13.sp)
+                        Estrelas(
+                            nivel = notas.de(fundamento),
+                            tamanho = 26.dp,
+                            espacamento = 6.dp,
+                            onMudar = { notas = notas.com(fundamento, it.toDouble()) },
+                        )
+                    }
+                }
+                Text(
+                    "A nota geral é a média destas seis. A partir daqui as avaliações dos " +
+                        "companheiros vão movendo cada fundamento a cada sábado encerrado.",
+                    color = VoleiColors.TextoTerciario,
+                    fontSize = 11.sp,
                 )
                 Text("Gênero", color = VoleiColors.TextoSecundario, fontSize = 12.sp)
                 SeletorGenero(genero = genero, onMudar = { genero = it })
@@ -485,12 +525,13 @@ private fun PlayerEditorDialog(
                 enabled = valido,
                 onClick = {
                     if (jogador == null) {
-                        onSalvarNovo(nome, nivel, genero, ativo)
+                        onSalvarNovo(nome, notas, genero, ativo)
                     } else {
                         onSalvarExistente(
                             jogador.copy(
                                 nome = nome,
-                                skillLevel = nivel,
+                                notas = notas,
+                                media = notas.media,
                                 genero = genero,
                                 ativo = ativo,
                                 regime = regime,

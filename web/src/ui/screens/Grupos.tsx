@@ -92,10 +92,7 @@ export function GruposScreen({
   onEntrarComChave,
   onCriarGrupo,
   onSair,
-  onAbrirChaves,
-  onAbrirMembros,
   chaveSugerida,
-  onSalvarIdentidade,
 }: {
   grupos: MeuGrupo[];
   grupoAtual: MeuGrupo | null;
@@ -105,14 +102,10 @@ export function GruposScreen({
   onEntrarComChave: (codigo: string) => void;
   onCriarGrupo: (nome: string, cidade: string | null) => void;
   onSair: (grupo: MeuGrupo) => void;
-  onAbrirChaves: () => void;
-  onAbrirMembros: () => void;
   chaveSugerida?: string | null;
-  onSalvarIdentidade?: (nome: string, cidade: string | null, logo: File | null, remover: boolean) => void;
 }) {
   const [entrando, setEntrando] = useState(chaveSugerida != null && chaveSugerida.length > 0);
   const [criando, setCriando] = useState(false);
-  const [editando, setEditando] = useState(false);
   const [saindoDe, setSaindoDe] = useState<MeuGrupo | null>(null);
 
   return (
@@ -178,54 +171,7 @@ export function GruposScreen({
             </div>
           </Cartao>
         ))}
-
-        {grupoAtual?.papel === 'diretoria' && (
-          <>
-            {onSalvarIdentidade && (
-              <Cartao onClick={() => setEditando(true)}>
-                <div className="linha" style={{ padding: 14, gap: 12 }}>
-                  <div className="coluna expandir" style={{ gap: 2 }}>
-                    <span className="titulo-tela">Nome e logo do grupo</span>
-                    <span className="subtitulo">
-                      Troque como o {grupoAtual.nome} aparece no app
-                    </span>
-                  </div>
-                  <span className="subtitulo" aria-hidden="true">
-                    ›
-                  </span>
-                </div>
-              </Cartao>
-            )}
-            <Cartao onClick={onAbrirChaves}>
-              <div className="linha" style={{ padding: 14, gap: 12 }}>
-                <div className="coluna expandir" style={{ gap: 2 }}>
-                  <span className="titulo-tela">Chaves de acesso</span>
-                  <span className="subtitulo">
-                    Crie e revogue os códigos que liberam a entrada no grupo
-                  </span>
-                </div>
-                <span className="subtitulo" aria-hidden="true">
-                  ›
-                </span>
-              </div>
-            </Cartao>
-            <Cartao onClick={onAbrirMembros}>
-              <div className="linha" style={{ padding: 14, gap: 12 }}>
-                <div className="coluna expandir" style={{ gap: 2 }}>
-                  <span className="titulo-tela">Membros do grupo</span>
-                  <span className="subtitulo">
-                    Promova alguém à diretoria ou tire quem saiu
-                  </span>
-                </div>
-                <span className="subtitulo" aria-hidden="true">
-                  ›
-                </span>
-              </div>
-            </Cartao>
-          </>
-        )}
       </div>
-
       <div className="coluna" style={{ padding: 16, gap: 10, flex: 'none' }}>
         <button
           type="button"
@@ -265,18 +211,6 @@ export function GruposScreen({
             setCriando(false);
           }}
           onFechar={() => setCriando(false)}
-        />
-      )}
-
-      {editando && grupoAtual && onSalvarIdentidade && (
-        <EditarGrupoDialogo
-          grupo={grupoAtual}
-          salvando={salvando}
-          onSalvar={(nome, cidade, logo, remover) => {
-            onSalvarIdentidade(nome, cidade, logo, remover);
-            setEditando(false);
-          }}
-          onFechar={() => setEditando(false)}
         />
       )}
 
@@ -341,7 +275,7 @@ function EntrarNoGrupoDialogo({
   );
 }
 
-function EditarGrupoDialogo({
+export function EditarGrupoDialogo({
   grupo,
   salvando,
   onSalvar,

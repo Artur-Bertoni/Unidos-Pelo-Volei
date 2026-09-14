@@ -1,3 +1,7 @@
+import type { TipoDaChavePix } from './pix';
+
+export type { TipoDaChavePix };
+
 export type Genero = 'masculino' | 'feminino';
 
 export const GENEROS: Genero[] = ['masculino', 'feminino'];
@@ -16,7 +20,8 @@ export const statusDe = (valor: string | null | undefined): MatchStatus =>
 export interface Player {
   id: string;
   nome: string;
-  skillLevel: number;
+  notas: NotasPorFundamento;
+  media: number;
   genero: Genero;
   ativo: boolean;
   profileId: string | null;
@@ -87,7 +92,7 @@ export interface TeamRoster {
 }
 
 export const forcaTotal = (roster: TeamRoster): number =>
-  roster.players.reduce((soma, jogador) => soma + jogador.skillLevel, 0);
+  roster.players.reduce((soma, jogador) => soma + jogador.media, 0);
 
 export const homensDo = (roster: TeamRoster): number =>
   roster.players.filter((jogador) => jogador.genero === 'masculino').length;
@@ -329,6 +334,7 @@ export interface Pagina {
 export interface ConfigFinanceiro {
   id: string;
   pixChave: string | null;
+  pixTipo: TipoDaChavePix;
   pixNome: string | null;
   pixCidade: string | null;
   mensalidadeCentavos: number;
@@ -406,16 +412,90 @@ export const rotuloDoFundamento = (fundamento: Fundamento): string =>
 export const fundamentoDe = (valor: string | null | undefined): Fundamento | null =>
   FUNDAMENTOS.find((fundamento) => fundamento === valor) ?? null;
 
-export type NotasDaAvaliacao = Record<Fundamento, number>;
+export type NotasPorFundamento = Record<Fundamento, number>;
 
-export const notasIniciais = (): NotasDaAvaliacao => ({
-  saque: 3,
-  passe: 3,
-  ataque: 3,
-  bloqueio: 3,
-  defesa: 3,
-  atitude: 3,
+export const notasUniformes = (valor: number): NotasPorFundamento => ({
+  saque: valor,
+  passe: valor,
+  ataque: valor,
+  bloqueio: valor,
+  defesa: valor,
+  atitude: valor,
 });
+
+export const notasIniciais = (): NotasPorFundamento => notasUniformes(3);
+
+export const arredondar = (valor: number): number => Math.round(valor * 100) / 100;
+
+export const mediaDasNotas = (notas: NotasPorFundamento): number =>
+  arredondar(
+    FUNDAMENTOS.reduce((soma, fundamento) => soma + notas[fundamento], 0) / FUNDAMENTOS.length,
+  );
+
+export const notasNoLimite = (notas: NotasPorFundamento): NotasPorFundamento => {
+  const limitadas = notasUniformes(3);
+  FUNDAMENTOS.forEach((fundamento) => {
+    limitadas[fundamento] = Math.min(5, Math.max(1, Math.round(notas[fundamento])));
+  });
+  return limitadas;
+};
+
+export const fundamentoMaisFracoDe = (notas: NotasPorFundamento): Fundamento =>
+  FUNDAMENTOS.reduce((menor, atual) => (notas[atual] < notas[menor] ? atual : menor), FUNDAMENTOS[0]);
+
+export type OrigemDaNota = 'diretoria' | 'avaliacao';
+
+export interface PontoDaNota {
+  id: string;
+  origem: OrigemDaNota;
+  avaliadores: number;
+  notas: NotasPorFundamento;
+  media: number;
+  registradoEm: string;
+}
+
+export type PeriodoDoGrafico = '3m' | '6m' | 'ano' | 'tudo';
+
+export const PERIODOS: PeriodoDoGrafico[] = ['3m', '6m', 'ano', 'tudo'];
+
+const ROTULOS_DE_PERIODO: Record<PeriodoDoGrafico, string> = {
+  '3m': '3 meses',
+  '6m': '6 meses',
+  ano: 'Este ano',
+  tudo: 'Tudo',
+};
+
+export const rotuloDoPeriodo = (periodo: PeriodoDoGrafico): string => ROTULOS_DE_PERIODO[periodo];
+
+export const inicioDoPeriodo = (periodo: PeriodoDoGrafico, hoje = new Date()): Date | null => {
+  if (periodo === 'tudo') return null;
+  if (periodo === 'ano') return new Date(hoje.getFullYear(), 0, 1);
+  const inicio = new Date(hoje);
+  inicio.setMonth(inicio.getMonth() - (periodo === '3m' ? 3 : 6));
+  return inicio;
+};
+
+export const pontosNoPeriodo = (
+  pontos: PontoDaNota[],
+  periodo: PeriodoDoGrafico,
+  hoje = new Date(),
+): PontoDaNota[] => {
+  const inicio = inicioDoPeriodo(periodo, hoje);
+  if (inicio === null) return pontos;
+  const corte = inicio.getTime();
+  return pontos.filter((ponto) => new Date(ponto.registradoEm).getTime() >= corte);
+};
+
+export const variacaoNoPeriodo = (pontos: PontoDaNota[]): Partial<Record<Fundamento, number>> => {
+  if (pontos.length < 2) return {};
+  const primeiro = pontos[0];
+  const ultimo = pontos.at(-1) as PontoDaNota;
+  const variacao: Partial<Record<Fundamento, number>> = {};
+  FUNDAMENTOS.forEach((fundamento) => {
+    variacao[fundamento] = arredondar(ultimo.notas[fundamento] - primeiro.notas[fundamento]);
+  });
+  return variacao;
+};
 
 export interface AvaliacaoPendente {
   dayId: string;
@@ -429,16 +509,6 @@ export interface Evolucao {
   medias: Partial<Record<Fundamento, number>>;
 }
 
-export const evolucaoLiberada = (evolucao: Evolucao | null): boolean =>
-  evolucao !== null && Object.keys(evolucao.medias).length > 0;
-
-export const fundamentoMaisFraco = (evolucao: Evolucao | null): Fundamento | null => {
-  if (!evolucao) return null;
-  const entradas = Object.entries(evolucao.medias) as [Fundamento, number][];
-  if (entradas.length === 0) return null;
-  return entradas.reduce((menor, atual) => (atual[1] < menor[1] ? atual : menor))[0];
-};
-
 export interface Dica {
   id: string;
   fundamento: Fundamento;
@@ -447,4 +517,3 @@ export interface Dica {
   texto: string;
 }
 
-export const MINIMO_DE_AVALIACOES = 5;

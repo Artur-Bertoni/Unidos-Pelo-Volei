@@ -39,11 +39,13 @@ class TeamsRepository(
     fun observeRoster(teamId: String): Flow<List<Player>> =
         db.watch(
             """
-            SELECT p.id, p.nome, p.skill_level, p.genero, p.ativo
+            SELECT p.id, p.nome, p.skill_level, p.nota_saque, p.nota_passe, p.nota_ataque,
+                   p.nota_bloqueio, p.nota_defesa, p.nota_atitude, p.nota_media,
+                   p.genero, p.ativo
             FROM team_players tp
             JOIN players p ON p.id = tp.player_id
             WHERE tp.team_id = ?
-            ORDER BY p.skill_level DESC, p.nome COLLATE NOCASE
+            ORDER BY p.nota_media DESC, p.nome COLLATE NOCASE
             """.trimIndent(),
             listOf(teamId),
         ) { it.toPlayer() }
@@ -57,13 +59,16 @@ class TeamsRepository(
                     t.id AS team_id, t.nome AS team_nome, t.cor_hex AS team_cor_hex,
                     t.sigla AS team_sigla, t.ativo AS team_ativo, t.ordem AS team_ordem,
                     p.id AS player_id, p.nome AS player_nome,
-                    p.skill_level AS player_skill_level, p.genero AS player_genero,
+                    p.nota_saque AS player_nota_saque, p.nota_passe AS player_nota_passe,
+                    p.nota_ataque AS player_nota_ataque, p.nota_bloqueio AS player_nota_bloqueio,
+                    p.nota_defesa AS player_nota_defesa, p.nota_atitude AS player_nota_atitude,
+                    p.nota_media AS player_nota_media, p.genero AS player_genero,
                     p.ativo AS player_ativo
                 FROM teams t
                 LEFT JOIN team_players tp ON tp.team_id = t.id
                 LEFT JOIN players p ON p.id = tp.player_id
                 WHERE t.grupo_id = ? AND t.ativo = 1
-                ORDER BY t.ordem, t.nome COLLATE NOCASE, p.skill_level DESC, p.nome COLLATE NOCASE
+                ORDER BY t.ordem, t.nome COLLATE NOCASE, p.nota_media DESC, p.nome COLLATE NOCASE
                 """.trimIndent(),
             ) { cursor ->
                 val time =
@@ -80,7 +85,8 @@ class TeamsRepository(
                         Player(
                             id = id,
                             nome = cursor.getStringOptional("player_nome").orEmpty(),
-                            skillLevel = cursor.int("player_skill_level", 3),
+                            notas = cursor.toNotas("player_"),
+                            media = cursor.realOrNull("player_nota_media") ?: 3.0,
                             genero = Genero.from(cursor.getStringOptional("player_genero")),
                             ativo = cursor.bool("player_ativo", true),
                         )

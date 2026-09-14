@@ -6,6 +6,7 @@ import type { Row } from '../data/mappers';
 import {
   booleano,
   inteiro,
+  notasDaLinha,
   texto,
   textoOuNulo,
   toCobranca,
@@ -20,6 +21,7 @@ import {
   toPagina,
   toPlayer,
   toPlayerContato,
+  toPontoDaNota,
   toPost,
   toPresenca,
   toStanding,
@@ -38,6 +40,7 @@ import {
   EVENTOS_SQL,
   EVOLUCAO_SQL,
   FORMATO_SQL,
+  HISTORICO_DA_NOTA_SQL,
   MEUS_GRUPOS_SQL,
   MEUS_PAGAMENTOS_SQL,
   PAGINAS_SQL,
@@ -75,6 +78,7 @@ import {
   type Player,
   type PlayerContato,
   type PlayerPerformance,
+  type PontoDaNota,
   type Post,
   type Presenca,
   type RoundSchedule,
@@ -222,6 +226,12 @@ export function useEvolucao(): Evolucao | null {
   return data.length > 0 ? toEvolucao(data[0]) : null;
 }
 
+export function useHistoricoDaNota(playerId: string | undefined): PontoDaNota[] {
+  const grupo = useGrupoAtivo();
+  const { data } = useQuery<Row>(HISTORICO_DA_NOTA_SQL, [grupo, playerId ?? '']);
+  return useMemo(() => data.map((linha) => toPontoDaNota(linha)), [data]);
+}
+
 export function useDicas(): Dica[] {
   const { data } = useQuery<Row>(DICAS_SQL);
   return useMemo(() => data.map(toDica), [data]);
@@ -332,7 +342,8 @@ export function useElencos(): TeamRoster[] {
         roster.players.push({
           id: playerId,
           nome: texto(linha, 'player_nome'),
-          skillLevel: inteiro(linha, 'player_skill_level', 3),
+          notas: notasDaLinha(linha, 'player_'),
+          media: inteiro(linha, 'player_nota_media', 3),
           genero: generoDe(textoOuNulo(linha, 'player_genero')),
           ativo: booleano(linha, 'player_ativo', true),
           profileId: null,

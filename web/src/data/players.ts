@@ -1,30 +1,58 @@
-import type { Genero, Player } from '../domain/models';
+import { mediaDasNotas, type Genero, type NotasPorFundamento, type Player } from '../domain/models';
 import { db } from '../lib/powersync/db';
 import { exigirGrupo } from './grupoAtivo';
 import { agoraIso, novoId } from './mappers';
 
+const COLUNAS_DAS_NOTAS = `nota_saque = ?, nota_passe = ?, nota_ataque = ?,
+         nota_bloqueio = ?, nota_defesa = ?, nota_atitude = ?, nota_media = ?, skill_level = ?`;
+
+const valoresDasNotas = (notas: NotasPorFundamento): number[] => {
+  const media = mediaDasNotas(notas);
+  return [
+    notas.saque,
+    notas.passe,
+    notas.ataque,
+    notas.bloqueio,
+    notas.defesa,
+    notas.atitude,
+    media,
+    Math.min(5, Math.max(1, Math.round(media))),
+  ];
+};
+
 export async function criarJogador(
   nome: string,
-  skillLevel: number,
+  notas: NotasPorFundamento,
   genero: Genero,
   ativo: boolean,
 ): Promise<void> {
   const agora = agoraIso();
   await db.execute(
-    `INSERT INTO players (id, grupo_id, nome, skill_level, genero, ativo, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    [novoId(), exigirGrupo(), nome.trim(), skillLevel, genero, ativo ? 1 : 0, agora, agora],
+    `INSERT INTO players (id, grupo_id, nome, nota_saque, nota_passe, nota_ataque,
+         nota_bloqueio, nota_defesa, nota_atitude, nota_media, skill_level,
+         genero, ativo, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      novoId(),
+      exigirGrupo(),
+      nome.trim(),
+      ...valoresDasNotas(notas),
+      genero,
+      ativo ? 1 : 0,
+      agora,
+      agora,
+    ],
   );
 }
 
 export async function atualizarJogador(player: Player): Promise<void> {
   await db.execute(
     `UPDATE players
-     SET nome = ?, skill_level = ?, genero = ?, ativo = ?, regime = ?, updated_at = ?
+     SET nome = ?, ${COLUNAS_DAS_NOTAS}, genero = ?, ativo = ?, regime = ?, updated_at = ?
      WHERE id = ?`,
     [
       player.nome.trim(),
-      player.skillLevel,
+      ...valoresDasNotas(player.notas),
       player.genero,
       player.ativo ? 1 : 0,
       player.regime,

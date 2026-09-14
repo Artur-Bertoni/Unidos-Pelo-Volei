@@ -6,6 +6,7 @@ import com.powersync.db.getDoubleOptional
 import com.powersync.db.getLongOptional
 import com.powersync.db.getString
 import com.powersync.db.getStringOptional
+import com.unidospelovolei.domain.financeiro.TipoDaChavePix
 import com.unidospelovolei.domain.model.Aviso
 import com.unidospelovolei.domain.model.CategoriaPagina
 import com.unidospelovolei.domain.model.Cobranca
@@ -20,11 +21,14 @@ import com.unidospelovolei.domain.model.Genero
 import com.unidospelovolei.domain.model.MatchCard
 import com.unidospelovolei.domain.model.MatchStatus
 import com.unidospelovolei.domain.model.MeuGrupo
+import com.unidospelovolei.domain.model.NotasPorFundamento
+import com.unidospelovolei.domain.model.OrigemDaNota
 import com.unidospelovolei.domain.model.Pagamento
 import com.unidospelovolei.domain.model.Pagina
 import com.unidospelovolei.domain.model.Papel
 import com.unidospelovolei.domain.model.Player
 import com.unidospelovolei.domain.model.PlayerContato
+import com.unidospelovolei.domain.model.PontoDaNota
 import com.unidospelovolei.domain.model.Post
 import com.unidospelovolei.domain.model.Presenca
 import com.unidospelovolei.domain.model.Regime
@@ -50,11 +54,13 @@ internal fun SqlCursor.bool(
 
 internal fun SqlCursor.intOrNull(name: String): Int? = getLongOptional(name)?.toInt()
 
-internal fun SqlCursor.toPlayer(): Player =
-    Player(
+internal fun SqlCursor.toPlayer(): Player {
+    val notas = toNotas()
+    return Player(
         id = getString("id"),
         nome = getStringOptional("nome").orEmpty(),
-        skillLevel = int("skill_level", 3),
+        notas = notas,
+        media = realOrNull("nota_media") ?: notas.media,
         genero = Genero.from(getStringOptional("genero")),
         ativo = bool("ativo", true),
         profileId = getStringOptional("profile_id"),
@@ -64,6 +70,7 @@ internal fun SqlCursor.toPlayer(): Player =
         entrouEm = getStringOptional("entrou_em"),
         regime = Regime.from(getStringOptional("regime")),
     )
+}
 
 internal fun SqlCursor.realOrNull(name: String): Double? = getDoubleOptional(name)
 
@@ -130,6 +137,7 @@ internal fun SqlCursor.toConfigFinanceiro(): ConfigFinanceiro =
     ConfigFinanceiro(
         id = getString("id"),
         pixChave = getStringOptional("pix_chave"),
+        pixTipo = TipoDaChavePix.from(getStringOptional("pix_tipo")),
         pixNome = getStringOptional("pix_nome"),
         pixCidade = getStringOptional("pix_cidade"),
         mensalidadeCentavos = int("mensalidade_centavos"),
@@ -157,15 +165,26 @@ internal fun SqlCursor.toPagamento(): Pagamento =
         observacao = getStringOptional("observacao"),
     )
 
-internal fun SqlCursor.toEvolucao(): Evolucao {
-    val medias =
-        Fundamento.entries.mapNotNull { fundamento ->
-            realOrNull("${fundamento.value}_media")?.let { fundamento to it }
-        }
-    return Evolucao(
+internal fun SqlCursor.toEvolucao(): Evolucao =
+    Evolucao(
         playerId = getStringOptional("player_id").orEmpty(),
         totalAvaliacoes = int("total_avaliacoes"),
-        medias = medias.toMap(),
+    )
+
+internal fun SqlCursor.toNotas(prefixo: String = ""): NotasPorFundamento =
+    Fundamento.entries.fold(NotasPorFundamento()) { notas, fundamento ->
+        notas.com(fundamento, realOrNull("${prefixo}nota_${fundamento.value}") ?: 3.0)
+    }
+
+internal fun SqlCursor.toPontoDaNota(): PontoDaNota {
+    val notas = toNotas()
+    return PontoDaNota(
+        id = getString("id"),
+        origem = OrigemDaNota.from(getStringOptional("origem")),
+        avaliadores = int("avaliadores"),
+        notas = notas,
+        media = realOrNull("media") ?: notas.media,
+        registradoEm = getStringOptional("registrado_em").orEmpty(),
     )
 }
 

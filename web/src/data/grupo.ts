@@ -1,11 +1,12 @@
 import {
   EMOJI_PADRAO,
   type CategoriaPagina,
-  type NotasDaAvaliacao,
+  type NotasPorFundamento,
   type StatusPagamento,
   type StatusPresenca,
   type TipoEvento,
 } from '../domain/models';
+import { normalizarChavePix, type TipoDaChavePix } from '../domain/pix';
 import { db } from '../lib/powersync/db';
 import { exigirGrupo } from './grupoAtivo';
 import { agoraIso, novoId } from './mappers';
@@ -263,6 +264,7 @@ export async function excluirPagina(paginaId: string): Promise<void> {
 export async function salvarConfigFinanceiro(
   id: string,
   pixChave: string | null,
+  pixTipo: TipoDaChavePix,
   pixNome: string | null,
   pixCidade: string | null,
   mensalidadeCentavos: number,
@@ -270,11 +272,12 @@ export async function salvarConfigFinanceiro(
 ): Promise<void> {
   await db.execute(
     `UPDATE config_financeiro
-     SET pix_chave = ?, pix_nome = ?, pix_cidade = ?,
+     SET pix_chave = ?, pix_tipo = ?, pix_nome = ?, pix_cidade = ?,
          mensalidade_centavos = ?, diaria_centavos = ?, atualizado_em = ?
      WHERE id = ?`,
     [
-      ouNulo(pixChave),
+      pixChave === null ? null : normalizarChavePix(pixChave, pixTipo) || null,
+      pixTipo,
       ouNulo(pixNome),
       ouNulo(pixCidade),
       mensalidadeCentavos,
@@ -403,7 +406,7 @@ export async function enviarAvaliacao(
   dayId: string,
   avaliadorPlayerId: string,
   avaliadoPlayerId: string,
-  notas: NotasDaAvaliacao,
+  notas: NotasPorFundamento,
 ): Promise<void> {
   await db.execute(
     `INSERT INTO avaliacoes (
@@ -424,5 +427,16 @@ export async function enviarAvaliacao(
       notas.atitude,
       agoraIso(),
     ],
+  );
+}
+
+export async function salvarConfigDoJogo(
+  configId: string,
+  jogoHora: string,
+  jogoLocal: string | null,
+): Promise<void> {
+  await db.execute(
+    'UPDATE config_grupo SET jogo_hora = ?, jogo_local = ?, atualizado_em = ? WHERE id = ?',
+    [jogoHora, jogoLocal?.trim() || null, agoraIso(), configId],
   );
 }

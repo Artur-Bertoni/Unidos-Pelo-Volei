@@ -1,5 +1,7 @@
 package com.unidospelovolei.domain.model
 
+import com.unidospelovolei.domain.financeiro.TipoDaChavePix
+
 enum class Genero(
     val value: String,
     val rotulo: String,
@@ -16,7 +18,8 @@ enum class Genero(
 data class Player(
     val id: String,
     val nome: String,
-    val skillLevel: Int,
+    val notas: NotasPorFundamento,
+    val media: Double,
     val genero: Genero,
     val ativo: Boolean,
     val profileId: String? = null,
@@ -108,7 +111,7 @@ data class TeamRoster(
     val team: Team,
     val players: List<Player>,
 ) {
-    val forcaTotal: Int get() = players.sumOf { it.skillLevel }
+    val forcaTotal: Double get() = players.sumOf { it.media }
 
     val homens: Int get() = players.count { it.genero == Genero.MASCULINO }
 
@@ -383,6 +386,7 @@ data class Pagina(
 data class ConfigFinanceiro(
     val id: String,
     val pixChave: String?,
+    val pixTipo: TipoDaChavePix,
     val pixNome: String?,
     val pixCidade: String?,
     val mensalidadeCentavos: Int,
@@ -462,6 +466,56 @@ enum class Fundamento(
     }
 }
 
+data class NotasPorFundamento(
+    val saque: Double = 3.0,
+    val passe: Double = 3.0,
+    val ataque: Double = 3.0,
+    val bloqueio: Double = 3.0,
+    val defesa: Double = 3.0,
+    val atitude: Double = 3.0,
+) {
+    val media: Double
+        get() = arredondar((saque + passe + ataque + bloqueio + defesa + atitude) / 6.0)
+
+    val maisFraco: Fundamento
+        get() = Fundamento.entries.minBy { de(it) }
+
+    fun de(fundamento: Fundamento): Double =
+        when (fundamento) {
+            Fundamento.SAQUE -> saque
+            Fundamento.PASSE -> passe
+            Fundamento.ATAQUE -> ataque
+            Fundamento.BLOQUEIO -> bloqueio
+            Fundamento.DEFESA -> defesa
+            Fundamento.ATITUDE -> atitude
+        }
+
+    fun com(
+        fundamento: Fundamento,
+        nota: Double,
+    ): NotasPorFundamento =
+        when (fundamento) {
+            Fundamento.SAQUE -> copy(saque = nota)
+            Fundamento.PASSE -> copy(passe = nota)
+            Fundamento.ATAQUE -> copy(ataque = nota)
+            Fundamento.BLOQUEIO -> copy(bloqueio = nota)
+            Fundamento.DEFESA -> copy(defesa = nota)
+            Fundamento.ATITUDE -> copy(atitude = nota)
+        }
+
+    fun noLimite(): NotasPorFundamento =
+        Fundamento.entries.fold(this) { notas, fundamento ->
+            notas.com(fundamento, de(fundamento).coerceIn(1.0, 5.0))
+        }
+
+    companion object {
+        fun uniformes(valor: Double): NotasPorFundamento =
+            NotasPorFundamento(valor, valor, valor, valor, valor, valor)
+    }
+}
+
+fun arredondar(valor: Double): Double = kotlin.math.round(valor * 100) / 100
+
 data class NotasDaAvaliacao(
     val saque: Int = 3,
     val passe: Int = 3,
@@ -503,12 +557,7 @@ data class AvaliacaoPendente(
 data class Evolucao(
     val playerId: String,
     val totalAvaliacoes: Int,
-    val medias: Map<Fundamento, Double>,
-) {
-    val liberado: Boolean get() = medias.isNotEmpty()
-
-    val maisFraco: Fundamento? get() = medias.minByOrNull { it.value }?.key
-}
+)
 
 data class Dica(
     val id: String,
@@ -518,4 +567,32 @@ data class Dica(
     val texto: String,
 )
 
-const val MINIMO_DE_AVALIACOES: Int = 5
+enum class OrigemDaNota(
+    val value: String,
+) {
+    DIRETORIA("diretoria"),
+    AVALIACAO("avaliacao"),
+    ;
+
+    companion object {
+        fun from(value: String?): OrigemDaNota = entries.firstOrNull { it.value == value } ?: AVALIACAO
+    }
+}
+
+data class PontoDaNota(
+    val id: String,
+    val origem: OrigemDaNota,
+    val avaliadores: Int,
+    val notas: NotasPorFundamento,
+    val media: Double,
+    val registradoEm: String,
+)
+
+enum class PeriodoDoGrafico(
+    val rotulo: String,
+) {
+    TRES_MESES("3 meses"),
+    SEIS_MESES("6 meses"),
+    ANO("Este ano"),
+    TUDO("Tudo"),
+}

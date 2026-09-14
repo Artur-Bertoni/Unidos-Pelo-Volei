@@ -31,8 +31,57 @@ export const sanear = (texto: string, limite: number): string =>
 export const valorFormatado = (centavos: number): string =>
   `${Math.trunc(centavos / 100)}.${(centavos % 100).toString().padStart(2, '0')}`;
 
+export type TipoDaChavePix = 'cpf' | 'cnpj' | 'celular' | 'email' | 'aleatoria';
+
+export const TIPOS_DE_CHAVE_PIX: TipoDaChavePix[] = [
+  'celular',
+  'cpf',
+  'cnpj',
+  'email',
+  'aleatoria',
+];
+
+const ROTULOS_DE_CHAVE_PIX: Record<TipoDaChavePix, string> = {
+  celular: 'Celular',
+  cpf: 'CPF',
+  cnpj: 'CNPJ',
+  email: 'E-mail',
+  aleatoria: 'Aleatória',
+};
+
+export const rotuloDaChavePix = (tipo: TipoDaChavePix): string => ROTULOS_DE_CHAVE_PIX[tipo];
+
+export const tipoDaChavePix = (valor: string | null | undefined): TipoDaChavePix =>
+  TIPOS_DE_CHAVE_PIX.find((tipo) => tipo === valor) ?? 'aleatoria';
+
+const digitosDe = (chave: string): string => chave.replace(/\D/g, '');
+
+export function normalizarChavePix(chave: string, tipo: TipoDaChavePix): string {
+  const limpa = chave.trim();
+  if (tipo === 'email') return limpa.toLowerCase();
+  if (tipo === 'aleatoria') return limpa.toLowerCase();
+  if (tipo === 'cpf' || tipo === 'cnpj') return digitosDe(limpa);
+
+  const digitos = digitosDe(limpa);
+  const semPais = digitos.startsWith('55') && digitos.length > 11 ? digitos.slice(2) : digitos;
+  return semPais === '' ? '' : `+55${semPais}`;
+}
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
+export function chavePixValida(chave: string, tipo: TipoDaChavePix): boolean {
+  const pronta = normalizarChavePix(chave, tipo);
+  if (pronta === '') return false;
+  if (tipo === 'cpf') return pronta.length === 11;
+  if (tipo === 'cnpj') return pronta.length === 14;
+  if (tipo === 'celular') return pronta.length === 13 || pronta.length === 14;
+  if (tipo === 'email') return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(pronta) && pronta.length <= 77;
+  return UUID.test(pronta);
+}
+
 export function gerarBrCode(
   chave: string,
+  tipo: TipoDaChavePix,
   nome: string,
   cidade: string,
   valorCentavos = 0,
@@ -43,7 +92,7 @@ export function gerarBrCode(
   const txid = sanear(identificador.replace(/\*/g, 'A'), LIMITE_TXID) || '***';
 
   let corpo = campo('00', '01');
-  corpo += campo('26', campo('00', GUI_PIX) + campo('01', chave.trim()));
+  corpo += campo('26', campo('00', GUI_PIX) + campo('01', normalizarChavePix(chave, tipo)));
   corpo += campo('52', '0000');
   corpo += campo('53', '986');
   if (valorCentavos > 0) corpo += campo('54', valorFormatado(valorCentavos));

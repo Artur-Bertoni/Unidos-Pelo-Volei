@@ -23,100 +23,90 @@ import {
   EstadoVazio,
   RotuloPequeno,
 } from '../components/Componentes';
-import { IconeEditar, IconeVoltar } from '../components/Icons';
+import {
+  IconeCarteira,
+  IconeEditar,
+  IconeEngrenagem,
+  IconeEstrela,
+  IconeGrafico,
+  IconeGrupos,
+  IconePessoa,
+  IconeVoltar,
+} from '../components/Icons';
 
 export interface PedidoNaFila {
   pedido: VinculoPedido;
   jogador: Player | undefined;
 }
 
+export type DestinoDaEu =
+  | 'grupos'
+  | 'conta'
+  | 'financeiro'
+  | 'historico'
+  | 'avaliacao'
+  | 'configuracoes';
+
 interface EuProps {
-  perfil: UserProfile | null;
+  nomeDoGrupo: string;
+  quantosGrupos: number;
+  isAdmin: boolean;
   dataDoSabado: string;
   jogoHora: string | null;
   jogoLocal: string | null;
   minhaResposta: StatusPresenca | null;
-  extras: ReactNode;
-  topo: ReactNode;
   onResponderChamada: (status: StatusPresenca) => void;
   meuJogador: Player | null;
   meuPedido: VinculoPedido | null;
-  meuContato: PlayerContato | null;
-  meuDesempenho: PlayerPerformance | undefined;
   candidatos: Player[];
   fila: PedidoNaFila[];
   busca: string;
   salvando: boolean;
+  avaliacoesPendentes: number;
   onBuscar: (valor: string) => void;
   onPedirVinculo: (playerId: string) => void;
   onCancelarPedido: () => void;
-  onSalvarFicha: (
-    nome: string,
-    dia: number | null,
-    mes: number | null,
-    telefone: string | null,
-    emergencia: string | null,
-    ano: number | null,
-    regime: Regime,
-  ) => void;
-  onAbrirAprovacoes: () => void;
+  onAbrir: (destino: DestinoDaEu) => void;
 }
 
 export function EuScreen({
-  perfil,
+  nomeDoGrupo,
+  quantosGrupos,
+  isAdmin,
   dataDoSabado,
   jogoHora,
   jogoLocal,
   minhaResposta,
-  extras,
-  topo,
   onResponderChamada,
   meuJogador,
   meuPedido,
-  meuContato,
-  meuDesempenho,
   candidatos,
   fila,
   busca,
   salvando,
+  avaliacoesPendentes,
   onBuscar,
   onPedirVinculo,
   onCancelarPedido,
-  onSalvarFicha,
-  onAbrirAprovacoes,
+  onAbrir,
 }: EuProps) {
-  const [editando, setEditando] = useState(false);
-
   const aguardando = meuJogador === null && meuPedido?.status === 'pendente';
   const recusado = meuJogador === null && meuPedido?.status === 'recusado';
   const nomePretendido = fila.find((item) => item.pedido.id === meuPedido?.id)?.jogador?.nome;
+  const temJogador = meuJogador !== null;
 
   return (
     <div className="conteudo">
       <div className="lista" style={{ padding: 16, gap: 12 }}>
-        {topo}
-        {perfil?.isAdmin && (
-          <Cartao onClick={onAbrirAprovacoes}>
-            <div className="linha" style={{ padding: 16, gap: 12 }}>
-              <div className="coluna expandir" style={{ gap: 2 }}>
-                <span className="titulo-tela">
-                  {fila.length === 0
-                    ? 'Contas e jogadores'
-                    : fila.length === 1
-                      ? '1 pedido aguardando'
-                      : `${fila.length} pedidos aguardando`}
-                </span>
-                <span className="subtitulo">
-                  {fila.length === 0
-                    ? 'Ligue um jogador a uma conta na mão, ou desfaça um vínculo'
-                    : 'Confirme quem é quem para liberar o acesso'}
-                </span>
-              </div>
-              <span className="subtitulo" aria-hidden="true">
-                ›
-              </span>
-            </div>
-          </Cartao>
+        {temJogador && (
+          <CartaoDaChamada
+            dataDoSabado={dataDoSabado}
+            jogoHora={jogoHora}
+            jogoLocal={jogoLocal}
+            minhaResposta={minhaResposta}
+            salvando={salvando}
+            onResponder={onResponderChamada}
+          />
         )}
 
         {aguardando && (
@@ -140,28 +130,7 @@ export function EuScreen({
           </Cartao>
         )}
 
-        {meuJogador && (
-          <>
-            <CartaoDaChamada
-              dataDoSabado={dataDoSabado}
-              jogoHora={jogoHora}
-              jogoLocal={jogoLocal}
-              minhaResposta={minhaResposta}
-              salvando={salvando}
-              onResponder={onResponderChamada}
-            />
-            <MinhaFicha
-              perfil={perfil}
-              jogador={meuJogador}
-              contato={meuContato}
-              desempenho={meuDesempenho}
-              onEditar={() => setEditando(true)}
-            />
-            {extras}
-          </>
-        )}
-
-        {!meuJogador && !aguardando && (
+        {!temJogador && !aguardando && (
           <>
             <Cartao>
               <div className="coluna" style={{ padding: 16, gap: 6 }}>
@@ -213,12 +182,176 @@ export function EuScreen({
             </Cartao>
           </>
         )}
+
+        <div className="grade-eu">
+          <BlocoDaGrade
+            icone={<IconeGrupos tamanho={26} />}
+            titulo="Grupos"
+            subtitulo={
+              quantosGrupos <= 1
+                ? `${nomeDoGrupo} · entrar em outro`
+                : `${nomeDoGrupo} · trocar entre ${quantosGrupos}`
+            }
+            onClick={() => onAbrir('grupos')}
+          />
+          <BlocoDaGrade
+            icone={<IconePessoa tamanho={26} />}
+            titulo="Detalhes da conta"
+            subtitulo="Pagamento, aniversário e telefone"
+            habilitado={temJogador}
+            onClick={() => onAbrir('conta')}
+          />
+          <BlocoDaGrade
+            icone={<IconeCarteira tamanho={26} />}
+            titulo="Financeiro"
+            subtitulo="O que você já pagou e o que falta"
+            habilitado={temJogador}
+            onClick={() => onAbrir('financeiro')}
+          />
+          <BlocoDaGrade
+            icone={<IconeGrafico tamanho={26} />}
+            titulo="Histórico"
+            subtitulo="Sábados, vitórias e a sua evolução"
+            habilitado={temJogador}
+            onClick={() => onAbrir('historico')}
+          />
+          <BlocoDaGrade
+            icone={<IconeEstrela tamanho={26} />}
+            titulo="Avaliar colegas"
+            subtitulo={
+              avaliacoesPendentes > 0
+                ? `${avaliacoesPendentes} esperando a sua nota`
+                : 'Dê nota a quem jogou com você'
+            }
+            selo={avaliacoesPendentes > 0 ? String(avaliacoesPendentes) : undefined}
+            habilitado={temJogador}
+            onClick={() => onAbrir('avaliacao')}
+          />
+          {isAdmin && (
+            <BlocoDaGrade
+              icone={<IconeEngrenagem tamanho={26} />}
+              titulo="Configurações"
+              subtitulo="Só a diretoria vê e mexe"
+              selo={fila.length > 0 ? String(fila.length) : undefined}
+              onClick={() => onAbrir('configuracoes')}
+            />
+          )}
+        </div>
+
+        {!temJogador && (
+          <span className="subtitulo" style={{ fontSize: 11 }}>
+            Ficha, financeiro, histórico e avaliação abrem depois que a diretoria ligar a sua conta
+            a um jogador da lista.
+          </span>
+        )}
+
+      </div>
+    </div>
+  );
+}
+
+function BlocoDaGrade({
+  icone,
+  titulo,
+  subtitulo,
+  onClick,
+  habilitado = true,
+  selo,
+}: {
+  icone: ReactNode;
+  titulo: string;
+  subtitulo: string;
+  onClick: () => void;
+  habilitado?: boolean;
+  selo?: string;
+}) {
+  return (
+    <button
+      type="button"
+      className="bloco-eu"
+      disabled={!habilitado}
+      aria-label={`${titulo}. ${subtitulo}`}
+      onClick={onClick}
+    >
+      <span className="bloco-eu-icone">
+        {icone}
+        {selo && <span className="bloco-eu-selo">{selo}</span>}
+      </span>
+      <strong className="bloco-eu-titulo">{titulo}</strong>
+      <span className="bloco-eu-subtitulo">{subtitulo}</span>
+    </button>
+  );
+}
+
+function CabecalhoDaSubtela({
+  titulo,
+  subtitulo,
+  onVoltar,
+}: {
+  titulo: string;
+  subtitulo: string;
+  onVoltar: () => void;
+}) {
+  return (
+    <div className="linha" style={{ padding: 8, flex: 'none' }}>
+      <button type="button" className="botao-icone" aria-label="Voltar" onClick={onVoltar}>
+        <IconeVoltar />
+      </button>
+      <div className="coluna">
+        <span className="titulo-tela">{titulo}</span>
+        <span className="subtitulo">{subtitulo}</span>
+      </div>
+    </div>
+  );
+}
+
+export function ContaScreen({
+  perfil,
+  jogador,
+  contato,
+  salvando,
+  onSalvarFicha,
+  onVoltar,
+}: {
+  perfil: UserProfile | null;
+  jogador: Player;
+  contato: PlayerContato | null;
+  salvando: boolean;
+  onSalvarFicha: (
+    nome: string,
+    dia: number | null,
+    mes: number | null,
+    telefone: string | null,
+    emergencia: string | null,
+    ano: number | null,
+    regime: Regime,
+  ) => void;
+  onVoltar: () => void;
+}) {
+  const [editando, setEditando] = useState(false);
+
+  return (
+    <div className="coluna" style={{ height: '100%' }}>
+      <CabecalhoDaSubtela
+        titulo="Detalhes da conta"
+        subtitulo="Como você aparece para o grupo"
+        onVoltar={onVoltar}
+      />
+      <div className="conteudo">
+        <div className="lista" style={{ padding: 16, gap: 12 }}>
+          <FichaDoJogador
+            perfil={perfil}
+            jogador={jogador}
+            contato={contato}
+            onEditar={() => setEditando(true)}
+          />
+        </div>
       </div>
 
-      {editando && meuJogador && (
+      {editando && (
         <FichaDialogo
-          jogador={meuJogador}
-          contato={meuContato}
+          jogador={jogador}
+          contato={contato}
           salvando={salvando}
           onSalvar={(nome, dia, mes, telefone, emergencia, ano, regime) => {
             onSalvarFicha(nome, dia, mes, telefone, emergencia, ano, regime);
@@ -231,69 +364,91 @@ export function EuScreen({
   );
 }
 
-function MinhaFicha({
+export function HistoricoScreen({
+  desempenho,
+  onVoltar,
+  children,
+}: {
+  desempenho: PlayerPerformance | undefined;
+  onVoltar: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <div className="coluna" style={{ height: '100%' }}>
+      <CabecalhoDaSubtela
+        titulo="Histórico"
+        subtitulo="O que você jogou e como a sua nota andou"
+        onVoltar={onVoltar}
+      />
+      <div className="conteudo">
+        <div className="lista" style={{ padding: 16, gap: 12 }}>
+          {desempenho && desempenho.dias > 0 ? (
+            <Cartao>
+              <div className="coluna" style={{ padding: 16, gap: 12 }}>
+                <RotuloPequeno>Meu histórico</RotuloPequeno>
+                <div className="linha-entre">
+                  <Numero rotulo="Sábados" valor={desempenho.dias} />
+                  <Numero rotulo="Jogos" valor={desempenho.jogos} />
+                  <Numero rotulo="Vitórias" valor={desempenho.vitorias} />
+                  <Numero rotulo="Saldo" valor={desempenho.pontosPro - desempenho.pontosContra} />
+                </div>
+              </div>
+            </Cartao>
+          ) : (
+            <EstadoVazio
+              titulo="Nenhum sábado ainda"
+              descricao="Os números aparecem depois do primeiro dia encerrado com você em quadra."
+            />
+          )}
+          {children}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function FichaDoJogador({
   perfil,
   jogador,
   contato,
-  desempenho,
   onEditar,
 }: {
   perfil: UserProfile | null;
   jogador: Player;
   contato: PlayerContato | null;
-  desempenho: PlayerPerformance | undefined;
   onEditar: () => void;
 }) {
-  const subtitulo = [
-    perfil ? rotuloDoPapel(perfil.papel) : null,
-    rotuloDoGenero(jogador.genero),
-  ]
+  const subtitulo = [perfil ? rotuloDoPapel(perfil.papel) : null, rotuloDoGenero(jogador.genero)]
     .filter((parte): parte is string => parte !== null)
     .join(' · ');
 
   return (
-    <>
-      <Cartao>
-        <div className="coluna" style={{ padding: 16, gap: 14 }}>
-          <div className="linha" style={{ gap: 12 }}>
-            <span className="inicial-membro" aria-hidden="true">
-              {jogador.nome.slice(0, 2).toUpperCase()}
-            </span>
-            <div className="coluna expandir" style={{ gap: 2 }}>
-              <span className="titulo-tela">{jogador.nome}</span>
-              <span className="subtitulo">{subtitulo}</span>
-            </div>
-            <button
-              type="button"
-              className="botao-icone"
-              aria-label="Editar minha ficha"
-              onClick={onEditar}
-            >
-              <IconeEditar />
-            </button>
+    <Cartao>
+      <div className="coluna" style={{ padding: 16, gap: 14 }}>
+        <div className="linha" style={{ gap: 12 }}>
+          <span className="inicial-membro" aria-hidden="true">
+            {jogador.nome.slice(0, 2).toUpperCase()}
+          </span>
+          <div className="coluna expandir" style={{ gap: 2 }}>
+            <span className="titulo-tela">{jogador.nome}</span>
+            <span className="subtitulo">{subtitulo}</span>
           </div>
-
-          <LinhaDeDado rotulo="Como eu pago" valor={rotuloDoRegime(jogador.regime as Regime)} />
-          <LinhaDeDado rotulo="Aniversário" valor={aniversarioDe(jogador) ?? 'Não informado'} />
-          <LinhaDeDado rotulo="Telefone" valor={contato?.telefone ?? 'Não informado'} />
-          <LinhaDeDado rotulo="No grupo desde" valor={jogador.entrouEm ?? 'Não informado'} />
+          <button
+            type="button"
+            className="botao-icone"
+            aria-label="Editar minha ficha"
+            onClick={onEditar}
+          >
+            <IconeEditar />
+          </button>
         </div>
-      </Cartao>
 
-      {desempenho && desempenho.dias > 0 && (
-        <Cartao>
-          <div className="coluna" style={{ padding: 16, gap: 12 }}>
-            <RotuloPequeno>Meu histórico</RotuloPequeno>
-            <div className="linha-entre">
-              <Numero rotulo="Sábados" valor={desempenho.dias} />
-              <Numero rotulo="Jogos" valor={desempenho.jogos} />
-              <Numero rotulo="Vitórias" valor={desempenho.vitorias} />
-              <Numero rotulo="Saldo" valor={desempenho.pontosPro - desempenho.pontosContra} />
-            </div>
-          </div>
-        </Cartao>
-      )}
-    </>
+        <LinhaDeDado rotulo="Como eu pago" valor={rotuloDoRegime(jogador.regime as Regime)} />
+        <LinhaDeDado rotulo="Aniversário" valor={aniversarioDe(jogador) ?? 'Não informado'} />
+        <LinhaDeDado rotulo="Telefone" valor={contato?.telefone ?? 'Não informado'} />
+        <LinhaDeDado rotulo="No grupo desde" valor={jogador.entrouEm ?? 'Não informado'} />
+      </div>
+    </Cartao>
   );
 }
 

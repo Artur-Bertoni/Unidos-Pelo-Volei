@@ -7,6 +7,7 @@ import com.unidospelovolei.domain.model.AvaliacaoPendente
 import com.unidospelovolei.domain.model.Dica
 import com.unidospelovolei.domain.model.Evolucao
 import com.unidospelovolei.domain.model.NotasDaAvaliacao
+import com.unidospelovolei.domain.model.PontoDaNota
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -32,14 +33,26 @@ class AvaliacaoRepository(
             .observarNoGrupo(
                 grupoAtivo,
                 """
-                SELECT player_id, total_avaliacoes, saque_media, passe_media, ataque_media,
-                       bloqueio_media, defesa_media, atitude_media
+                SELECT player_id, total_avaliacoes
                 FROM player_evolucao
                 WHERE grupo_id = ?
                 LIMIT 1
                 """.trimIndent(),
             ) { it.toEvolucao() }
             .map { it.firstOrNull() }
+
+    fun observeHistorico(playerId: String): Flow<List<PontoDaNota>> =
+        db.observarNoGrupo(
+            grupoAtivo,
+            """
+            SELECT id, origem, avaliadores, nota_saque, nota_passe, nota_ataque,
+                   nota_bloqueio, nota_defesa, nota_atitude, media, registrado_em
+            FROM player_nota_historico
+            WHERE grupo_id = ? AND player_id = ?
+            ORDER BY registrado_em, id
+            """.trimIndent(),
+            listOf(playerId),
+        ) { it.toPontoDaNota() }
 
     fun observeDicas(): Flow<List<Dica>> =
         db.watch(

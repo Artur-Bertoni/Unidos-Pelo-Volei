@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { encerrarDia, lerElencosPassados } from './data/gameDays';
 import { selecionarGrupo } from './data/grupoAtivo';
 import {
@@ -46,6 +46,7 @@ import {
   lerTodosOsTimes,
   substituirElencos,
 } from './data/teams';
+import { notasNoLimite } from './domain/models';
 import type {
   ChaveDeAcesso,
   Evento,
@@ -80,6 +81,7 @@ import {
   salvarEvento,
   salvarPagina,
   salvarPost,
+  salvarConfigDoJogo,
   trazerConfirmados,
 } from './data/grupo';
 import { chavesFaltando, configurado, env } from './lib/env';
@@ -87,12 +89,7 @@ import { enviarLogoDoGrupo } from './lib/logos';
 import { enviarImagemDoMural } from './lib/mural';
 import { supabase } from './lib/supabase';
 import { entrarComGoogle, sair } from './lib/supabase';
-import {
-  AppHeader,
-  Aviso,
-  Carregando,
-  Cartao,
-} from './ui/components/Componentes';
+import { AppHeader, Aviso, Carregando } from './ui/components/Componentes';
 import { IconeGrupos, IconePessoa, IconeTrofeu, IconeVolei } from './ui/components/Icons';
 import {
   useAcao,
@@ -115,6 +112,7 @@ import {
   useDicas,
   useEventos,
   useEvolucao,
+  useHistoricoDaNota,
   useGrupoAtivo,
   useGrupoAtual,
   useMeuExtrato,
@@ -129,14 +127,26 @@ import {
   useSinal,
   useTodosOsTimes,
 } from './ui/hooks';
-import { ChavesScreen, GruposScreen, LogoDoGrupo, MembrosScreen } from './ui/screens/Grupos';
-import { ClassificacaoScreen } from './ui/screens/Classificacao';
-import { AprovacoesScreen, EuScreen, type PedidoNaFila } from './ui/screens/Eu';
 import {
-  AvaliacaoScreen,
-  CartaoDaEvolucao,
-  CartaoDoExtrato,
+  ChavesScreen,
+  EditarGrupoDialogo,
+  GruposScreen,
+  LogoDoGrupo,
+  MembrosScreen,
+} from './ui/screens/Grupos';
+import { ClassificacaoScreen } from './ui/screens/Classificacao';
+import {
+  AprovacoesScreen,
+  ContaScreen,
+  EuScreen,
+  HistoricoScreen,
+  type PedidoNaFila,
+} from './ui/screens/Eu';
+import { ConfigDoJogoDialogo, ConfiguracoesScreen } from './ui/screens/Configuracoes';
+import { AvaliacaoScreen, CartaoDaEvolucao } from './ui/screens/Evolucao';
+import {
   ConfigFinanceiroDialogo,
+  MeuFinanceiroScreen,
   PainelFinanceiroScreen,
   type LinhaDoPainel,
 } from './ui/screens/Financeiro';
@@ -174,8 +184,26 @@ type Destino =
   | { tipo: 'vinculos' }
   | { tipo: 'painel-financeiro' }
   | { tipo: 'avaliacao' }
+  | { tipo: 'conta' }
+  | { tipo: 'meu-financeiro' }
+  | { tipo: 'historico' }
+  | { tipo: 'configuracoes' }
   | { tipo: 'pagina'; pagina: Pagina }
   | { tipo: 'partida'; matchId: string };
+
+const PAI_NA_DIRETORIA: Destino['tipo'][] = [
+  'chaves',
+  'membros',
+  'aprovacoes',
+  'vinculos',
+  'painel-financeiro',
+];
+
+const paiDe = (destino: Destino): Destino | null => {
+  if (destino.tipo === 'abas') return null;
+  if (PAI_NA_DIRETORIA.includes(destino.tipo)) return { tipo: 'configuracoes' };
+  return { tipo: 'abas' };
+};
 
 const subtituloDoFormato = (times: number, quadras: number): string => {
   if (times === 0) return 'Configure os times para começar';
@@ -417,8 +445,6 @@ function ComGrupo({ usuarioId, abaInicial }: { usuarioId: string; abaInicial: Ab
         onEntrarComChave={grupos.entrarComChave}
         onCriarGrupo={grupos.criar}
         onSair={grupos.sair}
-        onAbrirChaves={() => undefined}
-        onAbrirMembros={() => undefined}
         chaveSugerida={chaveSugerida}
       />
       {grupos.mensagem && (
@@ -441,11 +467,52 @@ function Home({ usuarioId, abaInicial }: { usuarioId: string; abaInicial: Aba })
   const [destino, setDestino] = useState<Destino>({ tipo: 'abas' });
   const [historicoDoTime, setHistoricoDoTime] = useState<Team | null>(null);
   const [editandoTime, setEditandoTime] = useState<Team | null>(null);
+  const [editandoIdentidade, setEditandoIdentidade] = useState(false);
+  const [editandoConfigDoJogo, setEditandoConfigDoJogo] = useState(false);
   const [criandoTime, setCriandoTime] = useState(false);
   const [aviso, setAviso] = useState<string | null>(null);
   const [previa, setPrevia] = useState<TeamRoster[] | null>(null);
   const [buscaDeNome, setBuscaDeNome] = useState('');
   const previasRecentes = useRef<string[][][]>([]);
+
+  const destinoRef = useRef(destino);
+  const abaRef = useRef(aba);
+  const dentroRef = useRef(false);
+  destinoRef.current = destino;
+  abaRef.current = aba;
+
+  const dentro = destino.tipo !== 'abas' || aba !== 'social';
+
+  const voltar = () => {
+    if (dentroRef.current) window.history.back();
+    else setDestino({ tipo: 'abas' });
+  };
+
+  useEffect(() => {
+    if (dentro && !dentroRef.current) window.history.pushState({ volei: true }, '');
+    dentroRef.current = dentro;
+  }, [dentro]);
+
+  useEffect(() => {
+    const aoVoltar = () => {
+      const atual = destinoRef.current;
+      const abaAtual = abaRef.current;
+      if (atual.tipo === 'abas' && abaAtual === 'social') return;
+
+      const pai = paiDe(atual);
+      const ficaDentro = pai === null ? false : pai.tipo !== 'abas' || abaAtual !== 'social';
+      if (ficaDentro) window.history.pushState({ volei: true }, '');
+      dentroRef.current = ficaDentro;
+
+      if (atual.tipo === 'distribuicao') setPrevia(null);
+      if (pai !== null) setDestino(pai);
+      else setAba('social');
+    };
+
+    window.addEventListener('popstate', aoVoltar);
+    return () => window.removeEventListener('popstate', aoVoltar);
+  }, []);
+
 
   const { salvando, erro, limparErro, executar } = useAcao();
 
@@ -493,6 +560,7 @@ function Home({ usuarioId, abaInicial }: { usuarioId: string; abaInicial: Aba })
   const cobrancas = useCobrancas();
   const extrato = useMeuExtrato();
   const evolucao = useEvolucao();
+  const historicoDaNota = useHistoricoDaNota(meuJogador?.id);
   const dicas = useDicas();
   const avaliacoesPendentes = useAvaliacoesPendentes(meuJogador?.id);
 
@@ -599,17 +667,14 @@ function Home({ usuarioId, abaInicial }: { usuarioId: string; abaInicial: Aba })
           grupos={grupos.grupos}
           grupoAtual={grupos.grupoAtual}
           salvando={grupos.salvando}
-          onVoltar={() => setDestino({ tipo: 'abas' })}
+          onVoltar={voltar}
           onSelecionar={(grupo) => {
             grupos.selecionar(grupo);
-            setDestino({ tipo: 'abas' });
+            voltar();
           }}
           onEntrarComChave={grupos.entrarComChave}
           onCriarGrupo={grupos.criar}
           onSair={grupos.sair}
-          onAbrirChaves={() => setDestino({ tipo: 'chaves' })}
-          onAbrirMembros={() => setDestino({ tipo: 'membros' })}
-          onSalvarIdentidade={grupos.salvarIdentidade}
         />
         {mensagemVisivel && <Aviso mensagem={mensagemVisivel} onFechar={fecharMensagem} />}
       </div>
@@ -624,7 +689,7 @@ function Home({ usuarioId, abaInicial }: { usuarioId: string; abaInicial: Aba })
           chaves={grupos.chaves}
           carregando={grupos.carregandoLista}
           salvando={grupos.salvando}
-          onVoltar={() => setDestino({ tipo: 'grupos' })}
+          onVoltar={voltar}
           onCarregar={grupos.carregarChaves}
           onCriar={grupos.criarChave}
           onAlternar={grupos.alternarChave}
@@ -645,7 +710,7 @@ function Home({ usuarioId, abaInicial }: { usuarioId: string; abaInicial: Aba })
           meuId={usuarioId}
           carregando={grupos.carregandoLista}
           salvando={grupos.salvando}
-          onVoltar={() => setDestino({ tipo: 'grupos' })}
+          onVoltar={voltar}
           onCarregar={grupos.carregarMembros}
           onDefinirPapel={grupos.definirPapel}
           onRemover={grupos.removerMembro}
@@ -661,7 +726,7 @@ function Home({ usuarioId, abaInicial }: { usuarioId: string; abaInicial: Aba })
       <div className="app">
         <TelaDeJogadores
           isAdmin={isAdmin}
-          onVoltar={() => setDestino({ tipo: 'abas' })}
+          onVoltar={voltar}
           executar={executar}
         />
         {mensagemVisivel && (
@@ -683,10 +748,7 @@ function Home({ usuarioId, abaInicial }: { usuarioId: string; abaInicial: Aba })
         <SorteioScreen
           previa={previa}
           salvando={salvando}
-          onVoltar={() => {
-            setPrevia(null);
-            setDestino({ tipo: 'abas' });
-          }}
+          onVoltar={voltar}
           onRecalcular={() => void calcularDistribuicao()}
           onAplicar={() => {
             if (!previa) return;
@@ -709,7 +771,7 @@ function Home({ usuarioId, abaInicial }: { usuarioId: string; abaInicial: Aba })
         <AprovacoesScreen
           fila={fila}
           salvando={salvando}
-          onVoltar={() => setDestino({ tipo: 'abas' })}
+          onVoltar={voltar}
           onDecidir={(pedido, aprovado) =>
             void executar(() => decidirPedido(pedido, aprovado, usuarioId))
           }
@@ -736,7 +798,7 @@ function Home({ usuarioId, abaInicial }: { usuarioId: string; abaInicial: Aba })
           contas={contas}
           carregandoContas={carregandoContas}
           salvando={salvando}
-          onVoltar={() => setDestino({ tipo: 'abas' })}
+          onVoltar={voltar}
           onCarregarContas={() => void carregarContas()}
           onVincular={(playerId, profileId) =>
             void executar(() => vincularJogador(playerId, profileId))
@@ -763,7 +825,7 @@ function Home({ usuarioId, abaInicial }: { usuarioId: string; abaInicial: Aba })
           linhas={painel}
           carregando={carregandoPainel}
           salvando={salvando}
-          onVoltar={() => setDestino({ tipo: 'abas' })}
+          onVoltar={voltar}
           onRecarregar={() => void carregarPainel()}
           onDefinirStatus={(pagamentoId, status) =>
             void executar(async () => {
@@ -804,12 +866,13 @@ function Home({ usuarioId, abaInicial }: { usuarioId: string; abaInicial: Aba })
         {configurandoFinanceiro && (
           <ConfigFinanceiroDialogo
             config={configFinanceiro}
-            onSalvar={(chave, nome, cidade, mensalidade, diaria) => {
+            onSalvar={(chave, tipo, nome, cidade, mensalidade, diaria) => {
               if (configFinanceiro) {
                 void executar(() =>
                   salvarConfigFinanceiro(
                     configFinanceiro.id,
                     chave,
+                    tipo,
                     nome,
                     cidade,
                     mensalidade,
@@ -835,13 +898,117 @@ function Home({ usuarioId, abaInicial }: { usuarioId: string; abaInicial: Aba })
     );
   }
 
+  if (destino.tipo === 'conta' && meuJogador) {
+    return (
+      <div className="app">
+        <ContaScreen
+          perfil={perfil}
+          jogador={meuJogador}
+          contato={meuContato}
+          salvando={salvando}
+          onVoltar={voltar}
+          onSalvarFicha={(nome, dia, mes, telefone, emergencia, ano, regime) =>
+            void executar(async () => {
+              await salvarFicha(meuJogador.id, nome, dia, mes, regime);
+              await salvarContato(meuJogador.id, usuarioId, telefone, emergencia, ano);
+            })
+          }
+        />
+        {mensagemVisivel && <Aviso mensagem={mensagemVisivel} onFechar={fecharMensagem} />}
+      </div>
+    );
+  }
+
+  if (destino.tipo === 'meu-financeiro') {
+    return (
+      <div className="app">
+        <MeuFinanceiroScreen
+          extrato={extrato}
+          config={configFinanceiro}
+          onVoltar={voltar}
+        />
+        {mensagemVisivel && <Aviso mensagem={mensagemVisivel} onFechar={fecharMensagem} />}
+      </div>
+    );
+  }
+
+  if (destino.tipo === 'historico') {
+    return (
+      <div className="app">
+        <HistoricoScreen
+          desempenho={meuJogador ? desempenho.get(meuJogador.id) : undefined}
+          onVoltar={voltar}
+        >
+          <CartaoDaEvolucao
+            jogador={meuJogador}
+            historico={historicoDaNota}
+            totalAvaliacoes={evolucao?.totalAvaliacoes ?? 0}
+            dicas={dicas}
+          />
+        </HistoricoScreen>
+        {mensagemVisivel && <Aviso mensagem={mensagemVisivel} onFechar={fecharMensagem} />}
+      </div>
+    );
+  }
+
+  if (destino.tipo === 'configuracoes') {
+    return (
+      <div className="app">
+        <ConfiguracoesScreen
+          nomeDoGrupo={nomeDoGrupo}
+          pedidosPendentes={fila.length}
+          onVoltar={voltar}
+          onAbrir={(acao) => {
+            if (acao === 'identidade') {
+              setEditandoIdentidade(true);
+              return;
+            }
+            if (acao === 'config-do-jogo') {
+              setEditandoConfigDoJogo(true);
+              return;
+            }
+            if (acao === 'painel-financeiro') void carregarPainel();
+            setDestino({ tipo: acao });
+          }}
+        />
+        {editandoIdentidade && grupos.grupoAtual && (
+          <EditarGrupoDialogo
+            grupo={grupos.grupoAtual}
+            salvando={grupos.salvando}
+            onSalvar={(nome, cidade, logo, remover) => {
+              grupos.salvarIdentidade(nome, cidade, logo, remover);
+              setEditandoIdentidade(false);
+            }}
+            onFechar={() => setEditandoIdentidade(false)}
+          />
+        )}
+        {editandoConfigDoJogo && configGrupo && (
+          <ConfigDoJogoDialogo
+            jogoHora={configGrupo.jogoHora}
+            jogoLocal={configGrupo.jogoLocal}
+            salvando={salvando}
+            onSalvar={(hora, local) => {
+              void executar(async () => {
+                await salvarConfigDoJogo(configGrupo.id, hora, local);
+                setAviso('Horário e local atualizados para todo mundo.');
+              });
+              setEditandoConfigDoJogo(false);
+            }}
+            onFechar={() => setEditandoConfigDoJogo(false)}
+          />
+        )}
+        {mensagemVisivel && <Aviso mensagem={mensagemVisivel} onFechar={fecharMensagem} />}
+      </div>
+    );
+  }
+
   if (destino.tipo === 'avaliacao') {
     return (
       <div className="app">
         <AvaliacaoScreen
           pendentes={avaliacoesPendentes}
           salvando={salvando}
-          onVoltar={() => setDestino({ tipo: 'abas' })}
+          onVoltar={voltar}
           onEnviar={(pendente, notas) =>
             void executar(async () => {
               if (!meuJogador) return;
@@ -876,7 +1043,7 @@ function Home({ usuarioId, abaInicial }: { usuarioId: string; abaInicial: Aba })
           pagina={atual}
           isAdmin={isAdmin}
           salvando={salvando}
-          onVoltar={() => setDestino({ tipo: 'abas' })}
+          onVoltar={voltar}
           onSalvar={(titulo, corpo) =>
             void executar(() => salvarPagina(atual.id, titulo, corpo, usuarioId))
           }
@@ -891,7 +1058,7 @@ function Home({ usuarioId, abaInicial }: { usuarioId: string; abaInicial: Aba })
         <TelaDePlacar
           matchId={destino.matchId}
           isAdmin={isAdmin}
-          onVoltar={() => setDestino({ tipo: 'abas' })}
+          onVoltar={voltar}
         />
       </div>
     );
@@ -1031,7 +1198,6 @@ function Home({ usuarioId, abaInicial }: { usuarioId: string; abaInicial: Aba })
 
         {aba === 'eu' && (
           <EuScreen
-            perfil={perfil}
             dataDoSabado={sabado}
             jogoHora={configGrupo?.jogoHora ?? null}
             jogoLocal={configGrupo?.jogoLocal ?? null}
@@ -1042,53 +1208,16 @@ function Home({ usuarioId, abaInicial }: { usuarioId: string; abaInicial: Aba })
                 await responderChamada(meuJogador.id, sabado, status, true, usuarioId);
               })
             }
-            topo={
-              <Cartao onClick={() => setDestino({ tipo: 'grupos' })}>
-                <div className="linha" style={{ padding: 16, gap: 12 }}>
-                  <div className="coluna expandir" style={{ gap: 2 }}>
-                    <span className="titulo-tela">{nomeDoGrupo}</span>
-                    <span className="subtitulo">
-                      {[
-                        isAdmin ? 'Você é da diretoria' : 'Você é atleta',
-                        grupos.grupos.length <= 1
-                          ? 'Entrar em outro grupo'
-                          : `Trocar entre os seus ${grupos.grupos.length} grupos`,
-                      ].join(' · ')}
-                    </span>
-                  </div>
-                  <span className="subtitulo" aria-hidden="true">
-                    ›
-                  </span>
-                </div>
-              </Cartao>
-            }
-            extras={
-              <>
-                <CartaoDoExtrato
-                  extrato={extrato}
-                  config={configFinanceiro}
-                  isAdmin={isAdmin}
-                  onAbrirPainel={() => {
-                    void carregarPainel();
-                    setDestino({ tipo: 'painel-financeiro' });
-                  }}
-                />
-                <CartaoDaEvolucao
-                  evolucao={evolucao}
-                  dicas={dicas}
-                  pendentes={avaliacoesPendentes}
-                  onAvaliar={() => setDestino({ tipo: 'avaliacao' })}
-                />
-              </>
-            }
+            nomeDoGrupo={nomeDoGrupo}
+            quantosGrupos={grupos.grupos.length}
+            isAdmin={isAdmin}
             meuJogador={meuJogador}
             meuPedido={meuPedido}
-            meuContato={meuContato}
-            meuDesempenho={meuJogador ? desempenho.get(meuJogador.id) : undefined}
             candidatos={candidatos}
             fila={fila}
             busca={buscaDeNome}
             salvando={salvando}
+            avaliacoesPendentes={avaliacoesPendentes.length}
             onBuscar={setBuscaDeNome}
             onPedirVinculo={(playerId) =>
               void executar(async () => {
@@ -1100,14 +1229,13 @@ function Home({ usuarioId, abaInicial }: { usuarioId: string; abaInicial: Aba })
               if (!meuPedido) return;
               void executar(() => cancelarPedido(meuPedido.id));
             }}
-            onSalvarFicha={(nome, dia, mes, telefone, emergencia, ano, regime) => {
-              if (!meuJogador) return;
-              void executar(async () => {
-                await salvarFicha(meuJogador.id, nome, dia, mes, regime);
-                await salvarContato(meuJogador.id, usuarioId, telefone, emergencia, ano);
-              });
+            onAbrir={(alvo) => {
+              if (alvo === 'financeiro') {
+                setDestino({ tipo: 'meu-financeiro' });
+                return;
+              }
+              setDestino({ tipo: alvo });
             }}
-            onAbrirAprovacoes={() => setDestino({ tipo: 'aprovacoes' })}
           />
         )}
       </div>
@@ -1381,13 +1509,11 @@ function TelaDeJogadores({
       onAlternarPresenca={(jogador) => void executar(() => definirPresenca(jogador.id, !jogador.ativo))}
       onMarcarTodosPresentes={() => void executar(() => definirPresencaDeTodos(true))}
       onLimparPresencas={() => void executar(() => definirPresencaDeTodos(false))}
-      onCriar={(nome, nivel, genero, ativo) =>
-        void executar(() => criarJogador(nome, Math.min(Math.max(nivel, 1), 5), genero, ativo))
+      onCriar={(nome, notas, genero, ativo) =>
+        void executar(() => criarJogador(nome, notasNoLimite(notas), genero, ativo))
       }
       onSalvar={(jogador) =>
-        void executar(() =>
-          atualizarJogador({ ...jogador, skillLevel: Math.min(Math.max(jogador.skillLevel, 1), 5) }),
-        )
+        void executar(() => atualizarJogador({ ...jogador, notas: notasNoLimite(jogador.notas) }))
       }
       onExcluir={(playerId) => void executar(() => excluirJogador(playerId))}
     />

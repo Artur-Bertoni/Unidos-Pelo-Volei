@@ -27,6 +27,13 @@ const players = new Table(
     grupo_id: column.text,
     nome: column.text,
     skill_level: column.integer,
+    nota_saque: column.real,
+    nota_passe: column.real,
+    nota_ataque: column.real,
+    nota_bloqueio: column.real,
+    nota_defesa: column.real,
+    nota_atitude: column.real,
+    nota_media: column.real,
     genero: column.text,
     ativo: column.integer,
     profile_id: column.text,
@@ -264,6 +271,7 @@ const config_financeiro = new Table(
   {
     grupo_id: column.text,
     pix_chave: column.text,
+  pix_tipo: column.text,
     pix_nome: column.text,
     pix_cidade: column.text,
     mensalidade_centavos: column.integer,
@@ -349,6 +357,26 @@ const player_evolucao = new Table(
   { indexes: { por_grupo: ['grupo_id'] } },
 );
 
+const player_nota_historico = new Table(
+  {
+    grupo_id: column.text,
+    player_id: column.text,
+    profile_id: column.text,
+    day_id: column.text,
+    origem: column.text,
+    avaliadores: column.integer,
+    nota_saque: column.real,
+    nota_passe: column.real,
+    nota_ataque: column.real,
+    nota_bloqueio: column.real,
+    nota_defesa: column.real,
+    nota_atitude: column.real,
+    media: column.real,
+    registrado_em: column.text,
+  },
+  { indexes: { por_grupo: ['grupo_id'], por_linha: ['player_id'] } },
+);
+
 const dicas = new Table({
   atributo: column.text,
   faixa_max: column.real,
@@ -384,5 +412,6 @@ export const AppSchema = new Schema({
   avaliacoes,
   avaliacao_registros,
   player_evolucao,
+  player_nota_historico,
   dicas,
 });

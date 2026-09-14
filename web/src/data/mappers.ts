@@ -4,6 +4,8 @@ import {
   fundamentoDe,
   FUNDAMENTOS,
   generoDe,
+  mediaDasNotas,
+  notasUniformes,
   papelDe,
   regimeDe,
   statusDe,
@@ -21,10 +23,12 @@ import {
   type Fundamento,
   type MatchCard,
   type MeuGrupo,
+  type NotasPorFundamento,
   type Pagamento,
   type Pagina,
   type Player,
   type PlayerContato,
+  type PontoDaNota,
   type Post,
   type Presenca,
   type Standing,
@@ -32,6 +36,7 @@ import {
   type UserProfile,
   type VinculoPedido,
 } from '../domain/models';
+import { tipoDaChavePix } from '../domain/pix';
 
 export type Row = Record<string, unknown>;
 
@@ -69,10 +74,19 @@ export const inteiroOuNulo = (row: Row, nome: string): number | null => {
   return typeof valor === 'number' ? valor : null;
 };
 
+export const notasDaLinha = (row: Row, prefixo = ''): NotasPorFundamento => {
+  const notas = notasUniformes(3);
+  FUNDAMENTOS.forEach((fundamento) => {
+    notas[fundamento] = inteiro(row, `${prefixo}nota_${fundamento}`, 3);
+  });
+  return notas;
+};
+
 export const toPlayer = (row: Row): Player => ({
   id: texto(row, 'id'),
   nome: texto(row, 'nome'),
-  skillLevel: inteiro(row, 'skill_level', 3),
+  notas: notasDaLinha(row),
+  media: inteiroOuNulo(row, 'nota_media') ?? mediaDasNotas(notasDaLinha(row)),
   genero: generoDe(textoOuNulo(row, 'genero')),
   ativo: booleano(row, 'ativo', true),
   profileId: textoOuNulo(row, 'profile_id'),
@@ -131,6 +145,7 @@ export const toPagina = (row: Row): Pagina => ({
 export const toConfigFinanceiro = (row: Row): ConfigFinanceiro => ({
   id: texto(row, 'id'),
   pixChave: textoOuNulo(row, 'pix_chave'),
+  pixTipo: tipoDaChavePix(textoOuNulo(row, 'pix_tipo')),
   pixNome: textoOuNulo(row, 'pix_nome'),
   pixCidade: textoOuNulo(row, 'pix_cidade'),
   mensalidadeCentavos: inteiro(row, 'mensalidade_centavos'),
@@ -168,6 +183,15 @@ export const toEvolucao = (row: Row): Evolucao => {
     medias,
   };
 };
+
+export const toPontoDaNota = (row: Row): PontoDaNota => ({
+  id: texto(row, 'id'),
+  origem: textoOuNulo(row, 'origem') === 'diretoria' ? 'diretoria' : 'avaliacao',
+  avaliadores: inteiro(row, 'avaliadores'),
+  notas: notasDaLinha(row),
+  media: inteiroOuNulo(row, 'media') ?? mediaDasNotas(notasDaLinha(row)),
+  registradoEm: texto(row, 'registrado_em'),
+});
 
 export const toDica = (row: Row): Dica => ({
   id: texto(row, 'id'),

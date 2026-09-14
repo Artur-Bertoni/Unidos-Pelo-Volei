@@ -2,6 +2,8 @@ package com.unidospelovolei.data
 
 import com.powersync.PowerSyncDatabase
 import com.powersync.db.getString
+import com.unidospelovolei.domain.financeiro.PixBrCode
+import com.unidospelovolei.domain.financeiro.TipoDaChavePix
 import com.unidospelovolei.domain.model.Cobranca
 import com.unidospelovolei.domain.model.ConfigFinanceiro
 import com.unidospelovolei.domain.model.ItemDoExtrato
@@ -11,12 +13,12 @@ import com.unidospelovolei.domain.model.StatusPagamento
 import com.unidospelovolei.domain.model.TipoCobranca
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.postgrest.from
+import java.time.LocalDate
+import java.time.YearMonth
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.serialization.json.JsonObject
-import java.time.LocalDate
-import java.time.YearMonth
 
 data class LinhaDoPainel(
     val id: String,
@@ -38,7 +40,7 @@ class FinanceiroRepository(
             .observarNoGrupo(
                 grupoAtivo,
                 """
-                SELECT id, pix_chave, pix_nome, pix_cidade, mensalidade_centavos, diaria_centavos
+                SELECT id, pix_chave, pix_tipo, pix_nome, pix_cidade, mensalidade_centavos, diaria_centavos
                 FROM config_financeiro
                 WHERE grupo_id = ?
                 LIMIT 1
@@ -96,6 +98,7 @@ class FinanceiroRepository(
     suspend fun salvarConfig(
         id: String,
         pixChave: String?,
+        pixTipo: TipoDaChavePix,
         pixNome: String?,
         pixCidade: String?,
         mensalidadeCentavos: Int,
@@ -104,12 +107,13 @@ class FinanceiroRepository(
         db.execute(
             """
             UPDATE config_financeiro
-            SET pix_chave = ?, pix_nome = ?, pix_cidade = ?,
+            SET pix_chave = ?, pix_tipo = ?, pix_nome = ?, pix_cidade = ?,
                 mensalidade_centavos = ?, diaria_centavos = ?, atualizado_em = ?
             WHERE id = ?
             """.trimIndent(),
             listOf(
-                pixChave?.trim()?.ifBlank { null },
+                pixChave?.let { PixBrCode.normalizarChave(it, pixTipo) }?.ifBlank { null },
+                pixTipo.value,
                 pixNome?.trim()?.ifBlank { null },
                 pixCidade?.trim()?.ifBlank { null },
                 mensalidadeCentavos,

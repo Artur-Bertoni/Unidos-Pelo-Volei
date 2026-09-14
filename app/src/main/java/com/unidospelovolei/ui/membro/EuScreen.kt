@@ -7,8 +7,11 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -16,18 +19,25 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.Cake
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.HowToReg
+import androidx.compose.material.icons.filled.Insights
 import androidx.compose.material.icons.filled.Payments
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -35,37 +45,40 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.unidospelovolei.domain.model.Player
+import com.unidospelovolei.domain.model.PlayerPerformance
 import com.unidospelovolei.domain.model.StatusPresenca
-import com.unidospelovolei.ui.evolucao.CartaoDaEvolucao
-import com.unidospelovolei.ui.evolucao.EvolucaoUiState
-import com.unidospelovolei.ui.financeiro.CartaoDoExtrato
-import com.unidospelovolei.ui.financeiro.FinanceiroUiState
-import com.unidospelovolei.ui.components.Cartao
 import com.unidospelovolei.ui.components.CampoBusca
+import com.unidospelovolei.ui.components.Cartao
 import com.unidospelovolei.ui.components.EstadoVazio
 import com.unidospelovolei.ui.components.RotuloPequeno
 import com.unidospelovolei.ui.theme.VoleiColors
 
+enum class DestinoDaEu {
+    GRUPOS,
+    CONTA,
+    FINANCEIRO,
+    HISTORICO,
+    AVALIACAO,
+    CONFIGURACOES,
+}
+
 @Composable
 fun EuScreen(
     estado: MembroUiState,
-    financeiro: FinanceiroUiState,
-    evolucao: EvolucaoUiState,
+    nomeDoGrupo: String,
+    quantosGrupos: Int,
+    avaliacoesPendentes: Int,
     onBuscar: (String) -> Unit,
     onPedirVinculo: (String) -> Unit,
     onCancelarPedido: () -> Unit,
-    onEditarFicha: () -> Unit,
-    onAbrirAprovacoes: () -> Unit,
     onResponderChamada: (StatusPresenca) -> Unit,
-    onAbrirPainelFinanceiro: () -> Unit,
-    onAbrirAvaliacao: () -> Unit,
-    onAbrirGrupos: () -> Unit,
-    nomeDoGrupo: String,
-    quantosGrupos: Int,
+    onAbrir: (DestinoDaEu) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     if (estado.carregando) {
@@ -75,200 +88,345 @@ fun EuScreen(
         return
     }
 
+    val temJogador = estado.meuJogador != null
+
     LazyColumn(
         modifier = modifier.fillMaxSize(),
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        item {
-            CartaoDosGrupos(
-                nomeDoGrupo = nomeDoGrupo,
-                quantosGrupos = quantosGrupos,
-                souDiretoria = estado.isAdmin,
-                onAbrir = onAbrirGrupos,
-            )
-        }
-
-        if (estado.isAdmin) {
+        if (temJogador) {
             item {
-                CartaoDaFila(quantidade = estado.fila.size, onAbrir = onAbrirAprovacoes)
+                CartaoDaChamada(
+                    dataDoSabado = estado.dataDoSabado,
+                    jogoHora = estado.config?.jogoHora,
+                    jogoLocal = estado.config?.jogoLocal,
+                    minhaResposta = estado.minhaResposta,
+                    salvando = estado.salvando,
+                    onResponder = onResponderChamada,
+                )
             }
         }
 
-        when {
-            estado.aguardando ->
-                item {
-                    CartaoAguardando(
-                        nomeEscolhido = estado.fila.firstOrNull { it.pedido.id == estado.meuPedido?.id }?.jogador?.nome,
-                        salvando = estado.salvando,
-                        onCancelar = onCancelarPedido,
-                    )
-                }
-
-            estado.meuJogador != null -> {
-                item {
-                    CartaoDaChamada(
-                        dataDoSabado = estado.dataDoSabado,
-                        jogoHora = estado.config?.jogoHora,
-                        jogoLocal = estado.config?.jogoLocal,
-                        minhaResposta = estado.minhaResposta,
-                        salvando = estado.salvando,
-                        onResponder = onResponderChamada,
-                    )
-                }
-                item {
-                    MinhaFicha(
-                        estado = estado,
-                        onEditar = onEditarFicha,
-                    )
-                }
-                item {
-                    CartaoDoExtrato(
-                        estado = financeiro,
-                        onAbrirPainel = onAbrirPainelFinanceiro,
-                        isAdmin = estado.isAdmin,
-                    )
-                }
-                item {
-                    CartaoDaEvolucao(
-                        estado = evolucao,
-                        onAvaliar = onAbrirAvaliacao,
-                    )
-                }
+        if (estado.aguardando) {
+            item {
+                CartaoAguardando(
+                    nomeEscolhido = estado.fila.firstOrNull { it.pedido.id == estado.meuPedido?.id }?.jogador?.nome,
+                    salvando = estado.salvando,
+                    onCancelar = onCancelarPedido,
+                )
             }
+        }
 
-            estado.precisaEscolher -> {
+        if (estado.precisaEscolher) {
+            item { ConviteParaSeIdentificar(recusado = estado.recusado) }
+            item {
+                CampoBusca(
+                    valor = estado.busca,
+                    onMudar = onBuscar,
+                    dica = "Buscar meu nome",
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            if (estado.candidatos.isEmpty()) {
                 item {
-                    ConviteParaSeIdentificar(recusado = estado.recusado)
-                }
-                item {
-                    CampoBusca(
-                        valor = estado.busca,
-                        onMudar = onBuscar,
-                        dica = "Buscar meu nome",
+                    EstadoVazio(
+                        titulo = "Nenhum nome disponível",
+                        descricao = "Todos os jogadores da lista já têm dono.",
                         modifier = Modifier.fillMaxWidth(),
                     )
                 }
-                if (estado.candidatos.isEmpty()) {
-                    item {
+            } else {
+                items(estado.candidatos, key = { it.id }) { jogador ->
+                    LinhaDeCandidato(
+                        jogador = jogador,
+                        habilitado = !estado.salvando,
+                        onEscolher = { onPedirVinculo(jogador.id) },
+                    )
+                }
+            }
+            item { RecadoDaDiretoria() }
+        }
+
+        item {
+            GradeDaEu(
+                nomeDoGrupo = nomeDoGrupo,
+                quantosGrupos = quantosGrupos,
+                temJogador = temJogador,
+                souDiretoria = estado.isAdmin,
+                pedidosPendentes = estado.fila.size,
+                avaliacoesPendentes = avaliacoesPendentes,
+                onAbrir = onAbrir,
+            )
+        }
+
+        if (!temJogador) {
+            item {
+                Text(
+                    "Ficha, financeiro, histórico e avaliação abrem depois que a diretoria ligar a " +
+                        "sua conta a um jogador da lista.",
+                    color = VoleiColors.TextoTerciario,
+                    fontSize = 11.sp,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun GradeDaEu(
+    nomeDoGrupo: String,
+    quantosGrupos: Int,
+    temJogador: Boolean,
+    souDiretoria: Boolean,
+    pedidosPendentes: Int,
+    avaliacoesPendentes: Int,
+    onAbrir: (DestinoDaEu) -> Unit,
+) {
+    val blocos =
+        buildList {
+            add(
+                BlocoDaEu(
+                    destino = DestinoDaEu.GRUPOS,
+                    icone = Icons.Filled.Groups,
+                    titulo = "Grupos",
+                    subtitulo =
+                        if (quantosGrupos <= 1) {
+                            "$nomeDoGrupo · entrar em outro"
+                        } else {
+                            "$nomeDoGrupo · trocar entre $quantosGrupos"
+                        },
+                ),
+            )
+            add(
+                BlocoDaEu(
+                    destino = DestinoDaEu.CONTA,
+                    icone = Icons.Filled.Person,
+                    titulo = "Detalhes da conta",
+                    subtitulo = "Pagamento, aniversário e telefone",
+                    habilitado = temJogador,
+                ),
+            )
+            add(
+                BlocoDaEu(
+                    destino = DestinoDaEu.FINANCEIRO,
+                    icone = Icons.Filled.AccountBalanceWallet,
+                    titulo = "Financeiro",
+                    subtitulo = "O que você já pagou e o que falta",
+                    habilitado = temJogador,
+                ),
+            )
+            add(
+                BlocoDaEu(
+                    destino = DestinoDaEu.HISTORICO,
+                    icone = Icons.Filled.Insights,
+                    titulo = "Histórico",
+                    subtitulo = "Sábados, vitórias e a sua evolução",
+                    habilitado = temJogador,
+                ),
+            )
+            add(
+                BlocoDaEu(
+                    destino = DestinoDaEu.AVALIACAO,
+                    icone = Icons.Filled.Star,
+                    titulo = "Avaliar colegas",
+                    subtitulo =
+                        if (avaliacoesPendentes > 0) {
+                            "$avaliacoesPendentes esperando a sua nota"
+                        } else {
+                            "Dê nota a quem jogou com você"
+                        },
+                    habilitado = temJogador,
+                    selo = avaliacoesPendentes.takeIf { it > 0 },
+                ),
+            )
+            if (souDiretoria) {
+                add(
+                    BlocoDaEu(
+                        destino = DestinoDaEu.CONFIGURACOES,
+                        icone = Icons.Filled.Settings,
+                        titulo = "Configurações",
+                        subtitulo = "Só a diretoria vê e mexe",
+                        selo = pedidosPendentes.takeIf { it > 0 },
+                    ),
+                )
+            }
+        }
+
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        blocos.chunked(2).forEach { linha ->
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                linha.forEach { bloco ->
+                    CartaoDoBloco(bloco = bloco, onClick = { onAbrir(bloco.destino) }, modifier = Modifier.weight(1f))
+                }
+                if (linha.size == 1) Spacer(modifier = Modifier.weight(1f))
+            }
+        }
+    }
+}
+
+private data class BlocoDaEu(
+    val destino: DestinoDaEu,
+    val icone: ImageVector,
+    val titulo: String,
+    val subtitulo: String,
+    val habilitado: Boolean = true,
+    val selo: Int? = null,
+)
+
+@Composable
+private fun CartaoDoBloco(
+    bloco: BlocoDaEu,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Cartao(modifier = modifier.height(122.dp).clickable(enabled = bloco.habilitado, onClick = onClick)) {
+        Column(
+            modifier = Modifier.fillMaxSize().padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Box {
+                Icon(
+                    imageVector = bloco.icone,
+                    contentDescription = null,
+                    tint = if (bloco.habilitado) VoleiColors.VerdeClaro else VoleiColors.TextoTerciario,
+                    modifier = Modifier.size(26.dp),
+                )
+                if (bloco.selo != null) {
+                    Text(
+                        text = bloco.selo.toString(),
+                        color = Color.White,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier =
+                            Modifier
+                                .align(Alignment.TopEnd)
+                                .offset(x = 8.dp, y = (-6).dp)
+                                .clip(CircleShape)
+                                .background(VoleiColors.Vermelho)
+                                .padding(horizontal = 5.dp, vertical = 1.dp),
+                    )
+                }
+            }
+            Text(
+                bloco.titulo,
+                color = if (bloco.habilitado) VoleiColors.TextoPrimario else VoleiColors.TextoTerciario,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold,
+            )
+            Text(
+                bloco.subtitulo,
+                color = VoleiColors.TextoSecundario,
+                fontSize = 11.sp,
+                lineHeight = 15.sp,
+                maxLines = 3,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+
+@Composable
+fun CabecalhoDaSubtela(
+    titulo: String,
+    subtitulo: String,
+    onVoltar: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        IconButton(onClick = onVoltar) {
+            Icon(
+                Icons.AutoMirrored.Filled.ArrowBack,
+                contentDescription = "Voltar",
+                tint = VoleiColors.TextoPrimario,
+            )
+        }
+        Column {
+            Text(titulo, color = VoleiColors.TextoPrimario, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+            Text(subtitulo, color = VoleiColors.TextoSecundario, fontSize = 12.sp)
+        }
+    }
+}
+
+@Composable
+fun ContaScreen(
+    estado: MembroUiState,
+    onEditarFicha: () -> Unit,
+    onVoltar: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Scaffold(modifier = modifier.fillMaxSize(), containerColor = VoleiColors.Fundo) { padding ->
+        Column(modifier = Modifier.fillMaxSize().padding(padding)) {
+            CabecalhoDaSubtela(
+                titulo = "Detalhes da conta",
+                subtitulo = "Como você aparece para o grupo",
+                onVoltar = onVoltar,
+            )
+            LazyColumn(
+                contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                item { MinhaFicha(estado = estado, onEditar = onEditarFicha) }
+            }
+        }
+    }
+}
+
+@Composable
+fun HistoricoScreen(
+    desempenho: PlayerPerformance?,
+    onVoltar: () -> Unit,
+    modifier: Modifier = Modifier,
+    conteudo: @Composable () -> Unit,
+) {
+    Scaffold(modifier = modifier.fillMaxSize(), containerColor = VoleiColors.Fundo) { padding ->
+        Column(modifier = Modifier.fillMaxSize().padding(padding)) {
+            CabecalhoDaSubtela(
+                titulo = "Histórico",
+                subtitulo = "O que você jogou e como a sua nota andou",
+                onVoltar = onVoltar,
+            )
+            LazyColumn(
+                contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                item {
+                    if (desempenho != null && desempenho.dias > 0) {
+                        CartaoDoDesempenho(desempenho)
+                    } else {
                         EstadoVazio(
-                            titulo = "Nenhum nome disponível",
-                            descricao = "Todos os jogadores da lista já têm dono.",
+                            titulo = "Nenhum sábado ainda",
+                            descricao = "Os números aparecem depois do primeiro dia encerrado com você em quadra.",
                             modifier = Modifier.fillMaxWidth(),
                         )
                     }
-                } else {
-                    items(estado.candidatos, key = { it.id }) { jogador ->
-                        LinhaDeCandidato(
-                            jogador = jogador,
-                            habilitado = !estado.salvando,
-                            onEscolher = { onPedirVinculo(jogador.id) },
-                        )
-                    }
                 }
-                item { RecadoDaDiretoria() }
+                item { conteudo() }
             }
         }
     }
 }
 
 @Composable
-private fun CartaoDosGrupos(
-    nomeDoGrupo: String,
-    quantosGrupos: Int,
-    souDiretoria: Boolean,
-    onAbrir: () -> Unit,
+private fun CartaoDoDesempenho(
+    desempenho: PlayerPerformance,
     modifier: Modifier = Modifier,
 ) {
-    Cartao(modifier = modifier.fillMaxWidth().clickable(onClick = onAbrir)) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Icon(
-                imageVector = Icons.Filled.Groups,
-                contentDescription = null,
-                tint = VoleiColors.Azul,
-                modifier = Modifier.size(22.dp),
-            )
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = nomeDoGrupo,
-                    color = VoleiColors.TextoPrimario,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Bold,
-                )
-                Text(
-                    text =
-                        listOfNotNull(
-                            if (souDiretoria) "Você é da diretoria" else "Você é atleta",
-                            when {
-                                quantosGrupos <= 1 -> "Entrar em outro grupo"
-                                else -> "Trocar entre os seus $quantosGrupos grupos"
-                            },
-                        ).joinToString(" · "),
-                    color = VoleiColors.TextoSecundario,
-                    fontSize = 12.sp,
-                )
+    Cartao(modifier = modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            RotuloPequeno("Meu histórico")
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Numero("Sábados", desempenho.dias)
+                Numero("Jogos", desempenho.jogos)
+                Numero("Vitórias", desempenho.vitorias)
+                Numero("Saldo", desempenho.saldoPontos)
             }
-            Icon(
-                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                contentDescription = null,
-                tint = VoleiColors.TextoTerciario,
-                modifier = Modifier.size(20.dp),
-            )
-        }
-    }
-}
-
-@Composable
-private fun CartaoDaFila(
-    quantidade: Int,
-    onAbrir: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Cartao(modifier = modifier.fillMaxWidth().clickable(onClick = onAbrir)) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Icon(
-                imageVector = Icons.Filled.HowToReg,
-                contentDescription = null,
-                tint = VoleiColors.Dourado,
-                modifier = Modifier.size(22.dp),
-            )
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text =
-                        when (quantidade) {
-                            0 -> "Contas e jogadores"
-                            1 -> "1 pedido aguardando"
-                            else -> "$quantidade pedidos aguardando"
-                        },
-                    color = VoleiColors.TextoPrimario,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Bold,
-                )
-                Text(
-                    text =
-                        if (quantidade == 0) {
-                            "Ligue um jogador a uma conta na mão, ou desfaça um vínculo"
-                        } else {
-                            "Confirme quem é quem para liberar o acesso"
-                        },
-                    color = VoleiColors.TextoSecundario,
-                    fontSize = 12.sp,
-                )
-            }
-            Icon(
-                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                contentDescription = null,
-                tint = VoleiColors.TextoTerciario,
-                modifier = Modifier.size(20.dp),
-            )
         }
     }
 }
@@ -486,23 +644,6 @@ private fun MinhaFicha(
             }
         }
 
-        val desempenho = estado.meuDesempenho
-        if (desempenho != null && desempenho.dias > 0) {
-            Cartao(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    RotuloPequeno("Meu histórico")
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                    ) {
-                        Numero("Sábados", desempenho.dias)
-                        Numero("Jogos", desempenho.jogos)
-                        Numero("Vitórias", desempenho.vitorias)
-                        Numero("Saldo", desempenho.saldoPontos)
-                    }
-                }
-            }
-        }
     }
 }
 

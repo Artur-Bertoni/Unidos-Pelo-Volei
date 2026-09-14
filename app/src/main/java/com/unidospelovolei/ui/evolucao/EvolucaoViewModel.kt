@@ -5,10 +5,11 @@ import androidx.lifecycle.viewModelScope
 import com.unidospelovolei.data.AvaliacaoRepository
 import com.unidospelovolei.domain.model.AvaliacaoPendente
 import com.unidospelovolei.domain.model.Dica
-import com.unidospelovolei.domain.model.Evolucao
 import com.unidospelovolei.domain.model.Fundamento
-import com.unidospelovolei.domain.model.MINIMO_DE_AVALIACOES
 import com.unidospelovolei.domain.model.NotasDaAvaliacao
+import com.unidospelovolei.domain.model.NotasPorFundamento
+import com.unidospelovolei.domain.model.OrigemDaNota
+import com.unidospelovolei.domain.model.PontoDaNota
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -21,29 +22,23 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 data class EvolucaoUiState(
-    val evolucao: Evolucao? = null,
+    val totalAvaliacoes: Int = 0,
+    val historico: List<PontoDaNota> = emptyList(),
     val pendentes: List<AvaliacaoPendente> = emptyList(),
     val dicas: List<Dica> = emptyList(),
     val salvando: Boolean = false,
     val erro: String? = null,
     val aviso: String? = null,
 ) {
-    val faltam: Int
-        get() = (MINIMO_DE_AVALIACOES - (evolucao?.totalAvaliacoes ?: 0)).coerceAtLeast(0)
+    val jaMoveu: Boolean get() = historico.any { it.origem == OrigemDaNota.AVALIACAO }
 
-    val liberado: Boolean get() = evolucao?.liberado == true
-
-    val dicasDoPontoFraco: List<Dica>
-        get() {
-            val fraco = evolucao?.maisFraco ?: return emptyList()
-            val media = evolucao.medias[fraco] ?: return emptyList()
-            return dicas
-                .filter { it.fundamento == fraco }
-                .sortedBy { it.faixaMax }
-                .filter { media <= it.faixaMax }
-                .take(1)
-                .ifEmpty { dicas.filter { it.fundamento == fraco }.take(1) }
-        }
+    fun dicaPara(notas: NotasPorFundamento): Dica? {
+        val fraco: Fundamento = notas.maisFraco
+        val nota = notas.de(fraco)
+        val doFundamento = dicas.filter { it.fundamento == fraco }
+        return doFundamento.sortedBy { it.faixaMax }.firstOrNull { nota <= it.faixaMax }
+            ?: doFundamento.firstOrNull()
+    }
 }
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -60,21 +55,27 @@ class EvolucaoViewModel(
             if (id == null) flowOf(emptyList()) else avaliacaoRepository.observePendentes(id).catch { emit(emptyList()) }
         }
 
+    private val historico =
+        meuPlayerId.flatMapLatest { id ->
+            if (id == null) flowOf(emptyList()) else avaliacaoRepository.observeHistorico(id).catch { emit(emptyList()) }
+        }
+
     val estado: StateFlow<EvolucaoUiState> =
         combine(
             avaliacaoRepository.observeEvolucao().catch { emit(null) },
+            historico,
             pendentes,
             avaliacaoRepository.observeDicas().catch { emit(emptyList()) },
-            salvando,
-            combine(erro, aviso) { falha, mensagem -> falha to mensagem },
-        ) { evolucao, fila, dicas, gravando, mensagens ->
+            combine(salvando, erro, aviso) { gravando, falha, mensagem -> Triple(gravando, falha, mensagem) },
+        ) { evolucao, linha, fila, dicas, situacao ->
             EvolucaoUiState(
-                evolucao = evolucao,
+                totalAvaliacoes = evolucao?.totalAvaliacoes ?: 0,
+                historico = linha,
                 pendentes = fila,
                 dicas = dicas,
-                salvando = gravando,
-                erro = mensagens.first,
-                aviso = mensagens.second,
+                salvando = situacao.first,
+                erro = situacao.second,
+                aviso = situacao.third,
             )
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), EvolucaoUiState())
 

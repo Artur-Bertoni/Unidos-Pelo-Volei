@@ -1,9 +1,12 @@
 export const DIAS_NO_HISTORICO = 12;
 
 const PLAYER_COLUNAS = `id, nome, skill_level, genero, ativo, profile_id,
+         nota_saque, nota_passe, nota_ataque, nota_bloqueio, nota_defesa, nota_atitude, nota_media,
          foto_url, nascimento_dia, nascimento_mes, entrou_em, regime`;
 
 const PLAYER_COLUNAS_P = `p.id, p.nome, p.skill_level, p.genero, p.ativo, p.profile_id,
+         p.nota_saque, p.nota_passe, p.nota_ataque, p.nota_bloqueio, p.nota_defesa,
+         p.nota_atitude, p.nota_media,
          p.foto_url, p.nascimento_dia, p.nascimento_mes, p.entrou_em, p.regime`;
 
 export const MEUS_GRUPOS_SQL = `
@@ -25,7 +28,7 @@ export const ACTIVE_PLAYERS_SQL = `
   SELECT ${PLAYER_COLUNAS}
   FROM players
   WHERE grupo_id = ? AND ativo = 1
-  ORDER BY skill_level DESC, nome COLLATE NOCASE
+  ORDER BY nota_media DESC, nome COLLATE NOCASE
 `;
 
 export const TEAMS_SQL = `
@@ -47,7 +50,7 @@ export const ROSTER_SQL = `
   FROM team_players tp
   JOIN players p ON p.id = tp.player_id
   WHERE tp.team_id = ?
-  ORDER BY p.skill_level DESC, p.nome COLLATE NOCASE
+  ORDER BY p.nota_media DESC, p.nome COLLATE NOCASE
 `;
 
 export const ROSTERS_SQL = `
@@ -55,13 +58,16 @@ export const ROSTERS_SQL = `
       t.id AS team_id, t.nome AS team_nome, t.cor_hex AS team_cor_hex,
       t.sigla AS team_sigla, t.ativo AS team_ativo, t.ordem AS team_ordem,
       p.id AS player_id, p.nome AS player_nome,
-      p.skill_level AS player_skill_level, p.genero AS player_genero,
+      p.nota_saque AS player_nota_saque, p.nota_passe AS player_nota_passe,
+      p.nota_ataque AS player_nota_ataque, p.nota_bloqueio AS player_nota_bloqueio,
+      p.nota_defesa AS player_nota_defesa, p.nota_atitude AS player_nota_atitude,
+      p.nota_media AS player_nota_media, p.genero AS player_genero,
       p.ativo AS player_ativo
   FROM teams t
   LEFT JOIN team_players tp ON tp.team_id = t.id
   LEFT JOIN players p ON p.id = tp.player_id
   WHERE t.grupo_id = ? AND t.ativo = 1
-  ORDER BY t.ordem, t.nome COLLATE NOCASE, p.skill_level DESC, p.nome COLLATE NOCASE
+  ORDER BY t.ordem, t.nome COLLATE NOCASE, p.nota_media DESC, p.nome COLLATE NOCASE
 `;
 
 export const FORMATO_SQL = `
@@ -163,7 +169,7 @@ export const PAGINAS_SQL = `
 `;
 
 export const CONFIG_FINANCEIRO_SQL = `
-  SELECT id, pix_chave, pix_nome, pix_cidade, mensalidade_centavos, diaria_centavos
+  SELECT id, pix_chave, pix_tipo, pix_nome, pix_cidade, mensalidade_centavos, diaria_centavos
   FROM config_financeiro
   WHERE grupo_id = ?
   LIMIT 1
@@ -189,6 +195,14 @@ export const EVOLUCAO_SQL = `
   FROM player_evolucao
   WHERE grupo_id = ?
   LIMIT 1
+`;
+
+export const HISTORICO_DA_NOTA_SQL = `
+  SELECT h.id, h.origem, h.avaliadores, h.nota_saque, h.nota_passe, h.nota_ataque,
+         h.nota_bloqueio, h.nota_defesa, h.nota_atitude, h.media, h.registrado_em
+  FROM player_nota_historico h
+  WHERE h.grupo_id = ? AND h.player_id = ?
+  ORDER BY h.registrado_em, h.id
 `;
 
 export const DICAS_SQL = `

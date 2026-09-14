@@ -61,7 +61,7 @@ const PESO_REPETICAO = 2.5;
 const PESO_GENERO = 12.0;
 
 const forcaDe = (elenco: readonly Player[]): number =>
-  elenco.reduce((soma, jogador) => soma + jogador.skillLevel, 0);
+  elenco.reduce((soma, jogador) => soma + jogador.media, 0);
 
 function capacidades(total: number, totalTimes: number, random: Rng): number[] {
   const capacidade = new Array<number>(totalTimes).fill(Math.floor(total / totalTimes));
@@ -165,7 +165,7 @@ function montar(
   const elencos: Player[][] = Array.from({ length: totalTimes }, () => []);
 
   const distribuir = (jogadores: readonly Player[], restante: number[]): void => {
-    const fila = sortedBy(shuffled(jogadores, random), (jogador) => -jogador.skillLevel);
+    const fila = sortedBy(shuffled(jogadores, random), (jogador) => -jogador.media);
     fila.forEach((jogador) => {
       const destino = melhorDestino(jogador, elencos, restante, capacidade, historico, random);
       elencos[destino].push(jogador);
@@ -226,7 +226,7 @@ export function distribute(
     team,
     players: sortedBy(
       melhor[indice],
-      (jogador) => -jogador.skillLevel,
+      (jogador) => -jogador.media,
       (jogador) => jogador.nome.toLowerCase(),
     ),
   }));

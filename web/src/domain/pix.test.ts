@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { campo, crc16, gerarBrCode, sanear, valorFormatado } from './pix';
+import {
+  campo,
+  chavePixValida,
+  crc16,
+  gerarBrCode,
+  normalizarChavePix,
+  sanear,
+  valorFormatado,
+} from './pix';
 
 describe('crc16', () => {
   it('bate com o vetor padrao do CRC16-CCITT-FALSE', () => {
@@ -38,33 +46,80 @@ describe('gerarBrCode', () => {
   const chave = 'unidos@volei.com';
 
   it('abre com o indicador de formato e fecha com o CRC', () => {
-    const codigo = gerarBrCode(chave, 'Unidos Pelo Volei', 'Blumenau');
+    const codigo = gerarBrCode(chave, 'email', 'Unidos Pelo Volei', 'Blumenau');
     expect(codigo.startsWith('000201')).toBe(true);
     expect(codigo.slice(-8, -4)).toBe('6304');
     expect(/^[0-9A-F]{4}$/.test(codigo.slice(-4))).toBe(true);
   });
 
   it('carrega o GUI e a chave do Pix', () => {
-    const codigo = gerarBrCode(chave, 'Unidos Pelo Volei', 'Blumenau');
+    const codigo = gerarBrCode(chave, 'email', 'Unidos Pelo Volei', 'Blumenau');
     expect(codigo).toContain('0014br.gov.bcb.pix');
     expect(codigo).toContain(`0116${chave}`);
   });
 
   it('so inclui o valor quando ele existe', () => {
-    expect(gerarBrCode(chave, 'Unidos', 'Blumenau', 0)).not.toContain('5405');
-    expect(gerarBrCode(chave, 'Unidos', 'Blumenau', 5000)).toContain('540550.00');
+    expect(gerarBrCode(chave, 'email', 'Unidos', 'Blumenau', 0)).not.toContain('5405');
+    expect(gerarBrCode(chave, 'email', 'Unidos', 'Blumenau', 5000)).toContain('540550.00');
   });
 
   it('o CRC declarado confere com o corpo', () => {
-    const codigo = gerarBrCode(chave, 'Unidos Pelo Volei', 'Blumenau', 2550);
+    const codigo = gerarBrCode(chave, 'email', 'Unidos Pelo Volei', 'Blumenau', 2550);
     const corpo = codigo.slice(0, -4);
     const declarado = codigo.slice(-4);
     expect(crc16(corpo).toString(16).toUpperCase().padStart(4, '0')).toBe(declarado);
   });
 
   it('cai para valores seguros quando nome e cidade vem vazios', () => {
-    const codigo = gerarBrCode(chave, '   ', '');
+    const codigo = gerarBrCode(chave, 'email', '   ', '');
     expect(codigo).toContain('5909RECEBEDOR');
     expect(codigo).toContain('6006BRASIL');
+  });
+});
+
+describe('normalizarChavePix', () => {
+  it('poe o codigo do pais no celular, digitado como for', () => {
+    expect(normalizarChavePix('(47) 99999-8888', 'celular')).toBe('+5547999998888');
+    expect(normalizarChavePix('47999998888', 'celular')).toBe('+5547999998888');
+    expect(normalizarChavePix('+55 47 99999-8888', 'celular')).toBe('+5547999998888');
+    expect(normalizarChavePix('5547999998888', 'celular')).toBe('+5547999998888');
+  });
+
+  it('nao confunde o 55 do comeco de um DDD com codigo do pais', () => {
+    expect(normalizarChavePix('55988887777', 'celular')).toBe('+5555988887777');
+  });
+
+  it('deixa CPF e CNPJ so com digitos', () => {
+    expect(normalizarChavePix('123.456.789-01', 'cpf')).toBe('12345678901');
+    expect(normalizarChavePix('12.345.678/0001-90', 'cnpj')).toBe('12345678000190');
+  });
+
+  it('baixa a caixa de e-mail e chave aleatoria', () => {
+    expect(normalizarChavePix('  Unidos@Volei.COM ', 'email')).toBe('unidos@volei.com');
+    expect(normalizarChavePix('5C2C1D1E-1111-4A2B-9C3D-AAAABBBBCCCC', 'aleatoria')).toBe(
+      '5c2c1d1e-1111-4a2b-9c3d-aaaabbbbcccc',
+    );
+  });
+});
+
+describe('chavePixValida', () => {
+  it('cobra o tamanho certo de cada tipo', () => {
+    expect(chavePixValida('(47) 99999-8888', 'celular')).toBe(true);
+    expect(chavePixValida('9999-8888', 'celular')).toBe(false);
+    expect(chavePixValida('123.456.789-01', 'cpf')).toBe(true);
+    expect(chavePixValida('123.456.789', 'cpf')).toBe(false);
+    expect(chavePixValida('12.345.678/0001-90', 'cnpj')).toBe(true);
+    expect(chavePixValida('unidos@volei.com', 'email')).toBe(true);
+    expect(chavePixValida('unidos-volei', 'email')).toBe(false);
+    expect(chavePixValida('5c2c1d1e-1111-4a2b-9c3d-aaaabbbbcccc', 'aleatoria')).toBe(true);
+    expect(chavePixValida('nao-e-uuid', 'aleatoria')).toBe(false);
+  });
+});
+
+describe('gerarBrCode com chave normalizada', () => {
+  it('conserta o celular digitado sem o codigo do pais', () => {
+    const codigo = gerarBrCode('(47) 99999-8888', 'celular', 'Unidos', 'Blumenau', 5000);
+    expect(codigo).toContain('0114+5547999998888');
+    expect(codigo).not.toContain('(47)');
   });
 });

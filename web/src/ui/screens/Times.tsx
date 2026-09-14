@@ -439,7 +439,7 @@ const SecaoElenco = ({ elenco, isAdmin }: { elenco: Player[]; isAdmin: boolean }
           <span style={{ color: 'var(--verde-claro)', fontSize: 11, fontWeight: 700 }}>
             {elenco.filter((j) => j.genero === 'masculino').length}H /{' '}
             {elenco.filter((j) => j.genero === 'feminino').length}M
-            {isAdmin && ` • força ${elenco.reduce((soma, j) => soma + j.skillLevel, 0)}`}
+            {isAdmin && ` • força ${elenco.reduce((soma, j) => soma + j.media, 0).toFixed(1)}`}
           </span>
         )}
       </div>
@@ -458,7 +458,7 @@ const SecaoElenco = ({ elenco, isAdmin }: { elenco: Player[]; isAdmin: boolean }
             />
             {isAdmin && (
               <span className="terciario" style={{ fontSize: 11 }}>
-                nível {jogador.skillLevel}
+                nível {jogador.media.toFixed(1)}
               </span>
             )}
           </div>
