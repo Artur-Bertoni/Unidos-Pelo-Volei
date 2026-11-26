@@ -50,3 +50,11 @@ web/.env.*
 !web/.env.example
 web/*.tsbuildinfo
 web/dev-dist/
+
+# Servidor (Railway)
+server/node_modules/
+server/dist/
+server/.env
+
+# Infraestrutura como codigo (Railway)
+.railway/node_modules/

@@ -33,7 +33,7 @@ fun secret(
 
 fun com.android.build.api.dsl.ApplicationProductFlavor.environmentKeys(flavor: String) {
     listOf(
-        "SUPABASE_URL", "SUPABASE_ANON_KEY", "POWERSYNC_URL", "GOOGLE_WEB_CLIENT_ID",
+        "API_URL", "POWERSYNC_URL", "GOOGLE_WEB_CLIENT_ID",
         "FIREBASE_PROJECT_ID", "FIREBASE_APP_ID", "FIREBASE_API_KEY", "FIREBASE_SENDER_ID",
     ).forEach { key ->
         buildConfigField("String", key, "\"${secret(flavor, key)}\"")
@@ -49,8 +49,8 @@ android {
         applicationId = "com.unidospelovolei"
         minSdk = 26
         targetSdk = 37
-        versionCode = 5
-        versionName = "1.4.0"
+        versionCode = 6
+        versionName = "2.0.0"
     }
 
     flavorDimensions += "environment"
@@ -136,13 +136,10 @@ dependencies {
     implementation(libs.androidx.credentials.play.services)
     implementation(libs.google.identity.googleid)
 
-    implementation(libs.supabase.auth)
-    implementation(libs.supabase.postgrest)
-    implementation(libs.supabase.storage)
     implementation(libs.ktor.client.okhttp)
+    implementation(libs.kotlinx.serialization.json)
     implementation(libs.powersync.core)
     implementation(libs.powersync.compose)
-    implementation(libs.powersync.connector.supabase)
 
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.messaging)

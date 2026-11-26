@@ -19,7 +19,7 @@ São **dois clientes sobre o mesmo backend**:
 | App Android nativo | [`app/`](app/) | Quem usa Android instala pela Play Store |
 | Aplicação web (PWA) | [`web/`](web/) | Quem usa iPhone — ou qualquer navegador — acessa pelo link |
 
-Os dois falam com o mesmo projeto Supabase e a mesma instância PowerSync, então
+Os dois falam com a mesma API e o mesmo PowerSync, hospedados no Railway, então
 presença, times e placar aparecem nos dois em segundos. Por isso **os dois clientes
 vivem na mesma branch**: as migrations e as sync rules valem para ambos ao mesmo
 tempo, e separá-los em branches faria toda mudança de schema precisar pousar duas
@@ -33,18 +33,21 @@ vezes.
 - [Stack e arquitetura](#stack-e-arquitetura)
 - [Estrutura do repositório](#estrutura-do-repositório)
 - [Pré-requisitos](#pré-requisitos)
-- [Configuração do backend](#configuração-do-backend)
-  - [1. Criar o projeto no Supabase](#1-criar-o-projeto-no-supabase)
-  - [2. Rodar as migrations](#2-rodar-as-migrations)
-  - [3. Credenciais OAuth no Google Cloud](#3-credenciais-oauth-no-google-cloud)
-  - [4. Provedor Google no Supabase Auth](#4-provedor-google-no-supabase-auth)
-  - [5. Instância do PowerSync](#5-instância-do-powersync)
+- [Backend no Railway](#backend-no-railway)
+  - [O que roda no Railway](#o-que-roda-no-railway)
+  - [A infraestrutura está no repositório](#a-infraestrutura-está-no-repositório)
+  - [Subindo do zero](#subindo-do-zero)
+  - [Migrations](#migrations)
+  - [Sync rules](#sync-rules)
+  - [Login Google](#login-google)
+  - [Trazendo os dados do Supabase](#trazendo-os-dados-do-supabase)
+  - [Backups](#backups)
 - [Chaves em local.properties](#chaves-em-localproperties)
 - [Assinatura do release](#assinatura-do-release)
+- [Publicando uma versão na Play Store](#publicando-uma-versão-na-play-store)
 - [Rodando localmente para teste](#rodando-localmente-para-teste)
   - [Rodar no Android Studio](#rodar-no-android-studio)
-  - [Caminho 1 — projeto Supabase e instância PowerSync só de dev (recomendado)](#caminho-1--projeto-supabase-e-instância-powersync-só-de-dev-recomendado)
-  - [Caminho 2 — tudo local com Docker](#caminho-2--tudo-local-com-docker)
+  - [Backend local](#backend-local)
   - [Alternativa por linha de comando](#alternativa-por-linha-de-comando)
 - [Aplicação web](#aplicação-web)
   - [Rodando a web localmente](#rodando-a-web-localmente)
@@ -209,32 +212,53 @@ A habilidade **não** entra no chaveamento, apenas na formação dos times.
 |---|---|
 | App Android | Kotlin + Jetpack Compose, MVVM |
 | Build Android | Gradle 9.7.1 + Android Gradle Plugin 9.3.2, `compileSdk` 37, `minSdk` 26 |
-| Aplicação web | React + TypeScript sobre Vite, PWA instalável |
-| Backend | Supabase (PostgreSQL gerenciado), acessado pelo SDK Kotlin da comunidade `io.github.jan-tennert.supabase` (Auth + Postgrest) |
-| Sync offline | PowerSync (`com.powersync`), SQLite local sincronizado nos dois sentidos |
-| Autenticação | Supabase Auth com login Google via Credential Manager (Google Identity Services) |
+| Aplicação web | React + TypeScript sobre Vite, PWA instalável, servida por Caddy |
+| API | Node 24 + TypeScript com [Hono](https://hono.dev), em [`server/`](server/) |
+| Banco | PostgreSQL gerenciado pelo Railway |
+| Sync offline | PowerSync self-hosted (`journeyapps/powersync-service`), usando o próprio Postgres como armazenamento; nos clientes, `com.powersync` e `@powersync/web` |
+| Autenticação | Login Google (Credential Manager no Android, Google Identity Services na web) conferido pela API, que emite a sessão |
+| Hospedagem | Railway, só produção; desenvolvimento é local |
+| Push | Firebase Cloud Messaging no Android e Web Push no navegador, disparados por um cron no Railway |
+
+### Onde cada coisa roda
+
+Fora do repositório o app depende de quatro lugares, e só um deles é infraestrutura:
+
+| Lugar | Para quê | Por que fica fora do Railway |
+|---|---|---|
+| **Railway** | Postgres, API, PowerSync, site e cron de lembretes de produção | — |
+| **Google Cloud** | OAuth client do login Google e tela de consentimento | Só o Google emite o token de login do Google |
+| **Firebase** | Entrega do push no Android | O Android só acorda app fechado pelo FCM |
+| **Play Console** | Publicação do app | É a loja |
+
+Todo projeto Firebase é um projeto do Google Cloud. Se o Firebase estiver no mesmo
+projeto do OAuth, Google Cloud e Firebase são duas telas do mesmo projeto, não duas
+contas para cuidar.
 
 ### Fluxo de dados
 
 ```
-                          Google Identity Services
-                                    │  ID token
-                                    ▼
-   Compose UI ──▶ ViewModel ──▶ Repository ──▶ SQLite local (PowerSync)
-        ▲                                            │        ▲
-        └──────── Flow (watch) ──────────────────────┘        │
-                                                     upload   │ replicação
-                                                     via      │ lógica
-                                                     Postgrest│
-                                                              ▼
-                                            Supabase / PostgreSQL  ◀── PowerSync Service
+            Google (Credential Manager no Android, Google Identity Services na web)
+                                     │ ID token
+                                     ▼
+   Compose / React ──▶ Repository ──▶ API (Railway) ── sessão: access token + refresh token
+        ▲                  │            │
+        │ watch()          │ escrita    │ aplica sob RLS, como o usuário
+        │                  ▼            ▼
+        └───────── SQLite local     PostgreSQL (Railway)
+                      ▲    │ upload ─▶ POST /sync/upload
+                      │                 │ replicação lógica
+                      └──── stream ◀── PowerSync (Railway)
 ```
 
 Pontos importantes:
 
 - **O app nunca conecta direto no Postgres.** Leituras saem do SQLite local; escritas
-  são gravadas no SQLite local e enviadas ao Supabase pelo conector de upload do
-  PowerSync, que aplica a mudança via Postgrest respeitando as policies RLS.
+  são gravadas no SQLite local e enviadas pelo conector de upload do PowerSync para
+  `POST /sync/upload` da API. A API aplica cada operação **como o usuário logado**: a
+  transação roda com o papel `authenticated` e o `sub` do token em
+  `request.jwt.claims`, então toda policy RLS e todo trigger continuam valendo
+  exatamente como valiam no Supabase.
 - **Não há Room nem outbox próprio.** O SQLite gerenciado pelo PowerSync é a fonte
   de verdade local, e a fila de upload é a dele.
 - **Resolução de conflito é last-write-wins por linha.** É aceitável porque cada
@@ -242,8 +266,43 @@ Pontos importantes:
   toda escrita de placar toca apenas as colunas daquela partida
   (`UPDATE matches SET score_a = ?, score_b = ? WHERE id = ?`), então duas pessoas
   marcando pontos em quadras diferentes nunca disputam a mesma linha.
-- **O JWT do Supabase autoriza tudo.** O mesmo token autentica o PowerSync e as
-  escritas no Postgrest.
+- **Um segredo assina tudo.** A API assina o access token com `JWT_SECRET` (HS256,
+  `kid` `upv`, audiências `powersync` e `upv-api`, validade de 55 minutos) e o
+  PowerSync valida com o mesmo segredo, configurado em
+  [`powersync/service.yaml`](powersync/service.yaml). Nenhum serviço precisa chamar
+  o outro.
+- **Uma operação recusada não trava a fila.** Se o banco recusa uma escrita por
+  regra de negócio ou permissão (códigos `22xxx`, `23xxx`, `42501`, `42703` e
+  `P0001`), a API descarta só aquela operação, aplica as outras e devolve a lista do
+  que recusou. Erro de rede ou do servidor faz a transação inteira voltar e o
+  PowerSync tenta de novo depois.
+
+### A API
+
+| Rota | O que faz |
+|---|---|
+| `POST /auth/google` | Recebe o ID token do Google e o nonce, confere com o Google, acha ou cria a conta e devolve a sessão |
+| `POST /auth/renovar` | Troca o refresh token por um access token novo |
+| `POST /auth/sair` | Revoga o refresh token |
+| `POST /sync/upload` | Aplica a fila de upload do PowerSync |
+| `POST /rpc/entrar_no_grupo`, `/rpc/criar_grupo`, `/rpc/sair_do_grupo` | Chamam as funções do banco com o mesmo nome |
+| `GET`/`POST /grupos/:grupo/chaves`, `PATCH`/`DELETE /chaves/:chave` | Chaves de acesso |
+| `GET /grupos/:grupo/membros`, `PATCH`/`DELETE /grupos/:grupo/membros/:perfil` | Membros e papéis |
+| `GET /grupos/:grupo/pagamentos` | Painel financeiro da diretoria |
+| `PUT /arquivos/:bucket/:grupo/:nome` | Envia imagem do mural ou logo do grupo |
+| `GET /arquivos/:bucket/:grupo/:nome` | Serve a imagem, sem login |
+| `GET /saude` | Healthcheck do Railway |
+
+A API não decide permissão: quem decide é a policy no banco, como antes. Ela só abre
+a transação com a identidade certa.
+
+A sessão tem duas partes. O **access token** é um JWT curto, guardado em memória e
+nas preferências do aparelho, que autoriza a API e o PowerSync. O **refresh token** é
+um valor aleatório guardado em `auth.sessoes` só como hash; ele não gira a cada uso,
+vale enquanto a pessoa abrir o app pelo menos uma vez a cada 180 dias e morre no
+**Sair**. Não girar é de propósito: o app fica dias offline na quadra, e dois pedidos
+de renovação simultâneos com rotação derrubariam a sessão de quem não fez nada de
+errado.
 
 ### Camadas
 
@@ -255,7 +314,9 @@ com.unidospelovolei
 │   └── scheduling/          TeamDraft e RoundRobinScheduler
 ├── data/
 │   ├── AppSchema.kt         espelho local das tabelas sincronizadas
-│   ├── AuthRepository.kt    login Google + Supabase Auth
+│   ├── ApiClient.kt         HTTP para a API, com renovação do token no 401
+│   ├── AuthRepository.kt    login Google e a sessão emitida pela API
+│   ├── BackendConnector.kt  credenciais e fila de upload do PowerSync
 │   ├── GrupoAtivo.kt        qual grupo está em uso, guardado por conta no aparelho
 │   ├── Escopo.kt            observarNoGrupo(): refaz a query quando o grupo muda
 │   ├── MeusGruposRepository.kt  entrar com chave, criar grupo, chaves e membros
@@ -274,40 +335,28 @@ com.unidospelovolei
 
 ```
 .
+├── .railway/
+│   └── railway.ts                    serviços, build, cron e variáveis do Railway
 ├── app/                              módulo Android
 ├── gradle/libs.versions.toml         catálogo de versões
-├── supabase/
-│   ├── config.toml                   config da Supabase CLI (start/db push/reset)
-│   ├── migrations/
-│   │   ├── 20260831120000_init.sql            tabelas e triggers
-│   │   ├── 20260831120100_standings_view.sql  VIEW standings
-│   │   ├── 20260831120200_rls.sql             policies RLS
-│   │   ├── 20260831120300_powersync.sql       publication de replicação
-│   │   ├── 20260901120000_genero_dias_desempenho.sql  gênero e histórico do dia
-│   │   ├── 20260901130000_presenca_do_dia.sql presença sem time no histórico
-│   │   ├── 20260901140000_identidade.sql       vínculo conta-jogador, papéis e ficha
-│   │   ├── 20260901150000_presenca_e_avisos.sql confirmação do sábado e push
-│   │   ├── 20260901160000_mural_agenda_regras.sql mural, agenda e páginas
-│   │   ├── 20260901170000_financeiro.sql       cobranças, pagamentos e Pix
-│   │   ├── 20260901180000_avaliacao.sql        avaliação anônima e evolução
-│   │   ├── 20260904120000_areia_quarteto_vinculo_e_mural.sql  quarteto, vínculo manual e mural com imagem
-│   │   ├── 20260904130000_regras_do_volei_unidos.sql  as regras como o grupo joga
-│   │   ├── 20260909120000_grupos.sql   grupos de jogo, chaves de acesso e RLS por grupo
-│   │   ├── 20260909130000_identidade_do_grupo.sql  bucket das logos de grupo
-│   │   ├── 20260914120000_notas_por_fundamento.sql  nota por fundamento e histórico da evolução
-│   │   └── 20260914130000_tipo_da_chave_pix.sql  tipo da chave Pix, para normalizar o formato
-│   └── seed.sql                      zera os dados do Unidos e recria 9 times e 38 jogadores
-│   └── functions/
-│       └── enviar-avisos/            Edge Function que dispara os lembretes
+├── server/                           API (serviços "api" e "avisos" no Railway)
+│   ├── src/                          rotas, sessão, upload do sync, arquivos e lembretes
+│   ├── migrations/                   schema do banco, aplicado no start da API
+│   ├── scripts/migrar-do-supabase.ts cópia única dos dados do Supabase
+│   ├── seed.sql                      zera os dados do Unidos e recria 9 times e 38 jogadores
+│   └── Dockerfile
 ├── powersync/
+│   ├── service.yaml                  configuração do PowerSync self-hosted
 │   ├── sync-rules.yaml               o que cada dispositivo baixa
-│   └── self-host/                    Docker para o caminho totalmente local
+│   └── Dockerfile                    a imagem oficial com os dois arquivos dentro
 ├── web/                              aplicação web (React + Vite)
 │   ├── src/domain/                   porte em TypeScript dos algoritmos e dos testes
 │   ├── src/data/                     consultas e escritas sobre o SQLite do PowerSync
-│   ├── src/lib/                      Supabase, PowerSync e leitura das variáveis
+│   ├── src/lib/                      API, sessão, login Google, PowerSync e variáveis
 │   ├── src/ui/                       telas e componentes
-│   └── .env.example                  modelo das chaves da web
+│   ├── Caddyfile                     servidor do site no Railway
+│   └── Dockerfile
+├── docker-compose.yaml               Postgres e PowerSync para rodar tudo local
 ├── local.properties.example          modelo das chaves do app Android
 └── keystore.properties.example       modelo das senhas do keystore de release
 ```
@@ -321,67 +370,107 @@ com.unidospelovolei
 - **Um emulador com Google Play** ou um dispositivo físico com Play Services.
   O login Google usa o Credential Manager e **não funciona em imagem de emulador
   sem Google Play** — ao criar o AVD, escolha uma imagem com o ícone da Play Store.
-- Conta no [Supabase](https://supabase.com) e no [PowerSync](https://powersync.com)
-  (os planos gratuitos bastam para dev).
-- **Node.js 20 ou mais novo**, só para a aplicação web em [`web/`](web/). Quem for
-  mexer apenas no app Android não precisa.
-- Para o caminho totalmente local: Docker Desktop e a
-  [Supabase CLI](https://supabase.com/docs/guides/cli).
+- **Node.js 24**, para a API em [`server/`](server/) e a web em [`web/`](web/).
+- **Docker Desktop**, para o Postgres e o PowerSync locais.
+- Conta no [Railway](https://railway.com) e a CLI dele: `npm i -g @railway/cli`.
 
 ---
 
-## Configuração do backend
+## Backend no Railway
 
-### 1. Criar o projeto no Supabase
+### O que roda no Railway
 
-1. Em [supabase.com/dashboard](https://supabase.com/dashboard), **New project**.
-2. Guarde a senha do banco: ela é usada para conectar o PowerSync.
-3. Em **Project Settings → API**, anote:
-   - **Project URL** → vira `SUPABASE_URL`
-   - **anon public key** → vira `SUPABASE_ANON_KEY`
-4. Ainda em **Project Settings → API**, no bloco **Security**, deixe assim:
+Um projeto `unidos-pelo-volei`, só com o ambiente `production`, e cinco serviços:
 
-   | Opção | Estado | Motivo |
-   |---|---|---|
-   | Enable Data API | **ligado** | O app grava pelo Postgrest, tanto no conector de upload do PowerSync quanto no supabase-kt. Sem ele nada escreve. |
-   | Automatically expose new tables | **desligado** | A migration de RLS já faz os `grant` explícitos nas 6 tabelas, na view `standings` e na função `is_admin()`. Desligar evita expor ao `anon` alguma tabela criada depois. |
-   | Enable automatic RLS | **ligado** | Redundante para as tabelas do projeto, que já ligam RLS na migration, mas garante que uma tabela criada no futuro nasça fechada. |
+| Serviço | Pasta | O que é | Domínio público |
+|---|---|---|---|
+| `Postgres` | — | Banco, template oficial do Railway | não |
+| `api` | [`server/`](server/) | A API Node | sim, porta 8080 |
+| `powersync` | [`powersync/`](powersync/) | PowerSync self-hosted | sim, porta 8080 |
+| `web` | [`web/`](web/) | Site e PWA, servidos por Caddy | sim, porta 8080 |
+| `avisos` | [`server/`](server/) | Cron dos lembretes: a imagem da API com outro comando | não |
 
-   Ajuste isso **antes** de rodar as migrations: a RLS automática funciona por
-   event trigger no `CREATE TABLE`. Use as mesmas opções no projeto de dev.
+**Todo push na `main` é deploy em produção**, automático. Cada serviço só redeploya
+quando a pasta dele muda, então mexer na web não reinicia a API. Não existe ambiente
+de dev na nuvem: tudo se testa na máquina, com a
+[stack local](#backend-local), antes de chegar à `main`.
 
-> A anon key é pública por definição (vai dentro do app). Quem protege os dados é a
-> RLS, não a chave. Ainda assim ela fica em `local.properties`, fora do Git.
+### A infraestrutura está no repositório
 
-### 2. Rodar as migrations
+[`.railway/railway.ts`](.railway/railway.ts) declara serviços, origem no GitHub,
+Dockerfile, comando de start, healthcheck, política de restart, cron e variáveis. Ele
+é aplicado pela CLI, não pelo push:
 
-**Pelo painel:** abra **SQL Editor** e execute, nesta ordem, o conteúdo de:
+```bash
+cd .railway
+npm install
+railway login
+railway link            # escolha o projeto e o ambiente production
+railway config plan     # mostra o que vai mudar, sem mudar
+railway config apply
+```
 
-1. `supabase/migrations/20260831120000_init.sql`
-2. `supabase/migrations/20260831120100_standings_view.sql`
-3. `supabase/migrations/20260831120200_rls.sql`
-4. `supabase/migrations/20260831120300_powersync.sql`
-5. `supabase/migrations/20260901120000_genero_dias_desempenho.sql`
-6. `supabase/migrations/20260901130000_presenca_do_dia.sql`
-7. `supabase/migrations/20260901140000_identidade.sql`
-8. `supabase/migrations/20260901150000_presenca_e_avisos.sql`
-9. `supabase/migrations/20260901160000_mural_agenda_regras.sql`
-10. `supabase/migrations/20260901170000_financeiro.sql`
-11. `supabase/migrations/20260901180000_avaliacao.sql`
-12. `supabase/migrations/20260904120000_areia_quarteto_vinculo_e_mural.sql`
-13. `supabase/migrations/20260904130000_regras_do_volei_unidos.sql`
-14. `supabase/migrations/20260909120000_grupos.sql`
-15. `supabase/migrations/20260909130000_identidade_do_grupo.sql`
-16. `supabase/migrations/20260914120000_notas_por_fundamento.sql`
-17. `supabase/migrations/20260914130000_tipo_da_chave_pix.sql`
+Mudou o arquivo, repita o `plan` e o `apply`. O código continua indo pelo
+`git push`.
 
-E, se quiser dados de exemplo, `supabase/seed.sql`.
+Duas coisas ficam fora do arquivo e são feitas no painel: os **domínios**
+`*.up.railway.app`, que o Railway não guarda no código, e os **segredos**, que não
+podem ir para o Git. Os segredos são variáveis compartilhadas, em
+**Project Settings → Shared Variables**:
 
-> **Atenção:** o `seed.sql` começa apagando `player_day_stats`, `game_days`,
-> `matches`, `rounds`, `team_players`, `players` e `teams` **do grupo Unidos**, para
-> você sempre reiniciar de um estado limpo. Ele **não** toca em `profiles` nem em
-> `grupo_membros`, então quem já é diretoria continua diretoria. Rode só em banco de
-> teste.
+| Variável compartilhada | Valor | Quem usa |
+|---|---|---|
+| `JWT_SECRET` | 32 bytes aleatórios em base64url, **diferente do da sua máquina** | `api`, `avisos`, `powersync` |
+| `GOOGLE_WEB_CLIENT_ID` | O Web client ID do OAuth | `api`, `web` |
+| `VAPID_PUBLIC_KEY` e `VAPID_PRIVATE_KEY` | Par de chaves do Web Push (opcional) | `api`, `avisos`, `web` |
+| `FIREBASE_SERVICE_ACCOUNT` | O JSON inteiro da conta de serviço do Firebase (opcional) | `avisos` |
+
+Gere o `JWT_SECRET` com:
+
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"
+```
+
+Os serviços leem tudo por referência (`${{shared.JWT_SECRET}}`,
+`${{Postgres.DATABASE_URL}}`, `https://${{api.RAILWAY_PUBLIC_DOMAIN}}`), então trocar um
+valor é mudar num lugar só e redeployar quem usa.
+
+### Subindo do zero
+
+1. No Railway, **New Project → Empty Project**, com o nome `unidos-pelo-volei`, e
+   conecte a conta do GitHub em **Account Settings → Integrations** se ainda não
+   estiver.
+2. Cadastre as variáveis compartilhadas.
+3. `railway link` no ambiente `production` e `railway config apply`. Os cinco
+   serviços aparecem e começam o primeiro deploy.
+4. Em cada um dos serviços `api`, `powersync` e `web`: **Settings → Networking →
+   Generate Domain**, porta **8080**. Depois disso, **redeploy o `web`**: ele embute
+   os endereços da API e do PowerSync no build, e no primeiro deploy eles ainda não
+   existiam.
+5. O primeiro start da API aplica as migrations, cria o banco `powersync_storage` e
+   liga `wal_level = logical` no Postgres. Essa última só vale depois de reiniciar o
+   banco: o log da API avisa. Faça **Restart** no serviço `Postgres` uma vez e depois
+   **Redeploy** no `powersync`.
+6. Confira: `https://<api>/saude` responde `{"ok":true}`, o log do `powersync` mostra
+   `Replicating`, e o site abre na tela de login.
+
+### Migrations
+
+As migrations ficam em [`server/migrations/`](server/migrations/) e rodam sozinhas no
+start da API, em ordem de nome, cada uma numa transação, com o registro do que já
+rodou em `public.migracoes`. Não há passo manual: mudar o schema é criar um arquivo
+novo com o timestamp na frente, reiniciar a API local (ela aplica na hora), conferir,
+e dar push na `main` — o deploy da API aplica em produção.
+
+A primeira, `20260831110000_compatibilidade.sql`, existe porque o banco nasceu no
+Supabase. Ela recria o pouco que as migrations antigas esperavam encontrar pronto: o
+schema `auth` com `auth.users`, `auth.uid()` e `auth.jwt()`; os papéis `anon`,
+`authenticated` e `service_role`; e o schema `storage` com `buckets` e `objects`.
+Com isso as migrations antigas rodam **sem nenhuma alteração** num Postgres comum, e
+toda a RLS escrita com `auth.uid()` e `to authenticated` continua valendo. O
+`auth.uid()` lê o `sub` de `request.jwt.claims`, que é o que a API preenche em cada
+transação. A última, `20261125120000_sessoes_proprias.sql`, acrescenta
+`auth.users.google_sub` e a tabela `auth.sessoes` dos refresh tokens.
 
 > A migration `..._grupos.sql` é a que torna o app multi-grupo. Ela cria
 > `grupos`, `grupo_membros` e `grupo_chaves`, adiciona `grupo_id` em todas as tabelas
@@ -401,62 +490,6 @@ E, se quiser dados de exemplo, `supabase/seed.sql`.
 >
 > Virar membro é só a porta: a pessoa ainda aparece sem ficha até a diretoria ligar
 > o perfil a um jogador, no pedido de vínculo.
->
-> **Publique as sync rules novas junto com ela.** As duas coisas mudam ao mesmo tempo
-> e a versão antiga do arquivo não conhece `grupo_id`. Como as queries dos streams
-> mudaram, o primeiro sync depois disso baixa tudo de novo em cada aparelho — é uma
-> vez só, e nada se perde: o que estava na fila de upload sobe antes.
-
-**Pela CLI** — faz o mesmo, com a vantagem de registrar o que já rodou em cada
-projeto, o que ajuda quando você mantém dev e prod em paralelo. O repositório já
-traz o `supabase/config.toml`, então **não** é preciso rodar `supabase init`.
-
-A [Supabase CLI](https://supabase.com/docs/guides/cli) não precisa ser instalada:
-com Node no PATH, o `npx` baixa e roda na hora.
-
-```bash
-npx supabase@latest login
-npx supabase@latest link --project-ref SEU_PROJECT_REF
-npx supabase@latest db push
-```
-
-O `login` abre o navegador para gerar o token da sua conta e vem antes do `link`,
-senão ele falha por falta de autenticação. O `link` pede a **senha do banco**
-(a definida ao criar o projeto, não a senha da sua conta Supabase).
-
-Nenhum desses três comandos usa Docker: eles falam direto com o Postgres remoto.
-Só `supabase start` e `supabase db reset`, do caminho local, precisam dele.
-
-Se preferir o comando `supabase` permanente em vez de `npx` toda vez, no Windows
-use o [Scoop](https://scoop.sh) (`npm i -g supabase` não é suportado):
-
-```powershell
-scoop bucket add supabase https://github.com/supabase/scoop-bucket.git
-scoop install supabase
-```
-
-O **project ref** é o identificador do projeto, uma string de ~20 letras. Ele
-aparece em três lugares, sempre igual:
-
-- no subdomínio da URL do projeto — `https://`**`abcdefghijklmnopqrst`**`.supabase.co`,
-  a mesma URL que vira `SUPABASE_URL`;
-- na URL do painel — `https://supabase.com/dashboard/project/`**`abcdefghijklmnopqrst`**;
-- em **Project Settings → General**, no campo *Project ID*.
-
-`link` associa a pasta ao projeto remoto (ele pede a senha do banco) e roda uma
-vez só; `db push` envia as migrations pendentes. Para trocar de projeto depois,
-basta rodar `link` de novo com o outro ref.
-
-Depois do primeiro `link`, o ciclo de teste é só `npx supabase@latest db push` a
-cada migration nova. Todas as migrations aqui são idempotentes (`if not exists`,
-`create or replace`, `drop ... if exists`), então rodar de novo uma que já passou
-não quebra nada — útil se você aplicou as primeiras pelo SQL Editor e o histórico
-da CLI está vazio.
-
-O `db push` **não** roda o `supabase/seed.sql` em projeto remoto: o seed só entra
-no `supabase db reset` do caminho local com Docker. Para semear o projeto remoto,
-cole o arquivo no SQL Editor — lembrando que ele apaga os dados do campeonato
-antes de recriar (veja o aviso acima).
 
 O que cada migration faz:
 
@@ -495,106 +528,28 @@ O que cada migration faz:
 - **regras_do_volei_unidos** — troca a página de regras pelas regras como o grupo
   realmente joga: set único até 15, bloqueio **não** contando como toque e a regra da
   bola no teto e na corda de aço do ginásio.
+- **compatibilidade** — schemas `auth` e `storage`, papéis e `auth.uid()`, para as
+  migrations do tempo do Supabase rodarem num Postgres comum.
+- **sessoes_proprias** — `auth.users.google_sub` e `auth.sessoes`, a sessão emitida
+  pela API.
 
-> A migration nova **derruba uma coluna** (`players.posicao`). Depois de aplicá-la,
-> recarregue o schema na instância do PowerSync (**Deploy sync rules** ou o restart da
-> instância) para a replicação parar de enviar a coluna que não existe mais. Os
-> clientes já não a declaram no schema local, então o SQLite de cada aparelho se
-> ajusta sozinho na primeira abertura.
+**Dados de exemplo.** O [`server/seed.sql`](server/seed.sql) apaga os dados do grupo
+Unidos e recria 9 times e 38 jogadores — rode só em banco de teste. Na stack local:
 
-### 3. Credenciais OAuth no Google Cloud
+```bash
+docker compose exec -T postgres psql -U postgres < server/seed.sql
+```
 
-No [Google Cloud Console](https://console.cloud.google.com), crie (ou escolha) um
-projeto e vá em **APIs & Services → Credentials**. Configure a *OAuth consent
-screen* antes, se ainda não existir.
+Nunca rode o seed em produção.
 
-**a) Web client ID** — é o que o app envia ao Credential Manager e o que o Supabase
-valida.
+### Sync rules
 
-1. **Create Credentials → OAuth client ID → Web application**.
-2. Em **Authorized redirect URIs**, adicione o callback do Supabase:
-   `https://SEU-PROJETO.supabase.co/auth/v1/callback`
-3. Anote o **Client ID** (vira `GOOGLE_WEB_CLIENT_ID`) e o **Client secret**.
-
-**b) Android client ID** — não vai para o `local.properties`; ele existe para o
-Google reconhecer o APK que está pedindo a credencial.
-
-1. **Create Credentials → OAuth client ID → Android**.
-2. **Package name**: `com.unidospelovolei.dev` para a variant de dev
-   (a variant `prod` usa `com.unidospelovolei` — crie um segundo client Android
-   para ela quando for publicar).
-3. **SHA-1**: o do keystore de debug. Pegue com
-
-   ```bash
-   ./gradlew signingReport
-   ```
-
-   e copie o `SHA1` da variant `devDebug`. Alternativa direta:
-
-   ```bash
-   keytool -list -v -alias androiddebugkey \
-     -keystore ~/.android/debug.keystore -storepass android -keypass android
-   ```
-
-   No Windows, o keystore fica em `%USERPROFILE%\.android\debug.keystore`.
-
-> Se um dia gerar um APK assinado com outro keystore, cadastre também o SHA-1 dele,
-> senão o login falha só naquele build. É o caso do keystore de release — ver
-> [Assinatura do release](#assinatura-do-release).
-
-### 4. Provedor Google no Supabase Auth
-
-1. **Authentication → Sign In / Providers** (na seção *Configuration* do menu
-   lateral, logo abaixo de *Policies*), role até **Auth Providers** e clique em
-   **Google**. Habilite o provedor.
-2. **Client ID** — cole o **Web client ID** do passo anterior. É esse campo que faz
-   o Supabase aceitar o `signInWithIdToken` que o app envia. Se o dashboard mostrar
-   *Client IDs* no plural, ele aceita vários separados por vírgula; se mostrar um
-   campo **Authorized Client IDs** à parte, coloque o mesmo valor nos dois.
-3. **Client Secret** — o secret do mesmo client Web.
-4. **Skip nonce checks** — deixe **desligado**. O app manda o hash SHA-256 do nonce
-   para o Google e o valor original para o Supabase, então a checagem passa e
-   continua protegendo contra replay de token. (O `skip_nonce_check = true` do
-   `supabase/config.toml` vale só para a stack local do Docker.)
-5. Salve.
-
-### 5. Instância do PowerSync
-
-1. Em [dashboard.powersync.com](https://dashboard.powersync.com), crie uma
-   instância.
-2. **Connect to database**: escolha Supabase/Postgres e informe a connection string
-   do projeto. Ela fica no botão verde **Connect**, no topo do dashboard do
-   Supabase (não em Project Settings). Troque o `[YOUR-PASSWORD]` pela senha do
-   banco definida no passo 1.
-
-   O modal mostra três variantes, e a escolha importa:
-
-   | Variante | Porta | Serve? |
-   |---|---|---|
-   | Direct connection | 5432 | sim |
-   | Session pooler | 5432 | sim |
-   | Transaction pooler | 6543 | **não** |
-
-   A *transaction pooler* devolve a conexão ao pool a cada statement, e replicação
-   lógica precisa de conexão persistente — o PowerSync conecta e não replica nada,
-   sem erro visível. Comece pela **Direct connection**; em projetos do plano Free
-   ela é só IPv6, então se o PowerSync não alcançar, use a **Session pooler**,
-   que é IPv4.
-3. Na aba de autenticação da instância, ative a integração com **Supabase Auth**
-   (o PowerSync valida o mesmo JWT que o app já usa).
-4. Em **Sync Rules**, cole o conteúdo de [`powersync/sync-rules.yaml`](powersync/sync-rules.yaml)
-   e faça o **Deploy**.
-5. Copie a **instance URL** — vira `POWERSYNC_URL`. Ela fica no botão **Connect**,
-   no topo do dashboard do PowerSync: o diálogo traz a URL com botão de copiar.
-   Copie exatamente o que aparecer ali; o domínio varia conforme a época em que a
-   instância foi criada (`<id>.powersync.journeyapps.com` ou `<id>.powersync.com`).
-   Use a URL inteira, com `https://` e sem barra no fim.
-
-> **Uma instância por banco.** A instância PowerSync replica um único banco de
-> origem, então dev e prod **não** compartilham instância: se você tem dois
-> projetos Supabase, precisa de duas instâncias. Reaproveitar a mesma faz o
-> ambiente errado falhar na autenticação, porque a instância valida o JWT contra
-> um projeto só.
+As sync rules ficam em [`powersync/sync-rules.yaml`](powersync/sync-rules.yaml) e vão
+dentro da imagem do serviço `powersync`, junto com o
+[`service.yaml`](powersync/service.yaml). **Publicar sync rules é dar push**: não
+existe mais painel do PowerSync. Quando uma migration muda colunas de tabela
+sincronizada, a migration e as sync rules sobem no mesmo commit; o PowerSync
+reprocessa sozinho quando a configuração muda.
 
 As sync rules mandam para o dispositivo o campeonato inteiro (jogadores, times,
 rodadas e partidas) **dos grupos em que a pessoa é membro**, mais a lista desses
@@ -610,6 +565,96 @@ Isso usa subconsulta em stream, disponível na **edition 3** das sync rules — 
 baixa os dois e troca entre eles offline; `grupo_chaves` fica de fora de propósito,
 para os códigos de convite não descerem para o aparelho de ninguém.
 
+
+O PowerSync guarda o estado dele no banco `powersync_storage`, no mesmo Postgres, em
+vez de exigir um MongoDB. A replicação usa a `publication powersync` que as migrations
+criam.
+
+### Login Google
+
+No [Google Cloud Console](https://console.cloud.google.com), em **APIs & Services →
+Credentials**:
+
+**a) Web client ID** — é o `GOOGLE_WEB_CLIENT_ID`. Tanto o Android quanto a web pedem o
+token com ele, e a API só aceita token cuja audiência seja ele.
+
+- Em **Authorized JavaScript origins**, cadastre o endereço do site
+  (`https://<web>.up.railway.app`) e `http://localhost:5173` para desenvolvimento. É o que libera o botão do Google na
+  web.
+- **Redirect URIs e client secret não são mais usados.** A web recebe o token direto
+  do Google Identity Services, sem redirecionamento, e ninguém troca código por token.
+
+**b) Android client IDs** — um por `applicationId` e SHA-1, só para o Google
+reconhecer o APK que está pedindo a credencial. Nada deles vai para o código.
+
+1. **Create Credentials → OAuth client ID → Android**.
+2. **Package name**: `com.unidospelovolei.dev` para a variant de dev e
+   `com.unidospelovolei` para a de prod.
+3. **SHA-1**: o do keystore que assina aquele build. Pegue com
+
+   ```bash
+   ./gradlew signingReport
+   ```
+
+   ou, para o keystore de debug,
+
+   ```bash
+   keytool -list -v -alias androiddebugkey \
+     -keystore ~/.android/debug.keystore -storepass android -keypass android
+   ```
+
+   No Windows, o keystore fica em `%USERPROFILE%\.android\debug.keystore`.
+
+> O app instalado pela loja é assinado pela chave do **Play App Signing**, não pela
+> sua. Cadastre também o SHA-1 que aparece em **Test and release → Setup → App
+> signing** no Play Console, senão o login falha só para quem instalou pela loja.
+
+O app manda ao Google o hash SHA-256 de um nonce aleatório e manda à API o valor
+original; a API confere que o token traz aquele hash. Isso impede reaproveitar um
+token de login capturado.
+
+### Trazendo os dados do Supabase
+
+A cópia é feita uma vez, no dia da troca, pelo
+[`server/scripts/migrar-do-supabase.ts`](server/scripts/migrar-do-supabase.ts). Ele
+copia `auth.users` (com o `sub` do Google tirado de `auth.identities`, para a mesma
+conta continuar sendo a mesma pessoa), todas as tabelas de `public`, e as imagens dos
+buckets `mural` e `grupos`; no fim, reescreve as URLs das imagens para a API nova.
+
+1. Faça o primeiro deploy da API no Railway, para as migrations existirem.
+2. Ligue **Public Access** no `Postgres` do Railway e copie a `DATABASE_PUBLIC_URL`.
+3. No Supabase, botão **Connect**, copie a connection string da **Session pooler**
+   (IPv4) com a senha do banco.
+4. Rode sem `--confirmar` para ver a contagem do que vai ser copiado:
+
+   ```bash
+   cd server
+   npm install
+   npm run migrar-do-supabase -- \
+     --origem "postgresql://postgres.XXXX:SENHA@aws-0-sa-east-1.pooler.supabase.com:5432/postgres" \
+     --destino "COLE_AQUI_A_DATABASE_PUBLIC_URL" \
+     --supabase-url https://XXXX.supabase.co \
+     --api-url https://<api>.up.railway.app
+   ```
+
+5. Repita com `--confirmar` no fim. Isso **apaga** o que houver nas tabelas do
+   destino e copia tudo de novo, numa transação só: se der erro no meio, nada fica
+   pela metade.
+6. Desligue o **Public Access** do `Postgres`.
+
+O script desliga os triggers durante a cópia (`session_replication_role = replica`),
+para nada ser recalculado nem carimbado com a data de hoje. Ninguém precisa entrar de
+novo no grupo nem refazer vínculo: os ids de conta, perfil e jogador são os mesmos.
+Cada pessoa só faz login uma vez na versão nova, porque a sessão antiga era do
+Supabase.
+
+### Backups
+
+O Railway faz backup do volume do Postgres: aba **Backups** do serviço `Postgres`,
+com agenda diária, semanal ou mensal. Ligue a diária. As
+imagens do mural e as logos estão dentro do banco (ver
+[Mural, agenda e regras](#mural-agenda-e-regras)), então o mesmo backup cobre tudo.
+
 ---
 
 ## Chaves em local.properties
@@ -621,20 +666,23 @@ código: elas entram via `BuildConfig`, geradas em [`app/build.gradle.kts`](app/
 ```properties
 sdk.dir=C:\\Users\\SEU_USUARIO\\AppData\\Local\\Android\\Sdk
 
-dev.SUPABASE_URL=https://SEU-PROJETO-DEV.supabase.co
-dev.SUPABASE_ANON_KEY=...
-dev.POWERSYNC_URL=https://SUA-INSTANCIA-DEV.powersync.journeyapps.com
+dev.API_URL=http://10.0.2.2:3000
+dev.POWERSYNC_URL=http://10.0.2.2:8080
 dev.GOOGLE_WEB_CLIENT_ID=...apps.googleusercontent.com
 
-prod.SUPABASE_URL=
-prod.SUPABASE_ANON_KEY=
-prod.POWERSYNC_URL=
-prod.GOOGLE_WEB_CLIENT_ID=
+prod.API_URL=https://<api-prod>.up.railway.app
+prod.POWERSYNC_URL=https://<powersync-prod>.up.railway.app
+prod.GOOGLE_WEB_CLIENT_ID=...apps.googleusercontent.com
 ```
+
+As chaves `dev.*` apontam para a [stack local](#backend-local) — `10.0.2.2` é como o
+emulador enxerga a sua máquina — e as `prod.*` para os domínios gerados no Railway
+para os serviços `api` e `powersync`, com `https://` e sem barra no fim. O `GOOGLE_WEB_CLIENT_ID` é o mesmo
+valor da variável compartilhada de mesmo nome.
 
 O prefixo casa com a build variant: `dev.*` alimenta `devDebug`/`devRelease` e
 `prod.*` alimenta `prodDebug`/`prodRelease`. Em CI as mesmas chaves podem vir de
-variáveis de ambiente (`DEV_SUPABASE_URL`, `PROD_SUPABASE_URL`, ...).
+variáveis de ambiente (`DEV_API_URL`, `PROD_API_URL`, ...).
 
 Se faltar alguma chave, o app abre numa tela dizendo exatamente qual, em vez de
 quebrar.
@@ -685,7 +733,8 @@ clone recém-feito. Confira qual configuração cada variant pegou com:
 ```
 
 O `SHA1` que aparece na variant `prodRelease` é o que vai no OAuth client Android do
-Google Cloud, senão o login com Google falha no build assinado.
+Google Cloud, senão o login com Google falha no build assinado. O passo a passo de
+envio está em [Publicando uma versão na Play Store](#publicando-uma-versão-na-play-store).
 
 Para gerar o arquivo que sobe para a loja:
 
@@ -705,12 +754,52 @@ cada arquivo enviado à loja, mesmo em reenvio de correção.
 
 ---
 
+## Publicando uma versão na Play Store
+
+O roteiro de toda atualização, do código ao celular das pessoas:
+
+1. **Suba o número da versão** em [`app/build.gradle.kts`](app/build.gradle.kts):
+   `versionCode` aumenta de 1 em 1 a cada arquivo enviado — mesmo num reenvio de
+   correção, a loja recusa um número repetido — e `versionName` é o texto que as
+   pessoas veem (`2.0.0`, `2.0.1`...).
+2. **Confira o `local.properties`**: as chaves `prod.*` apontam para os serviços do
+   Railway, e o `keystore.properties` existe (ver
+   [Assinatura do release](#assinatura-do-release)).
+3. **Gere o bundle**:
+
+   ```bash
+   ./gradlew bundleProdRelease
+   ```
+
+   No Windows, `gradlew.bat bundleProdRelease`. O arquivo sai em
+   `app/build/outputs/bundle/prodRelease/app-prod-release.aab`. No Android Studio o
+   mesmo é **Build → Generate Signed App Bundle / APK**, escolhendo a variant
+   `prodRelease`.
+4. **No [Play Console](https://play.google.com/console)**, abra o app e vá em
+   **Test and release → Production** (ou **Testing → Internal testing**, para testar
+   antes com um grupo pequeno) → **Create new release**.
+5. **Arraste o `.aab`**, escreva as notas da versão em português (o que a pessoa vai
+   notar de diferente) e clique em **Next**.
+6. **Revise os avisos** da página de resumo. Avisos amarelos não impedem a
+   publicação; erros vermelhos impedem. Clique em **Save** e depois em
+   **Send for review** (ou **Start rollout to Production**, conforme a tela).
+7. **Espere a revisão do Google** — costuma levar de algumas horas a poucos dias. O
+   status aparece em **Publishing overview**. Se o app usa **Managed publishing**
+   (ligado em **Publishing overview**), a versão aprovada fica parada esperando você
+   clicar em **Publish**; é o jeito de escolher o dia exato em que ela chega às
+   pessoas.
+
+Depois de publicada, a atualização chega sozinha para quem tem atualização
+automática; os outros veem o botão **Atualizar** na página do app na loja.
+
+---
+
 ## Rodando localmente para teste
 
 A separação de ambientes é por **build variant**: trocar de ambiente é só trocar a
 variant selecionada, sem mexer no código. O Android Studio seleciona **devDebug**
-por padrão, então o build de debug aponta para dev — **as chaves de produção nunca
-entram num build de debug**, porque `debug` só existe combinado com um flavor e o
+por padrão, então o build de debug aponta para a stack local — **as chaves de
+produção nunca entram num build de debug**, porque `debug` só existe combinado com um flavor e o
 flavor é quem carrega as chaves.
 
 | Variant | applicationId | Chaves |
@@ -728,8 +817,8 @@ lado a lado no mesmo aparelho.
 Um editor sozinho não executa um app Android: é preciso um emulador ou um aparelho.
 
 1. **File → Open** e escolha a pasta do repositório. Espere o *Gradle sync*.
-2. Preencha o `local.properties` com as chaves do ambiente de dev
-   (ver [Chaves em local.properties](#chaves-em-localproperties)) e rode
+2. Suba o [backend local](#backend-local), preencha o `local.properties` com as
+   chaves `dev.*` (ver [Chaves em local.properties](#chaves-em-localproperties)) e rode
    **File → Sync Project with Gradle Files**.
 3. Crie ou escolha um dispositivo:
    - **Emulador**: **Tools → Device Manager → Add a new device**. Escolha uma imagem
@@ -741,8 +830,9 @@ Um editor sozinho não executa um app Android: é preciso um emulador ou um apar
    **devDebug**.
 5. Clique em **Run ▶**.
 
-Na primeira execução: entre com o Google, depois
-[promova seu usuário a admin](#virar-administrador) para liberar as telas de edição.
+Na primeira execução o banco local está vazio: entre com o Google e use **Criar um
+grupo**, que já te coloca como diretoria, ou rode o `seed.sql` e entre no grupo
+Unidos com a chave dele (ver [Migrations](#migrations)).
 
 Para testar o **offline**, ative o modo avião no dispositivo. O app continua abrindo,
 navegando e registrando placar; ao voltar a internet, o indicador volta para
@@ -752,109 +842,56 @@ Para testar o **multiusuário em tempo real**, rode o app em dois dispositivos c
 contas diferentes (ambas admin) e marque pontos em partidas diferentes: cada um vê
 o placar do outro aparecer.
 
-### Caminho 1 — projeto Supabase e instância PowerSync só de dev (recomendado)
+### Backend local
 
-Sem Docker. A ideia é ter uma cópia inteira do backend só para desenvolvimento.
-
-1. Crie um **segundo projeto Supabase** (plano gratuito), separado do de produção.
-2. Rode nele as mesmas migrations de
-   [Rodar as migrations](#2-rodar-as-migrations), mais o `seed.sql` se quiser dados
-   de teste.
-3. Configure nele o provedor Google. Dá para reaproveitar o mesmo *Web client ID*,
-   desde que você adicione o callback do projeto de dev
-   (`https://SEU-PROJETO-DEV.supabase.co/auth/v1/callback`) nas *Authorized redirect
-   URIs* do client.
-4. Crie uma **instância PowerSync de dev** apontando para esse projeto e publique as
-   mesmas sync rules.
-5. Preencha as chaves `dev.*` no `local.properties`.
-6. Rode a variant `devDebug`.
-
-Vantagem: o ambiente é idêntico ao de produção, incluindo TLS, RLS e o comportamento
-real do PowerSync em nuvem.
-
-### Caminho 2 — tudo local com Docker
-
-> **Ressalva importante:** o PowerSync em nuvem **não alcança um Postgres em
-> localhost**. Se o Supabase está rodando na sua máquina, o PowerSync também precisa
-> rodar na sua máquina, self-hosted. Por isso este caminho exige os dois em Docker.
-
-**a) Supabase local**
+É assim que se testa qualquer mudança antes de ir para a `main`. O
+[`docker-compose.yaml`](docker-compose.yaml) da raiz sobe o Postgres (já com
+`wal_level=logical`) e o PowerSync com a mesma imagem do Railway. A API roda direto no
+Node, com recarga automática a cada alteração:
 
 ```bash
-supabase start
+docker compose up -d --build
+
+cd server
+cp .env.example .env      # preencha GOOGLE_CLIENT_IDS com o seu Web client ID
+npm install
+npm run dev
 ```
 
-Anote a saída: `API URL` (normalmente `http://127.0.0.1:54321`), `anon key`,
-`DB URL` (porta `54322`) e `JWT secret`.
+O primeiro start da API aplica as migrations e cria o banco do PowerSync. O PowerSync
+fica reiniciando até esse banco existir; depois disso ele se acerta sozinho. O
+`JWT_SECRET` do `.env.example` é o mesmo do `docker-compose.yaml` e serve só para a
+máquina local.
 
-Aplique o schema:
-
-```bash
-supabase db reset      # roda supabase/migrations + supabase/seed.sql
-```
-
-**b) PowerSync self-hosted**
-
-```bash
-cd powersync/self-host
-cp .env.example .env
-# edite .env: PS_SUPABASE_JWT_SECRET com o "JWT secret" do supabase status
-docker compose up
-```
-
-O compose sobe o serviço do PowerSync, o MongoDB que ele usa como armazenamento
-interno de buckets e monta [`powersync/sync-rules.yaml`](powersync/sync-rules.yaml)
-como configuração de sync — o mesmo arquivo publicado no PowerSync Cloud. O Postgres
-do Supabase local é alcançado do container por `host.docker.internal:54322`.
-
-> O serviço PowerSync é baseado no
-> [self-host-demo oficial](https://github.com/powersync-ja/self-host-demo). Se a
-> imagem mudar de formato de configuração, confira lá.
-
-**c) Endereços vistos pelo dispositivo**
+> A API fica fora do compose de propósito: em máquinas com antivírus que inspeciona
+> HTTPS, o `npm ci` dentro do Docker falha com erro de certificado. No Railway isso
+> não acontece.
 
 `localhost`, dentro de um emulador ou de um celular, é o próprio dispositivo — não a
 sua máquina. Use:
 
-| Onde o app roda | Supabase (54321) | PowerSync (8080) |
+| Onde o app roda | API (3000) | PowerSync (8080) |
 |---|---|---|
-| Emulador Android | `http://10.0.2.2:54321` | `http://10.0.2.2:8080` |
-| Aparelho físico na mesma rede | `http://192.168.x.y:54321` | `http://192.168.x.y:8080` |
+| Emulador Android | `http://10.0.2.2:3000` | `http://10.0.2.2:8080` |
+| Aparelho físico na mesma rede | `http://192.168.x.y:3000` | `http://192.168.x.y:8080` |
 
 Descubra o IP da máquina com `ipconfig` (Windows) ou `ip addr` (Linux/macOS).
 
 No `local.properties`:
 
 ```properties
-dev.SUPABASE_URL=http://10.0.2.2:54321
-dev.SUPABASE_ANON_KEY=<anon key do supabase status>
+dev.API_URL=http://10.0.2.2:3000
 dev.POWERSYNC_URL=http://10.0.2.2:8080
-dev.GOOGLE_WEB_CLIENT_ID=<mesmo Web client ID>
+dev.GOOGLE_WEB_CLIENT_ID=<o mesmo Web client ID>
 ```
 
 Esses endereços são HTTP puro, e o Android bloqueia tráfego em texto claro por
 padrão. Por isso o projeto traz um
 [`app/src/debug/AndroidManifest.xml`](app/src/debug/AndroidManifest.xml) que libera
 cleartext **apenas nos builds de debug** — nenhum build de release recebe essa flag.
-Não é preciso mexer em nada.
 
-**d) Login Google na stack local**
-
-O `supabase/config.toml` já traz o bloco `[auth.external.google]` ligado, com o
-client id e o segredo vindos de variáveis de ambiente — nada de segredo no
-repositório. Defina as duas antes do `supabase start`:
-
-```bash
-export SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID=<o mesmo Web client ID>
-export SUPABASE_AUTH_EXTERNAL_GOOGLE_SECRET=<o client secret do mesmo client>
-supabase start
-```
-
-No PowerShell, `$env:SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID = "..."`.
-
-Esse bloco tem `skip_nonce_check = true`, recomendação da própria CLI para o
-login Google local. Vale **só** para a stack local: os projetos na nuvem não leem
-este arquivo e continuam checando o nonce normalmente.
+Com aparelho físico, a URL pública das imagens precisa ser alcançável por ele: ajuste
+`URL_PUBLICA` no `server/.env` para o IP da máquina.
 
 ### Alternativa por linha de comando
 
@@ -900,13 +937,13 @@ O que muda em relação ao app Android:
 
 | | Android | Web |
 |---|---|---|
-| Login | Credential Manager (token nativo) | Redirecionamento do Supabase (`signInWithOAuth`) |
-| Chaves | `local.properties`, por flavor | `.env.development` / `.env.production` |
+| Login | Credential Manager (token nativo) | Botão do Google Identity Services, também token direto |
+| Chaves | `local.properties`, por flavor | `.env.development` / `.env.production`; no Railway, variáveis do serviço `web` |
 | Banco local | SQLite nativo | SQLite em WebAssembly, no armazenamento do navegador |
-| Distribuição | `.aab` na Play Store | deploy de arquivos estáticos |
+| Distribuição | `.aab` na Play Store | serviço `web` no Railway |
 
-O que **não** muda: o schema, as policies de RLS, as sync rules e as regras dos dois
-algoritmos. Os algoritmos foram portados para TypeScript junto com os testes, que
+O que **não** muda: a API, o schema, as policies de RLS, as sync rules e as regras dos
+dois algoritmos. Os algoritmos foram portados para TypeScript junto com os testes, que
 rodam com as mesmas sementes do `SchedulingTest.kt` — inclusive as asserções de valor
 exato, porque o gerador aleatório do Kotlin foi reproduzido em
 [`web/src/domain/random.ts`](web/src/domain/random.ts).
@@ -920,21 +957,14 @@ cp .env.example .env.development   # preencha as chaves de dev
 npm run dev
 ```
 
-As três variáveis são as mesmas do `local.properties`, com outro nome:
-
 ```properties
-VITE_SUPABASE_URL=https://SEU-PROJETO.supabase.co
-VITE_SUPABASE_ANON_KEY=...
-VITE_POWERSYNC_URL=https://SUA-INSTANCIA.powersync.journeyapps.com
+VITE_API_URL=http://localhost:3000
+VITE_POWERSYNC_URL=http://localhost:8080
+VITE_GOOGLE_CLIENT_ID=...apps.googleusercontent.com
 ```
 
-Não há `GOOGLE_WEB_CLIENT_ID` aqui: no navegador o login usa o fluxo de
-redirecionamento, e quem conhece o client é o painel do Supabase.
-
-> **Cadastre a URL do site no Supabase.** Em **Authentication → URL Configuration**,
-> preencha a *Site URL* e acrescente os endereços de desenvolvimento
-> (`http://localhost:5173`) à lista de *Redirect URLs*. Sem isso o login volta do
-> Google e não encontra para onde ir.
+Essas URLs são a [stack local](#backend-local). O botão do Google só aparece se
+`http://localhost:5173` estiver nas **Authorized JavaScript origins** do Web client.
 
 Comandos disponíveis:
 
@@ -948,21 +978,15 @@ npm run preview     # serve o dist/ localmente
 
 ### Publicando a web
 
-O build gera arquivos estáticos em `web/dist`, então serve qualquer hospedagem de
-site estático. **Cloudflare Pages** e **Vercel** têm plano gratuito e fazem deploy a
-cada push:
+É o serviço `web` do Railway: um push na `main` publica em produção. O [`Dockerfile`](web/Dockerfile) faz o `npm run build` e
+entrega o `dist/` para um Caddy, configurado no [`Caddyfile`](web/Caddyfile) com o
+fallback de SPA, cache longo para `assets/` e nenhum cache para `index.html` e
+`sw.js` — senão a atualização do PWA demoraria a chegar.
 
-- **Root directory**: `web`
-- **Build command**: `npm run build`
-- **Output directory**: `dist`
-- **Variáveis de ambiente**: as três `VITE_*` de produção
-
-Como o Vite lê as variáveis **no momento do build** e as embute no bundle — do mesmo
-jeito que o Gradle embute as chaves no `.aab` —, trocar uma chave exige um novo
-deploy, não uma mudança de configuração no servidor.
-
-Depois do primeiro deploy, volte ao Supabase e acrescente o domínio publicado às
-*Redirect URLs*, e ao Google Cloud em *Domínios autorizados* se ainda não estiver lá.
+O Vite lê as variáveis **no momento do build** e as embute no bundle, do mesmo jeito
+que o Gradle embute as chaves no `.aab`. No Railway elas são variáveis do serviço,
+declaradas como `ARG` no Dockerfile; trocar uma exige um redeploy do `web`, não só
+salvar a variável.
 
 ### Páginas públicas
 
@@ -987,10 +1011,6 @@ todo mundo baixa na primeira visita, e um ajuste no texto da política só chega
 Nenhuma dessas URLs aparece no código do app Android: elas vivem só em campos de
 formulário do Play Console e do Google Cloud. Mudar o endereço delas é edição de
 configuração, não release nova.
-
-> A cópia antiga em `docs/`, servida pelo GitHub Pages, continua no ar de propósito:
-> a ficha já aprovada na loja aponta para lá enquanto a revisão dos links novos não
-> sai. Depois que a revisão aprovar, `docs/` pode ser apagada.
 
 ---
 
@@ -1127,7 +1147,7 @@ O app chama a função `entrar_no_grupo(codigo)`, `security definer`, que:
 
 Quem já é membro pode reusar a chave à vontade: a função devolve o grupo sem gastar
 um uso. A tabela `grupo_chaves` **não sincroniza para o dispositivo** — os códigos
-vivem só no servidor e a tela de chaves os lê pelo Postgrest, sob uma policy que só
+vivem só no servidor e a tela de chaves os lê pela API, sob uma policy que só
 deixa a diretoria daquele grupo enxergar. É a mesma escolha do painel financeiro:
 tela de diretoria, online, e nada de código de convite dormindo no SQLite de todo
 mundo.
@@ -1170,7 +1190,7 @@ formatos são JPG, PNG e WEBP.
 A `grupos` sincroniza, então nome, cidade e `logo_url` são gravados na tabela local e
 sobem pelo PowerSync como qualquer outra edição — dá para renomear o grupo sem
 internet e a mudança aparece para todo mundo quando a conexão volta. O upload da
-imagem, esse sim, precisa de rede, porque vai direto ao Storage.
+imagem, esse sim, precisa de rede, porque vai direto à API.
 
 ### Sair, promover e tirar do grupo
 
@@ -1253,7 +1273,7 @@ vínculo** e confirma; um trigger no Postgres preenche `players.profile_id`.
 
 Esse é o padrão que se repete em todo o app: **a escrita vai para uma tabela
 sincronizada e o trigger faz o efeito privilegiado**. As escritas dos dois clientes
-sobem pelo PowerSync, que aplica tudo via Postgrest sob a RLS, então não há como
+sobem pelo PowerSync para a API, que aplica tudo sob a RLS, então não há como
 chamar função privilegiada de dentro do app — e fazer pela tabela mantém a aprovação
 funcionando offline, como o resto.
 
@@ -1263,7 +1283,7 @@ tenha entrado no app pelo menos uma vez, sem esperar o atleta achar o próprio n
 O mesmo botão **desvincula**: a conta perde o acesso à ficha, ao extrato e às
 avaliações daquele jogador, e o jogador continua no grupo, agora sem dono.
 
-A lista de contas dessa tela vem do Postgrest na hora — são os membros do grupo
+A lista de contas dessa tela vem da API na hora — são os membros do grupo
 ativo, lidos de `grupo_membros` com `profiles` embutido —, então ela precisa de
 internet; é a mesma escolha já feita para o painel financeiro do grupo. Ela mostra
 só quem é do grupo: `profiles` sincroniza apenas o seu próprio perfil, e a policy de
@@ -1318,49 +1338,39 @@ mundo pelo sync e aparecem no cartão de presença de cada um.
 O push é **opcional**: sem as chaves, o app funciona igual e só não registra o
 aparelho. Para ligar:
 
-1. Crie um projeto no [Firebase](https://console.firebase.google.com) e adicione um
-   app Android com o package name da variant (`com.unidospelovolei.dev` em dev).
+1. No [Firebase](https://console.firebase.google.com), use (ou crie) o projeto e
+   adicione um app Android para cada package name (`com.unidospelovolei.dev` e
+   `com.unidospelovolei`). Dá para escolher o mesmo projeto do Google Cloud do OAuth
+   na hora de criar, e aí fica tudo num lugar.
 2. Copie **Project ID**, **App ID**, **API key** e **Sender ID** para o
    `local.properties`, como mostra o `local.properties.example`. Não é preciso
    `google-services.json`: o app monta o `FirebaseOptions` na mão a partir dessas
    quatro chaves, seguindo o mesmo padrão das outras credenciais do projeto.
-3. Gere um par de chaves VAPID para o Web Push (`npx web-push generate-vapid-keys`).
-   A **pública** vai em `VITE_VAPID_PUBLIC_KEY` no `.env` da web; a **privada**
-   nunca sai do servidor.
-4. Publique a Edge Function e cadastre os secrets:
+3. Em **Configurações do projeto → Contas de serviço → Gerar nova chave privada**,
+   baixe o JSON e cole o conteúdo inteiro na variável compartilhada
+   `FIREBASE_SERVICE_ACCOUNT` do Railway.
+4. Gere um par de chaves VAPID para o Web Push (`npx web-push generate-vapid-keys`) e
+   cadastre as duas como variáveis compartilhadas `VAPID_PUBLIC_KEY` e
+   `VAPID_PRIVATE_KEY`. A pública também vai no build da web, por referência; a
+   privada só os serviços do servidor leem.
 
-   ```bash
-   npx supabase@latest functions deploy enviar-avisos
-   npx supabase@latest secrets set VAPID_PUBLIC_KEY=... VAPID_PRIVATE_KEY=...
-   npx supabase@latest secrets set FIREBASE_SERVICE_ACCOUNT="$(cat conta-de-servico.json)"
-   ```
+Quem dispara é o serviço `avisos`: a mesma imagem da API rodando
+[`server/src/avisos.ts`](server/src/avisos.ts) como cron, com a agenda
+`0 11,22 * * 5,6`. Os horários do Railway são em **UTC**: 22h de sexta é 19h em
+Brasília e 11h de sábado é 8h. O script olha o dia e a hora em que acordou e decide —
+sexta 22h manda o convite para todo mundo, sábado 11h cobra só quem ainda não
+respondeu, e nas outras duas execuções da agenda ele sai sem fazer nada.
 
-5. Agende os dois disparos com `pg_cron` e `pg_net`, no SQL Editor. O primeiro
-   convida todo mundo na sexta às 19h; o segundo cobra, no sábado às 8h, só quem
-   ainda não respondeu:
+Para disparar fora da agenda no Railway, use `railway cron run` com o serviço
+`avisos` selecionado — lembrando que ele só envia algo se for sexta 22h ou sábado 11h
+UTC. Para testar o envio em qualquer dia, rode localmente contra a stack local, com o
+tipo forçado no argumento:
 
-   ```sql
-   select cron.schedule(
-       'convite-de-sexta', '0 22 * * 5',
-       $$select net.http_post(
-           url := 'https://SEU-PROJETO.supabase.co/functions/v1/enviar-avisos',
-           headers := '{"Authorization": "Bearer SUA_SERVICE_ROLE_KEY", "Content-Type": "application/json"}'::jsonb,
-           body := '{"tipo": "convite"}'::jsonb
-       )$$
-   );
-
-   select cron.schedule(
-       'cobranca-de-sabado', '0 11 * * 6',
-       $$select net.http_post(
-           url := 'https://SEU-PROJETO.supabase.co/functions/v1/enviar-avisos',
-           headers := '{"Authorization": "Bearer SUA_SERVICE_ROLE_KEY", "Content-Type": "application/json"}'::jsonb,
-           body := '{"tipo": "cobranca-resposta"}'::jsonb
-       )$$
-   );
-   ```
-
-   Os horários do `cron` estão em **UTC**: 22h e 11h UTC são 19h de sexta e 8h de
-   sábado no horário de Brasília.
+```bash
+cd server
+npm run build
+node --env-file=.env dist/avisos.js convite
+```
 
 > **No iPhone o push só chega se a pessoa instalar o site na tela de início.** É
 > limitação da Apple: o Safari só entrega Web Push a partir do iOS 16.4 e apenas
@@ -1385,9 +1395,16 @@ Trocar ou tirar a imagem mexe só na coluna `imagem_url`: o arquivo antigo conti
 bucket, como já acontece ao apagar um recado. Faxina de arquivo solto é serviço de
 rotina no Storage, não do app.
 
-As imagens vão para o bucket `mural` do Supabase Storage: leitura pública, escrita só
-para a diretoria, 5 MB e JPG/PNG/WEBP/GIF. Elas **não** passam pelo PowerSync — o
-upload precisa de internet e a foto é baixada por URL na hora de exibir. É o mesmo
+As imagens vão para o bucket `mural`: leitura pública, escrita só para a diretoria,
+5 MB e JPG/PNG/WEBP/GIF. O "bucket" é uma linha em `storage.buckets` e cada arquivo
+é uma linha em `storage.objects`, com o conteúdo numa coluna `bytea` no próprio
+Postgres. A API grava a linha **como o usuário**, então as mesmas policies de antes
+(`e_diretoria(grupo_do_caminho(name))`) decidem quem pode enviar, e serve a imagem
+em `/arquivos/mural/<grupo>/<arquivo>` com cache de um ano — o nome tem um uuid,
+então nunca muda de conteúdo. Guardar no banco em vez de num volume deixa o backup do
+Postgres cobrindo as fotos também; o volume é pequeno, uma foto por recado. Elas
+**não** passam pelo PowerSync — o upload precisa de internet e a foto é baixada por
+URL na hora de exibir. É o mesmo
 raciocínio do painel financeiro: o sync carrega linha de banco, não arquivo. Offline,
 o recado aparece com o texto e a imagem fica com um aviso no lugar.
 
@@ -1460,7 +1477,7 @@ deixou o caso ambíguo como `aleatoria`, que é o modo "usa como está digitado"
 preserva o comportamento antigo.
 
 O extrato do atleta sincroniza e funciona offline. **O painel com o dinheiro de
-todo mundo, não**: ele lê direto do Postgrest quando a diretoria abre. É uma escolha
+todo mundo, não**: ele lê direto da API quando a diretoria abre. É uma escolha
 deliberada — o PowerSync baixa linhas cruas para o aparelho, e sincronizar o extrato
 do grupo inteiro deixaria tudo legível no SQLite de qualquer celular da diretoria.
 Ler online mantém a RLS sendo a única guardiã e evita ter que colocar o papel dentro
@@ -1612,7 +1629,7 @@ Onde o enunciado deixava espaço, foi escolhida a opção mais simples que atend
   cada troca e sem offline no grupo que não está aberto — quem participa de dois
   grupos costuma ter dois grupos pequenos, não dois campeonatos.
 - **A chave de acesso não sincroniza.** `grupo_chaves` fica fora das sync rules e é
-  lida pelo Postgrest só pela diretoria do grupo. Um convite que desce para o SQLite
+  lida pela API só pela diretoria do grupo. Um convite que desce para o SQLite
   de todo membro é um convite vazado.
 - **Sem lista pública de grupos.** Entrar depende de alguém te passar a chave. Um
   diretório de grupos convidaria gente estranha a pedir entrada em grupo de sábado
@@ -1620,7 +1637,7 @@ Onde o enunciado deixava espaço, foi escolhida a opção mais simples que atend
 - **Papel vive em `grupo_membros`, não em `profiles`.** Ser diretoria é uma relação
   com um grupo, não um atributo da pessoa; `profiles.is_admin` e `profiles.papel`
   foram removidos junto com a função `is_admin()`.
-- **No Android, o que fala com o Postgrest usa `JsonObject`, não classe
+- **No Android, o que fala com a API usa `JsonObject`, não classe
   `@Serializable`.** O build não aplica o plugin de compilação do
   `kotlinx.serialization`, então uma classe anotada compila normalmente mas **não
   ganha serializer**: a falha só aparece em produção, como
@@ -1631,6 +1648,16 @@ Onde o enunciado deixava espaço, foi escolhida a opção mais simples que atend
   anotar DTO com `@Serializable`** sem antes aplicar o plugin
   `org.jetbrains.kotlin.plugin.serialization` no `app/build.gradle.kts` — se aplicar,
   aí sim as classes voltam a valer a pena.
+- **A API é fina e a regra mora no banco.** Ela não reimplementa permissão: abre a
+  transação com o papel `authenticated` e o `sub` do usuário e deixa a RLS, os
+  triggers e as funções `security definer` decidirem, exatamente como o Postgrest
+  fazia. Por isso a troca do Supabase pelo Railway não mexeu em nenhuma policy.
+- **Os nomes `auth` e `storage` ficaram.** Renomear daria um diff enorme nas
+  migrations antigas sem ganho nenhum; a camada de compatibilidade recria só o que
+  elas usam.
+- **Só a API conhece o Google.** O PowerSync confia no JWT da API por um segredo
+  compartilhado (HS256) em vez de uma URL de JWKS, então nenhum serviço depende de
+  outro estar no ar para validar um token.
 
 ## Fora do escopo do MVP
 
@@ -1638,8 +1665,8 @@ Coisas visíveis no protótipo web ou que costumam ser pedidas, mas que **não**
 aqui porque não constam do escopo descrito:
 
 - **Exportar resultados** (o botão verde de exportar planilha do protótipo).
-- Foto na ficha do jogador: a coluna `players.foto_url` existe, mas só o mural usa o
-  Supabase Storage por enquanto.
+- Foto na ficha do jogador: a coluna `players.foto_url` existe, mas só o mural e a
+  logo do grupo enviam imagem por enquanto.
 - Múltiplos campeonatos ou temporadas em paralelo **dentro do mesmo grupo**:
   `rounds`, `matches` e `standings` continuam assumindo um único campeonato em
   andamento por grupo. A aba de campeonatos é conteúdo, não gestão.
@@ -1657,17 +1684,25 @@ aqui porque não constam do escopo descrito:
 Quase sempre é OAuth. Confira, nesta ordem: (1) o *Web client ID* em
 `local.properties` é o do tipo **Web**, não o Android; (2) existe um *Android client
 ID* com o package name da variant que você está rodando (`com.unidospelovolei.dev`
-em dev) e com o SHA-1 do keystore de debug; (3) esse mesmo Web client ID está em
-**Authorized Client IDs** no provedor Google do Supabase.
+em dev) e com o SHA-1 do keystore que assinou o build; (3) a variável compartilhada
+`GOOGLE_WEB_CLIENT_ID` do ambiente tem esse mesmo valor — é com ela que a API
+confere o token.
+
+**Na web, o botão do Google não aparece ou dá erro de origem.**
+O endereço do site precisa estar em **Authorized JavaScript origins** do Web client,
+exatamente como aparece na barra do navegador (com `https://`, sem barra no fim). A
+mudança no Google Cloud pode levar alguns minutos para valer.
 
 **"Credencial inesperada devolvida pelo Credential Manager" ou nenhuma conta aparece.**
 O emulador provavelmente não tem Google Play. Crie um AVD com imagem de sistema com
 Play Store e faça login numa conta Google no dispositivo.
 
 **O app abre mas fica sempre Offline.**
-Verifique se a instância PowerSync está com a integração de Supabase Auth ativa e com
-as sync rules publicadas, e se `POWERSYNC_URL` aponta para a instância certa. No
-caminho local, lembre que o emulador enxerga a máquina como `10.0.2.2`, nunca
+Abra o log do serviço `powersync`. `Replicating` é sinal de vida; erro de
+`wal_level` quer dizer que falta reiniciar o `Postgres` uma vez depois do primeiro
+start da API; `401` em toda conexão quer dizer que o `JWT_SECRET` que o PowerSync lê
+não é o mesmo da API. Confira também se `POWERSYNC_URL` aponta para o ambiente certo.
+No caminho local, lembre que o emulador enxerga a máquina como `10.0.2.2`, nunca
 `localhost`.
 
 **Entrei no app e ele pede uma chave de acesso.**
@@ -1676,14 +1711,12 @@ organiza o seu grupo, ou crie o seu em **Criar um grupo**. Veja
 [Grupos de jogo e chave de acesso](#grupos-de-jogo-e-chave-de-acesso).
 
 **Crio a chave e ela não aparece na lista.**
-A tela de chaves fala com o Postgrest na hora, não com o banco local, e mostra a
+A tela de chaves fala com a API na hora, não com o banco local, e mostra a
 mensagem que o servidor devolveu em vez de um "precisa de internet" genérico. Leia o
 recado: `permission denied` é grant faltando, `new row violates row-level security
-policy` é você não ser diretoria **naquele** grupo, `Could not find the table` é o
-cache de schema do Postgrest (resolve com **Reload schema cache** em *Project
-Settings → API*), e `Serializer for class ... is not found` é DTO anotado com
-`@Serializable` num build sem o plugin de serialização — veja
-[Decisões de projeto](#decisões-de-projeto). Para ver o que existe de fato:
+policy` é você não ser diretoria **naquele** grupo, e `Serializer for class ... is
+not found` é DTO anotado com `@Serializable` num build sem o plugin de serialização —
+veja [Decisões de projeto](#decisões-de-projeto). Para ver o que existe de fato:
 
 ```sql
 select c.codigo, c.ativa, c.usos, g.nome
@@ -1716,9 +1749,17 @@ de não-admin fica no SQLite local até o sync trazer o valor do servidor por ci
 Na prática não acontece, porque o app esconde os controles de edição de quem não
 é admin.
 
-**Nada aparece no app mesmo com dados no Supabase.**
+**Nada aparece no app mesmo com dados no banco.**
 Confira se a `publication powersync` existe (migration `..._powersync.sql`) e se as
-tabelas listadas nela batem com as das sync rules.
+tabelas listadas nela batem com as das sync rules. A API também usa essa publication
+como lista das tabelas em que o upload pode escrever: tabela fora dela é recusada
+com `Tabela não sincronizada`.
+
+**A API não sobe no Railway.**
+O log do deploy mostra a migration que falhou e a mensagem do Postgres. Uma
+migration com erro não é marcada como aplicada, então corrigir o arquivo e dar push
+roda ela de novo. Para não chegar a isso, rode a mudança na stack local antes do
+push: a API local aplica as mesmas migrations, na mesma ordem, e falha do mesmo jeito.
 
 **Erro de certificado no Gradle: `PKIX path building failed`.**
 Um antivírus com inspeção de HTTPS (Norton, Kaspersky, ESET) ou um proxy corporativo

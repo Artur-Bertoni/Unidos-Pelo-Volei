@@ -1,7 +1,6 @@
 import { novoId } from '../data/mappers';
-import { supabase } from './supabase';
+import { chamarApi } from './api';
 
-const BUCKET = 'grupos';
 const LIMITE_DE_BYTES = 2 * 1024 * 1024;
 
 const EXTENSOES: Record<string, string> = {
@@ -18,12 +17,6 @@ export async function enviarLogoDoGrupo(grupoId: string, arquivo: File): Promise
   const extensao = EXTENSOES[arquivo.type];
   if (!extensao) throw new Error('Formato não aceito na logo. Use JPG, PNG ou WEBP.');
 
-  const caminho = `${grupoId}/logo-${novoId()}.${extensao}`;
-  const { error } = await supabase.storage
-    .from(BUCKET)
-    .upload(caminho, arquivo, { contentType: arquivo.type, upsert: false });
-
-  if (error) throw new Error(error.message);
-
-  return supabase.storage.from(BUCKET).getPublicUrl(caminho).data.publicUrl;
+  const { url } = await chamarApi<{ url: string }>('PUT', `/arquivos/grupos/${grupoId}/logo-${novoId()}.${extensao}`, arquivo);
+  return url;
 }

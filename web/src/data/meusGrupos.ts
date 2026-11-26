@@ -7,12 +7,8 @@ import {
   type Papel,
 } from '../domain/models';
 import { db } from '../lib/powersync/db';
-import { supabase } from '../lib/supabase';
+import { chamarApi } from '../lib/api';
 
-/**
- * O Postgres já responde em português nas funções de grupo, e esconder a causa atrás
- * de "precisa de internet" transforma erro de permissão em mistério.
- */
 const falar = (mensagem: string, padrao: string): string =>
   mensagem.trim().length > 0 ? mensagem : padrao;
 
@@ -33,6 +29,13 @@ interface ChaveLida {
   ativa: boolean;
 }
 
+interface MembroLido {
+  profile_id: string;
+  papel: string;
+  nome: string | null;
+  email: string | null;
+}
+
 const paraChave = (linha: ChaveLida): ChaveDeAcesso => ({
   id: linha.id,
   codigo: linha.codigo,
@@ -48,10 +51,7 @@ export async function entrarComChave(codigo: string): Promise<MeuGrupo> {
   const limpo = limparCodigo(codigo);
   if (limpo.length < 4) throw new Error('Digite a chave que a diretoria do grupo passou.');
 
-  const { data, error } = await supabase.rpc('entrar_no_grupo', { p_codigo: limpo });
-  if (error) throw new Error(error.message);
-
-  const resposta = (data as GrupoRespondido[] | null)?.[0];
+  const resposta = (await chamarApi<GrupoRespondido[]>('POST', '/rpc/entrar_no_grupo', { p_codigo: limpo }))[0];
   if (!resposta) throw new Error('Chave não encontrada.');
 
   return {
@@ -67,13 +67,12 @@ export async function entrarComChave(codigo: string): Promise<MeuGrupo> {
 export async function criarGrupo(nome: string, cidade: string | null): Promise<MeuGrupo> {
   if (nome.trim().length === 0) throw new Error('O grupo precisa de um nome.');
 
-  const { data, error } = await supabase.rpc('criar_grupo', {
-    p_nome: nome.trim(),
-    p_cidade: cidade?.trim() || null,
-  });
-  if (error) throw new Error(error.message);
-
-  const resposta = (data as GrupoRespondido[] | null)?.[0];
+  const resposta = (
+    await chamarApi<GrupoRespondido[]>('POST', '/rpc/criar_grupo', {
+      p_nome: nome.trim(),
+      p_cidade: cidade?.trim() || null,
+    })
+  )[0];
   if (!resposta) throw new Error('Não foi possível criar o grupo.');
 
   return {
@@ -87,11 +86,9 @@ export async function criarGrupo(nome: string, cidade: string | null): Promise<M
 }
 
 export async function sairDoGrupo(grupoId: string): Promise<void> {
-  const { error } = await supabase.rpc('sair_do_grupo', { p_grupo: grupoId });
-  if (error) throw new Error(error.message);
+  await chamarApi('POST', '/rpc/sair_do_grupo', { p_grupo: grupoId });
 }
 
-/** Nome, cidade e logo sobem pelo sync como qualquer outra edição do grupo. */
 export async function salvarIdentidade(
   grupoId: string,
   nome: string,
@@ -108,10 +105,11 @@ export async function salvarIdentidade(
 }
 
 export async function listarChaves(grupoId: string): Promise<ChaveDeAcesso[]> {
-  const { data, error } = await supabase.from('grupo_chaves').select().eq('grupo_id', grupoId);
-  if (error) throw new Error(falar(error.message, 'Não foi possível carregar as chaves.'));
+  const linhas = await chamarApi<ChaveLida[]>('GET', `/grupos/${grupoId}/chaves`).catch((erro: Error) => {
+    throw new Error(falar(erro.message, 'Não foi possível carregar as chaves.'));
+  });
 
-  return ((data ?? []) as ChaveLida[])
+  return linhas
     .map(paraChave)
     .sort(
       (a, b) =>
@@ -126,50 +124,43 @@ export async function criarChave(
   usosMax: number | null,
   expiraEm: string | null,
 ): Promise<ChaveDeAcesso> {
-  const { data, error } = await supabase
-    .from('grupo_chaves')
-    .insert({
-      grupo_id: grupoId,
-      rotulo: rotulo?.trim() || null,
-      papel,
-      usos_max: usosMax,
-      expira_em: expiraEm,
-    })
-    .select()
-    .single();
-
-  if (error) throw new Error(falar(error.message, 'Não foi possível criar a chave.'));
-  return paraChave(data as ChaveLida);
+  const criada = await chamarApi<ChaveLida>('POST', `/grupos/${grupoId}/chaves`, {
+    rotulo: rotulo?.trim() || null,
+    papel,
+    usos_max: usosMax,
+    expira_em: expiraEm,
+  }).catch((erro: Error) => {
+    throw new Error(falar(erro.message, 'Não foi possível criar a chave.'));
+  });
+  return paraChave(criada);
 }
 
 export async function definirChaveAtiva(chaveId: string, ativa: boolean): Promise<void> {
-  const { error } = await supabase.from('grupo_chaves').update({ ativa }).eq('id', chaveId);
-  if (error) throw new Error(falar(error.message, 'Não foi possível mudar a chave.'));
+  await chamarApi('PATCH', `/chaves/${chaveId}`, { ativa }).catch((erro: Error) => {
+    throw new Error(falar(erro.message, 'Não foi possível mudar a chave.'));
+  });
 }
 
 export async function excluirChave(chaveId: string): Promise<void> {
-  const { error } = await supabase.from('grupo_chaves').delete().eq('id', chaveId);
-  if (error) throw new Error(falar(error.message, 'Não foi possível apagar a chave.'));
+  await chamarApi('DELETE', `/chaves/${chaveId}`).catch((erro: Error) => {
+    throw new Error(falar(erro.message, 'Não foi possível apagar a chave.'));
+  });
 }
 
 export async function listarMembros(grupoId: string): Promise<MembroDoGrupo[]> {
-  const { data, error } = await supabase
-    .from('grupo_membros')
-    .select('profile_id, papel, profiles(id, nome, email)')
-    .eq('grupo_id', grupoId);
+  const linhas = await chamarApi<MembroLido[]>('GET', `/grupos/${grupoId}/membros`).catch((erro: Error) => {
+    throw new Error(falar(erro.message, 'Não foi possível carregar os membros.'));
+  });
 
-  if (error) throw new Error(falar(error.message, 'Não foi possível carregar os membros.'));
-
-  return (data ?? [])
-    .map((linha): MembroDoGrupo => {
-      const perfil = linha.profiles as { nome?: string | null; email?: string | null } | null;
-      return {
-        profileId: String(linha.profile_id),
-        nome: perfil?.nome ?? null,
-        email: perfil?.email ?? null,
-        papel: papelDe(String(linha.papel)),
-      };
-    })
+  return linhas
+    .map(
+      (linha): MembroDoGrupo => ({
+        profileId: linha.profile_id,
+        nome: linha.nome,
+        email: linha.email,
+        papel: papelDe(linha.papel),
+      }),
+    )
     .sort((a, b) => (a.nome ?? a.email ?? '').localeCompare(b.nome ?? b.email ?? ''));
 }
 
@@ -178,21 +169,9 @@ export async function definirPapel(
   profileId: string,
   papel: Papel,
 ): Promise<void> {
-  const { error } = await supabase
-    .from('grupo_membros')
-    .update({ papel })
-    .eq('grupo_id', grupoId)
-    .eq('profile_id', profileId);
-
-  if (error) throw new Error(error.message);
+  await chamarApi('PATCH', `/grupos/${grupoId}/membros/${profileId}`, { papel });
 }
 
 export async function removerMembro(grupoId: string, profileId: string): Promise<void> {
-  const { error } = await supabase
-    .from('grupo_membros')
-    .delete()
-    .eq('grupo_id', grupoId)
-    .eq('profile_id', profileId);
-
-  if (error) throw new Error(error.message);
+  await chamarApi('DELETE', `/grupos/${grupoId}/membros/${profileId}`);
 }

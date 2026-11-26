@@ -11,7 +11,6 @@ import com.unidospelovolei.domain.model.MembroDoGrupo
 import com.unidospelovolei.domain.model.MeuGrupo
 import com.unidospelovolei.domain.model.Papel
 import com.unidospelovolei.ui.grupo.ImagemEscolhida
-import io.github.jan.supabase.auth.status.SessionStatus
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -61,9 +60,7 @@ class GruposViewModel(
     private val aviso = MutableStateFlow<String?>(null)
 
     private val usuarioId =
-        authRepository.sessionStatus.map { status ->
-            (status as? SessionStatus.Authenticated)?.session?.user?.id
-        }
+        authRepository.usuarioId
 
     private val meusGrupos =
         usuarioId.flatMapLatest { id ->

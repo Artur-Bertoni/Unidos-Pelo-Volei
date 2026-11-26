@@ -1,7 +1,7 @@
 interface Ambiente {
-  supabaseUrl: string;
-  supabaseAnonKey: string;
+  apiUrl: string;
   powersyncUrl: string;
+  googleClientId: string;
   vapidPublicKey: string;
   nome: string;
 }
@@ -9,18 +9,18 @@ interface Ambiente {
 const ler = (valor: string | undefined): string => (valor ?? '').trim();
 
 export const env: Ambiente = {
-  supabaseUrl: ler(import.meta.env.VITE_SUPABASE_URL),
-  supabaseAnonKey: ler(import.meta.env.VITE_SUPABASE_ANON_KEY),
+  apiUrl: ler(import.meta.env.VITE_API_URL).replace(/\/+$/, ''),
   powersyncUrl: ler(import.meta.env.VITE_POWERSYNC_URL).replace(/\/+$/, ''),
+  googleClientId: ler(import.meta.env.VITE_GOOGLE_CLIENT_ID),
   vapidPublicKey: ler(import.meta.env.VITE_VAPID_PUBLIC_KEY),
   nome: ler(import.meta.env.VITE_ENVIRONMENT) || (import.meta.env.DEV ? 'dev' : 'prod'),
 };
 
 export const chavesFaltando = (): string[] => {
   const faltando: string[] = [];
-  if (!env.supabaseUrl) faltando.push('VITE_SUPABASE_URL');
-  if (!env.supabaseAnonKey) faltando.push('VITE_SUPABASE_ANON_KEY');
+  if (!env.apiUrl) faltando.push('VITE_API_URL');
   if (!env.powersyncUrl) faltando.push('VITE_POWERSYNC_URL');
+  if (!env.googleClientId) faltando.push('VITE_GOOGLE_CLIENT_ID');
   return faltando;
 };
 

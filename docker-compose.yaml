@@ -1,0 +1,32 @@
+name: unidos-pelo-volei
+
+services:
+  postgres:
+    image: postgres:17
+    command: ["postgres", "-c", "wal_level=logical"]
+    environment:
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "55432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 2s
+      retries: 30
+
+  powersync:
+    build: ./powersync
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PS_DATA_SOURCE_URI: postgresql://postgres:postgres@postgres:5432/postgres
+      PS_STORAGE_URI: postgresql://postgres:postgres@postgres:5432/powersync_storage
+      PS_JWT_SECRET: U_TwrQ_-40HrmIp9ruZLct7qk66s-MwleeXruwdltX4
+    ports:
+      - "8080:8080"
+
+volumes:
+  postgres_data:

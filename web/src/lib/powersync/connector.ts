@@ -4,70 +4,48 @@ import {
   type PowerSyncBackendConnector,
   type PowerSyncCredentials,
 } from '@powersync/web';
+import { ErroDaApi, chamarApi } from '../api';
+import { tokenDeAcesso } from '../auth';
 import { env } from '../env';
-import { supabase } from '../supabase';
 
-/**
- * Códigos do Postgres que nunca vão passar numa nova tentativa: repetir a fila
- * travaria a sincronização para sempre, então a transação é descartada.
- */
-const CODIGOS_FATAIS = [/^22...$/, /^23...$/, /^42501$/];
+interface RespostaDoUpload {
+  aplicadas: number;
+  descartadas: { tabela: string; id: string; codigo: string; mensagem: string }[];
+}
 
-const ehFatal = (codigo: string | undefined): boolean =>
-  codigo !== undefined && CODIGOS_FATAIS.some((padrao) => padrao.test(codigo));
+const NOMES: Record<UpdateType, 'PUT' | 'PATCH' | 'DELETE'> = {
+  [UpdateType.PUT]: 'PUT',
+  [UpdateType.PATCH]: 'PATCH',
+  [UpdateType.DELETE]: 'DELETE',
+};
 
-export class SupabaseConnector implements PowerSyncBackendConnector {
+export class BackendConnector implements PowerSyncBackendConnector {
   async fetchCredentials(): Promise<PowerSyncCredentials | null> {
-    const {
-      data: { session },
-      error,
-    } = await supabase.auth.getSession();
-
-    if (error) throw new Error(error.message);
-    if (!session) return null;
-
-    return {
-      endpoint: env.powersyncUrl,
-      token: session.access_token,
-    };
+    const token = await tokenDeAcesso();
+    if (!token) return null;
+    return { endpoint: env.powersyncUrl, token };
   }
 
   async uploadData(database: AbstractPowerSyncDatabase): Promise<void> {
     const transacao = await database.getNextCrudTransaction();
     if (!transacao) return;
 
-    let ultimaOperacao: string | null = null;
+    const operacoes = transacao.crud.map((operacao) => ({
+      op: NOMES[operacao.op],
+      tabela: operacao.table,
+      id: operacao.id,
+      dados: operacao.opData ?? null,
+    }));
+
     try {
-      for (const operacao of transacao.crud) {
-        ultimaOperacao = `${operacao.op} em ${operacao.table}/${operacao.id}`;
-        const tabela = supabase.from(operacao.table);
-
-        let resultado;
-        switch (operacao.op) {
-          case UpdateType.PUT:
-            resultado = await tabela.upsert({ ...(operacao.opData ?? {}), id: operacao.id });
-            break;
-          case UpdateType.PATCH:
-            resultado = await tabela.update(operacao.opData ?? {}).eq('id', operacao.id);
-            break;
-          case UpdateType.DELETE:
-            resultado = await tabela.delete().eq('id', operacao.id);
-            break;
-        }
-
-        if (resultado?.error) {
-          throw Object.assign(new Error(resultado.error.message), { code: resultado.error.code });
-        }
+      const resposta = await chamarApi<RespostaDoUpload>('POST', '/sync/upload', { operacoes });
+      if (resposta.descartadas.length > 0) {
+        console.error('O servidor recusou alterações:', resposta.descartadas);
       }
-      await transacao.complete();
     } catch (erro) {
-      const codigo = (erro as { code?: string }).code;
-      if (ehFatal(codigo)) {
-        console.error(`Descartando alteração que o servidor recusou (${ultimaOperacao}):`, erro);
-        await transacao.complete();
-        return;
-      }
-      throw erro;
+      if (!(erro instanceof ErroDaApi) || erro.status !== 400) throw erro;
+      console.error('Descartando transação que o servidor recusou:', erro.message);
     }
+    await transacao.complete();
   }
 }

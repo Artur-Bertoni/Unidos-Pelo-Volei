@@ -1,7 +1,7 @@
 import { PowerSyncDatabase } from '@powersync/web';
 import { definirUsuario } from '../../data/grupoAtivo';
-import { supabase } from '../supabase';
-import { SupabaseConnector } from './connector';
+import { observarSessao, sessaoAtual } from '../auth';
+import { BackendConnector } from './connector';
 import { AppSchema } from './schema';
 
 export const db = new PowerSyncDatabase({
@@ -9,12 +9,11 @@ export const db = new PowerSyncDatabase({
   database: { dbFilename: 'unidos-pelo-volei.db' },
 });
 
-const connector = new SupabaseConnector();
+const connector = new BackendConnector();
 
 let conectado = false;
 let emAndamento: Promise<void> = Promise.resolve();
 
-/** Serializa conexão e desconexão, como o Mutex do SyncService do Android. */
 const enfileirar = (acao: () => Promise<void>): Promise<void> => {
   emAndamento = emAndamento.then(acao, acao);
   return emAndamento;
@@ -46,26 +45,17 @@ const desconectar = (limpar: boolean): Promise<void> =>
     conectado = false;
   });
 
-/**
- * Liga o ciclo de vida do sync ao da sessão: conecta quando há usuário e limpa o
- * banco local quando ele sai, para não deixar dados de uma conta visíveis a outra.
- */
 export function iniciarSync(): void {
-  void supabase.auth.getSession().then(({ data: { session } }) => {
-    definirUsuario(session?.user.id ?? null);
-    if (session) void conectar();
-  });
+  const inicial = sessaoAtual();
+  definirUsuario(inicial?.usuarioId ?? null);
+  if (inicial) void conectar();
 
-  supabase.auth.onAuthStateChange((evento, session) => {
-    definirUsuario(session?.user.id ?? null);
-    if (evento === 'SIGNED_OUT') {
-      void desconectar(true);
-      return;
-    }
-    if (session) {
-      void conectar();
+  observarSessao((sessao) => {
+    definirUsuario(sessao?.usuarioId ?? null);
+    if (sessao) {
+      void desconectar(true).then(conectar);
     } else {
-      void desconectar(false);
+      void desconectar(true);
     }
   });
 }

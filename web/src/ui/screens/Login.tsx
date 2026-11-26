@@ -1,43 +1,65 @@
+import { useEffect, useRef, useState } from 'react';
+import { mostrarBotaoDoGoogle } from '../../lib/google';
 import { LogoUpv } from '../components/Componentes';
 
 export const LoginScreen = ({
   entrando,
   erro,
-  onEntrar,
+  tentativa,
+  onToken,
 }: {
   entrando: boolean;
   erro: string | null;
-  onEntrar: () => void;
-}) => (
-  <div
-    className="coluna"
-    style={{ height: '100%', alignItems: 'center', justifyContent: 'center', padding: 32, gap: 8 }}
-  >
-    <LogoUpv tamanho={128} />
-    <h1 style={{ fontSize: 22, fontWeight: 900, letterSpacing: 0.6, margin: '24px 0 0' }}>
-      UNIDOS PELO VÔLEI
-    </h1>
-    <p className="subtitulo" style={{ textAlign: 'center', margin: '8px 0 0', fontSize: 13 }}>
-      Entre com a sua conta Google para ver os jogos e a classificação do grupo.
-    </p>
+  tentativa: number;
+  onToken: (idToken: string, nonce: string) => void;
+}) => {
+  const lugarDoBotao = useRef<HTMLDivElement>(null);
+  const aoReceber = useRef(onToken);
+  aoReceber.current = onToken;
+  const [falhaAoCarregar, setFalhaAoCarregar] = useState<string | null>(null);
 
-    <button
-      type="button"
-      className="botao botao-primario"
-      style={{ marginTop: 32 }}
-      disabled={entrando}
-      onClick={onEntrar}
+  useEffect(() => {
+    const elemento = lugarDoBotao.current;
+    if (!elemento) return;
+    setFalhaAoCarregar(null);
+    mostrarBotaoDoGoogle(elemento, (idToken, nonce) => aoReceber.current(idToken, nonce)).catch((falha: unknown) =>
+      setFalhaAoCarregar(falha instanceof Error ? falha.message : 'Não foi possível carregar o login do Google.'),
+    );
+  }, [tentativa]);
+
+  const mensagem = erro ?? falhaAoCarregar;
+
+  return (
+    <div
+      className="coluna"
+      style={{ height: '100%', alignItems: 'center', justifyContent: 'center', padding: 32, gap: 8 }}
     >
-      {entrando ? 'Entrando...' : 'Entrar com Google'}
-    </button>
-
-    {erro && (
-      <p className="erro" style={{ textAlign: 'center', marginTop: 16 }}>
-        {erro}
+      <LogoUpv tamanho={128} />
+      <h1 style={{ fontSize: 22, fontWeight: 900, letterSpacing: 0.6, margin: '24px 0 0' }}>
+        UNIDOS PELO VÔLEI
+      </h1>
+      <p className="subtitulo" style={{ textAlign: 'center', margin: '8px 0 0', fontSize: 13 }}>
+        Entre com a sua conta Google para ver os jogos e a classificação do grupo.
       </p>
-    )}
-  </div>
-);
+
+      <div
+        ref={lugarDoBotao}
+        style={{ marginTop: 32, minHeight: 44, display: entrando ? 'none' : 'flex', justifyContent: 'center' }}
+      />
+      {entrando && (
+        <p className="subtitulo" style={{ marginTop: 32 }}>
+          Entrando...
+        </p>
+      )}
+
+      {mensagem && (
+        <p className="erro" style={{ textAlign: 'center', marginTop: 16 }}>
+          {mensagem}
+        </p>
+      )}
+    </div>
+  );
+};
 
 export const ConfiguracaoPendenteScreen = ({
   chavesFaltando,

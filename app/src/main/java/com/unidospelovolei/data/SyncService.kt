@@ -1,9 +1,7 @@
 package com.unidospelovolei.data
 
 import com.powersync.PowerSyncDatabase
-import com.powersync.connector.supabase.SupabaseConnector
 import com.powersync.sync.SyncStatusData
-import io.github.jan.supabase.auth.status.SessionStatus
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
@@ -12,7 +10,7 @@ import kotlinx.coroutines.sync.withLock
 
 class SyncService(
     private val db: PowerSyncDatabase,
-    private val connector: SupabaseConnector,
+    private val connector: BackendConnector,
     private val authRepository: AuthRepository,
     private val grupoAtivo: GrupoAtivo,
     private val scope: CoroutineScope,
@@ -24,20 +22,23 @@ class SyncService(
 
     fun start() {
         scope.launch {
-            authRepository.sessionStatus.collect { sessao ->
+            var anterior: EstadoDaSessao? = null
+            authRepository.estado.collect { sessao ->
                 when (sessao) {
-                    is SessionStatus.Authenticated -> {
-                        grupoAtivo.paraUsuario(sessao.session.user?.id)
+                    is EstadoDaSessao.Autenticado -> {
+                        grupoAtivo.paraUsuario(sessao.usuarioId)
+                        if (anterior is EstadoDaSessao.Desconectado) desconectar(limpar = true)
                         conectar()
                     }
 
-                    is SessionStatus.NotAuthenticated -> {
+                    is EstadoDaSessao.Desconectado -> {
                         grupoAtivo.paraUsuario(null)
-                        desconectar(limpar = sessao.isSignOut)
+                        desconectar(limpar = sessao.saiu)
                     }
 
-                    else -> Unit
+                    EstadoDaSessao.Carregando -> Unit
                 }
+                anterior = sessao
             }
         }
     }

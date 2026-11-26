@@ -2,8 +2,8 @@
 <!--
     Somente builds de debug.
 
-    O caminho de desenvolvimento totalmente local (Supabase pela CLI + PowerSync
-    self-hosted) expoe os servicos em HTTP puro, em 10.0.2.2 para o emulador ou
+    O caminho de desenvolvimento totalmente local (API com npm run dev + PowerSync
+    e Postgres no docker compose) expoe os servicos em HTTP puro, em 10.0.2.2 para o emulador ou
     no IP da maquina para um aparelho fisico. Sem isto o Android bloqueia o
     trafego em texto claro e o app fica permanentemente offline.
 

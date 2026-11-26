@@ -5,10 +5,6 @@ import com.unidospelovolei.domain.model.ChaveDeAcesso
 import com.unidospelovolei.domain.model.MembroDoGrupo
 import com.unidospelovolei.domain.model.MeuGrupo
 import com.unidospelovolei.domain.model.Papel
-import io.github.jan.supabase.SupabaseClient
-import io.github.jan.supabase.postgrest.from
-import io.github.jan.supabase.postgrest.postgrest
-import io.github.jan.supabase.postgrest.query.Columns
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.serialization.json.JsonObject
@@ -17,7 +13,7 @@ import kotlinx.serialization.json.put
 
 class MeusGruposRepository(
     private val db: PowerSyncDatabase,
-    private val supabase: SupabaseClient,
+    private val api: ApiClient,
     private val grupoAtivo: GrupoAtivo,
 ) {
     fun observeMeusGrupos(profileId: String): Flow<List<MeuGrupo>> =
@@ -55,9 +51,9 @@ class MeusGruposRepository(
         require(limpo.length >= 4) { "Digite a chave que a diretoria do grupo passou." }
 
         val resposta =
-            supabase.postgrest
-                .rpc("entrar_no_grupo", buildJsonObject { put("p_codigo", limpo) })
-                .decodeList<JsonObject>()
+            api
+                .post("/rpc/entrar_no_grupo", buildJsonObject { put("p_codigo", limpo) })
+                .comoLista()
                 .firstOrNull()
                 ?: throw IllegalStateException("Chave não encontrada.")
 
@@ -76,14 +72,14 @@ class MeusGruposRepository(
         require(nome.isNotBlank()) { "O grupo precisa de um nome." }
 
         val resposta =
-            supabase.postgrest
-                .rpc(
-                    "criar_grupo",
+            api
+                .post(
+                    "/rpc/criar_grupo",
                     buildJsonObject {
                         put("p_nome", nome.trim())
                         put("p_cidade", cidade?.trim()?.ifBlank { null })
                     },
-                ).decodeList<JsonObject>()
+                ).comoLista()
                 .firstOrNull()
                 ?: throw IllegalStateException("Não foi possível criar o grupo.")
 
@@ -96,14 +92,13 @@ class MeusGruposRepository(
     }
 
     suspend fun sair(grupoId: String) {
-        supabase.postgrest.rpc("sair_do_grupo", buildJsonObject { put("p_grupo", grupoId) })
+        api.post("/rpc/sair_do_grupo", buildJsonObject { put("p_grupo", grupoId) })
     }
 
     suspend fun listarChaves(grupoId: String): List<ChaveDeAcesso> =
-        supabase
-            .from("grupo_chaves")
-            .select { filter { eq("grupo_id", grupoId) } }
-            .decodeList<JsonObject>()
+        api
+            .get("/grupos/$grupoId/chaves")
+            .comoLista()
             .map { it.paraChave() }
             .sortedWith(compareByDescending<ChaveDeAcesso> { it.ativa }.thenBy { it.rotulo ?: "" })
 
@@ -114,19 +109,16 @@ class MeusGruposRepository(
         usosMax: Int?,
         expiraEm: String?,
     ): ChaveDeAcesso =
-        supabase
-            .from("grupo_chaves")
-            .insert(
+        api
+            .post(
+                "/grupos/$grupoId/chaves",
                 buildJsonObject {
-                    put("grupo_id", grupoId)
                     put("rotulo", rotulo?.trim()?.ifBlank { null })
                     put("papel", papel.value)
                     put("usos_max", usosMax)
                     put("expira_em", expiraEm)
                 },
-            ) { select() }
-            .decodeList<JsonObject>()
-            .firstOrNull()
+            ).comoObjeto()
             ?.paraChave()
             ?: throw IllegalStateException("O servidor não devolveu a chave criada.")
 
@@ -134,29 +126,24 @@ class MeusGruposRepository(
         chaveId: String,
         ativa: Boolean,
     ) {
-        supabase
-            .from("grupo_chaves")
-            .update({ set("ativa", ativa) }) { filter { eq("id", chaveId) } }
+        api.patch("/chaves/$chaveId", buildJsonObject { put("ativa", ativa) })
     }
 
     suspend fun excluirChave(chaveId: String) {
-        supabase.from("grupo_chaves").delete { filter { eq("id", chaveId) } }
+        api.delete("/chaves/$chaveId")
     }
 
     suspend fun listarMembrosDoGrupoAtivo(): List<MembroDoGrupo> = listarMembros(grupoAtivo.exigir())
 
     suspend fun listarMembros(grupoId: String): List<MembroDoGrupo> =
-        supabase
-            .from("grupo_membros")
-            .select(Columns.raw("profile_id, papel, profiles(id, nome, email)")) {
-                filter { eq("grupo_id", grupoId) }
-            }.decodeList<JsonObject>()
+        api
+            .get("/grupos/$grupoId/membros")
+            .comoLista()
             .map { linha ->
-                val perfil = linha.objetoEmbutido("profiles")
                 MembroDoGrupo(
                     profileId = linha.textoObrigatorio("profile_id"),
-                    nome = perfil?.texto("nome"),
-                    email = perfil?.texto("email"),
+                    nome = linha.texto("nome"),
+                    email = linha.texto("email"),
                     papel = Papel.from(linha.texto("papel")),
                 )
             }.sortedBy { it.rotulo.lowercase() }
@@ -166,24 +153,14 @@ class MeusGruposRepository(
         profileId: String,
         papel: Papel,
     ) {
-        supabase.from("grupo_membros").update({ set("papel", papel.value) }) {
-            filter {
-                eq("grupo_id", grupoId)
-                eq("profile_id", profileId)
-            }
-        }
+        api.patch("/grupos/$grupoId/membros/$profileId", buildJsonObject { put("papel", papel.value) })
     }
 
     suspend fun removerMembro(
         grupoId: String,
         profileId: String,
     ) {
-        supabase.from("grupo_membros").delete {
-            filter {
-                eq("grupo_id", grupoId)
-                eq("profile_id", profileId)
-            }
-        }
+        api.delete("/grupos/$grupoId/membros/$profileId")
     }
 
     private fun JsonObject.paraChave(): ChaveDeAcesso =

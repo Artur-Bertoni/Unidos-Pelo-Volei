@@ -3,10 +3,11 @@ package com.unidospelovolei
 import android.content.Context
 import com.powersync.DatabaseDriverFactory
 import com.powersync.PowerSyncDatabase
-import com.powersync.connector.supabase.SupabaseConnector
+import com.unidospelovolei.data.ApiClient
 import com.unidospelovolei.data.AppSchema
 import com.unidospelovolei.data.AuthRepository
 import com.unidospelovolei.data.AvaliacaoRepository
+import com.unidospelovolei.data.BackendConnector
 import com.unidospelovolei.data.ChamadaRepository
 import com.unidospelovolei.data.EnderecoRepository
 import com.unidospelovolei.data.FinanceiroRepository
@@ -23,10 +24,6 @@ import com.unidospelovolei.data.ProfileRepository
 import com.unidospelovolei.data.StandingsRepository
 import com.unidospelovolei.data.SyncService
 import com.unidospelovolei.data.TeamsRepository
-import io.github.jan.supabase.auth.Auth
-import io.github.jan.supabase.createSupabaseClient
-import io.github.jan.supabase.postgrest.Postgrest
-import io.github.jan.supabase.storage.Storage
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -39,23 +36,15 @@ class AppContainer(
 
     val chavesFaltando: List<String> =
         buildList {
-            if (BuildConfig.SUPABASE_URL.isBlank()) add("SUPABASE_URL")
-            if (BuildConfig.SUPABASE_ANON_KEY.isBlank()) add("SUPABASE_ANON_KEY")
+            if (BuildConfig.API_URL.isBlank()) add("API_URL")
             if (BuildConfig.POWERSYNC_URL.isBlank()) add("POWERSYNC_URL")
             if (BuildConfig.GOOGLE_WEB_CLIENT_ID.isBlank()) add("GOOGLE_WEB_CLIENT_ID")
         }
 
     val configurado: Boolean get() = chavesFaltando.isEmpty()
 
-    private val supabase by lazy {
-        createSupabaseClient(
-            supabaseUrl = BuildConfig.SUPABASE_URL,
-            supabaseKey = BuildConfig.SUPABASE_ANON_KEY,
-        ) {
-            install(Auth)
-            install(Postgrest)
-            install(Storage)
-        }
+    private val api: ApiClient by lazy {
+        ApiClient(BuildConfig.API_URL) { forcar -> authRepository.tokenDeAcesso(forcar) }
     }
 
     val database: PowerSyncDatabase by lazy {
@@ -68,31 +57,32 @@ class AppContainer(
     }
 
     private val connector by lazy {
-        SupabaseConnector(
-            supabaseClient = supabase,
-            powerSyncEndpoint = BuildConfig.POWERSYNC_URL,
+        BackendConnector(
+            api = api,
+            authRepository = authRepository,
+            powerSyncUrl = BuildConfig.POWERSYNC_URL,
         )
     }
 
     val grupoAtivo by lazy { GrupoAtivo(appContext) }
 
-    val authRepository by lazy {
+    val authRepository: AuthRepository by lazy {
         AuthRepository(
-            supabase = supabase,
+            apiProvider = { api },
             appContext = appContext,
             googleWebClientId = BuildConfig.GOOGLE_WEB_CLIENT_ID,
         )
     }
 
-    val meusGruposRepository by lazy { MeusGruposRepository(database, supabase, grupoAtivo) }
-    val grupoStorage by lazy { GrupoStorage(supabase) }
+    val meusGruposRepository by lazy { MeusGruposRepository(database, api, grupoAtivo) }
+    val grupoStorage by lazy { GrupoStorage(api) }
     val profileRepository by lazy { ProfileRepository(database, grupoAtivo) }
     val membroRepository by lazy { MembroRepository(database, grupoAtivo) }
     val chamadaRepository by lazy { ChamadaRepository(database, grupoAtivo) }
     val grupoRepository by lazy { GrupoRepository(database, grupoAtivo) }
-    val muralStorage by lazy { MuralStorage(supabase, grupoAtivo) }
+    val muralStorage by lazy { MuralStorage(api, grupoAtivo) }
     val enderecoRepository by lazy { EnderecoRepository() }
-    val financeiroRepository by lazy { FinanceiroRepository(database, supabase, grupoAtivo) }
+    val financeiroRepository by lazy { FinanceiroRepository(database, api, grupoAtivo) }
     val avaliacaoRepository by lazy { AvaliacaoRepository(database, grupoAtivo) }
     val playersRepository by lazy { PlayersRepository(database, grupoAtivo) }
     val teamsRepository by lazy { TeamsRepository(database, grupoAtivo) }

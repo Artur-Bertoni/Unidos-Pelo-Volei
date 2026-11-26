@@ -1,6 +1,5 @@
 import { useQuery, useStatus } from '@powersync/react';
-import type { Session } from '@supabase/supabase-js';
-import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
+import { useMemo, useState, useSyncExternalStore } from 'react';
 import { grupoAtivo, observarGrupoAtivo } from '../data/grupoAtivo';
 import type { Row } from '../data/mappers';
 import {
@@ -88,32 +87,19 @@ import {
   type UserProfile,
   type VinculoPedido,
 } from '../domain/models';
-import { supabase } from '../lib/supabase';
+import { observarSessao, sessaoAtual, type Sessao } from '../lib/auth';
 import type { SinalSync } from './components/Componentes';
 
 export interface EstadoDaSessao {
   carregando: boolean;
-  session: Session | null;
+  session: Sessao | null;
 }
 
+const assinarSessao = (avisar: () => void): (() => void) => observarSessao(avisar);
+
 export function useSessao(): EstadoDaSessao {
-  const [estado, setEstado] = useState<EstadoDaSessao>({ carregando: true, session: null });
-
-  useEffect(() => {
-    let vivo = true;
-    void supabase.auth.getSession().then(({ data: { session } }) => {
-      if (vivo) setEstado({ carregando: false, session });
-    });
-    const { data } = supabase.auth.onAuthStateChange((_evento, session) => {
-      if (vivo) setEstado({ carregando: false, session });
-    });
-    return () => {
-      vivo = false;
-      data.subscription.unsubscribe();
-    };
-  }, []);
-
-  return estado;
+  const session = useSyncExternalStore(assinarSessao, sessaoAtual, sessaoAtual);
+  return { carregando: false, session };
 }
 
 /**

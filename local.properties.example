@@ -7,24 +7,24 @@
 #
 # As chaves entram no codigo via BuildConfig (ver app/build.gradle.kts).
 # Em CI, as mesmas chaves podem vir de variaveis de ambiente no formato
-# DEV_SUPABASE_URL, PROD_SUPABASE_URL e assim por diante.
+# DEV_API_URL, PROD_API_URL e assim por diante.
 
 # Caminho do Android SDK. O Android Studio preenche sozinho ao abrir o projeto.
 sdk.dir=C\:\\Users\\SEU_USUARIO\\AppData\\Local\\Android\\Sdk
 
 # ---------------------------------------------------------------------------
-# Ambiente de desenvolvimento
+# Desenvolvimento: a stack local (docker compose + npm run dev em server/).
+# 10.0.2.2 e a sua maquina vista de dentro do emulador; num aparelho fisico,
+# troque pelo IP da maquina na rede (ipconfig).
 # ---------------------------------------------------------------------------
-dev.SUPABASE_URL=https://SEU-PROJETO-DEV.supabase.co
-dev.SUPABASE_ANON_KEY=
-dev.POWERSYNC_URL=https://SUA-INSTANCIA-DEV.powersync.journeyapps.com
+dev.API_URL=http://10.0.2.2:3000
+dev.POWERSYNC_URL=http://10.0.2.2:8080
 dev.GOOGLE_WEB_CLIENT_ID=000000000000-xxxxxxxx.apps.googleusercontent.com
 
 # ---------------------------------------------------------------------------
-# Ambiente de producao
+# Producao: dominios dos servicos api e powersync no Railway
 # ---------------------------------------------------------------------------
-prod.SUPABASE_URL=
-prod.SUPABASE_ANON_KEY=
+prod.API_URL=
 prod.POWERSYNC_URL=
 prod.GOOGLE_WEB_CLIENT_ID=
 
@@ -37,8 +37,8 @@ prod.GOOGLE_WEB_CLIENT_ID=
 #   FIREBASE_API_KEY     -> Chave de API do Android
 #   FIREBASE_SENDER_ID   -> Numero do remetente (Project number)
 #
-# A chave privada da conta de servico NAO entra aqui: ela e secret da Edge
-# Function enviar-avisos, no painel do Supabase.
+# A chave privada da conta de servico NAO entra aqui: ela e a variavel
+# FIREBASE_SERVICE_ACCOUNT nas Shared Variables do Railway.
 
 dev.FIREBASE_PROJECT_ID=
 dev.FIREBASE_APP_ID=

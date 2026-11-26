@@ -1,6 +1,5 @@
 package com.unidospelovolei.data
 
-import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.contentOrNull
@@ -25,14 +24,3 @@ internal fun JsonObject.booleano(
     campo: String,
     padrao: Boolean = false,
 ): Boolean = runCatching { this[campo]?.jsonPrimitive?.booleanOrNull }.getOrNull() ?: padrao
-
-/**
- * O Postgrest devolve o recurso embutido como objeto quando a relação é para um só,
- * e como lista em versões mais antigas. Aceitar os dois evita quebrar num upgrade.
- */
-internal fun JsonObject.objetoEmbutido(campo: String): JsonObject? =
-    when (val valor = this[campo]) {
-        is JsonObject -> valor
-        is JsonArray -> valor.firstOrNull() as? JsonObject
-        else -> null
-    }

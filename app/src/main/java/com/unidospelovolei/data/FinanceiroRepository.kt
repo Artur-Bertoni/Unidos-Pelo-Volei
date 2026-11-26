@@ -11,14 +11,11 @@ import com.unidospelovolei.domain.model.Pagamento
 import com.unidospelovolei.domain.model.Regime
 import com.unidospelovolei.domain.model.StatusPagamento
 import com.unidospelovolei.domain.model.TipoCobranca
-import io.github.jan.supabase.SupabaseClient
-import io.github.jan.supabase.postgrest.from
 import java.time.LocalDate
 import java.time.YearMonth
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
-import kotlinx.serialization.json.JsonObject
 
 data class LinhaDoPainel(
     val id: String,
@@ -32,7 +29,7 @@ data class LinhaDoPainel(
 
 class FinanceiroRepository(
     private val db: PowerSyncDatabase,
-    private val supabase: SupabaseClient,
+    private val api: ApiClient,
     private val grupoAtivo: GrupoAtivo,
 ) {
     fun observeConfig(): Flow<ConfigFinanceiro?> =
@@ -78,10 +75,9 @@ class FinanceiroRepository(
 
     suspend fun lerPainel(): List<LinhaDoPainel> {
         val grupo = grupoAtivo.exigir()
-        return supabase
-            .from("pagamentos")
-            .select { filter { eq("grupo_id", grupo) } }
-            .decodeList<JsonObject>()
+        return api
+            .get("/grupos/$grupo/pagamentos")
+            .comoLista()
             .map { linha ->
                 LinhaDoPainel(
                     id = linha.textoObrigatorio("id"),

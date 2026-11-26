@@ -87,8 +87,8 @@ import {
 import { chavesFaltando, configurado, env } from './lib/env';
 import { enviarLogoDoGrupo } from './lib/logos';
 import { enviarImagemDoMural } from './lib/mural';
-import { supabase } from './lib/supabase';
-import { entrarComGoogle, sair } from './lib/supabase';
+import { chamarApi } from './lib/api';
+import { entrarComTokenDoGoogle, sair } from './lib/auth';
 import { AppHeader, Aviso, Carregando } from './ui/components/Componentes';
 import { IconeGrupos, IconePessoa, IconeTrofeu, IconeVolei } from './ui/components/Icons';
 import {
@@ -230,6 +230,7 @@ function Raiz() {
   const { carregando, session } = useSessao();
   const [entrando, setEntrando] = useState(false);
   const [erroLogin, setErroLogin] = useState<string | null>(null);
+  const [tentativa, setTentativa] = useState(0);
 
   if (carregando) return <Carregando />;
 
@@ -238,19 +239,22 @@ function Raiz() {
       <LoginScreen
         entrando={entrando}
         erro={erroLogin}
-        onEntrar={() => {
+        tentativa={tentativa}
+        onToken={(idToken, nonce) => {
           setEntrando(true);
           setErroLogin(null);
-          entrarComGoogle().catch((falha: unknown) => {
-            setErroLogin(falha instanceof Error ? falha.message : 'Não foi possível entrar com o Google.');
-            setEntrando(false);
-          });
+          entrarComTokenDoGoogle(idToken, nonce)
+            .catch((falha: unknown) => {
+              setErroLogin(falha instanceof Error ? falha.message : 'Não foi possível entrar com o Google.');
+              setTentativa((valor) => valor + 1);
+            })
+            .finally(() => setEntrando(false));
         }}
       />
     );
   }
 
-  return <ComTour usuarioId={session.user.id} />;
+  return <ComTour usuarioId={session.usuarioId} />;
 }
 
 function ComTour({ usuarioId }: { usuarioId: string }) {
@@ -594,8 +598,9 @@ function Home({ usuarioId, abaInicial }: { usuarioId: string; abaInicial: Aba })
     executar(async () => {
       setCarregandoPainel(true);
       try {
-        const { data, error } = await supabase.from('pagamentos').select();
-        if (error) throw new Error('Não foi possível carregar o financeiro do grupo. Precisa de internet.');
+        const data = await chamarApi<Record<string, unknown>[]>('GET', '/grupos/' + grupoAtivoId + '/pagamentos').catch(() => {
+          throw new Error('Não foi possível carregar o financeiro do grupo. Precisa de internet.');
+        });
         const porCobranca = new Map(cobrancas.map((cobranca) => [cobranca.id, cobranca]));
         setPainel(
           (data ?? [])

@@ -1,10 +1,7 @@
 package com.unidospelovolei.data
 
-import io.github.jan.supabase.SupabaseClient
-import io.github.jan.supabase.storage.storage
-
 class MuralStorage(
-    private val supabase: SupabaseClient,
+    private val api: ApiClient,
     private val grupoAtivo: GrupoAtivo,
 ) {
     suspend fun enviarImagem(
@@ -14,14 +11,11 @@ class MuralStorage(
         require(bytes.isNotEmpty()) { "Não foi possível ler a imagem escolhida." }
         require(bytes.size <= LIMITE_DE_BYTES) { "A imagem passa de 5 MB. Escolha uma menor." }
 
-        val caminho = "${grupoAtivo.exigir()}/${novoId()}.${extensao.lowercase().ifBlank { "jpg" }}"
-        val bucket = supabase.storage.from(BUCKET)
-        bucket.upload(caminho, bytes) { upsert = false }
-        return bucket.publicUrl(caminho)
+        val final = extensao.lowercase().ifBlank { "jpg" }
+        return enviarImagemPublica(api, "mural", grupoAtivo.exigir(), "${novoId()}.$final", bytes, final)
     }
 
     private companion object {
-        const val BUCKET = "mural"
         const val LIMITE_DE_BYTES = 5 * 1024 * 1024
     }
 }

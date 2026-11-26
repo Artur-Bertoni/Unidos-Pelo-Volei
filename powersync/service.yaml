@@ -1,0 +1,32 @@
+telemetry:
+  disable_telemetry_sharing: true
+
+replication:
+  connections:
+    - type: postgresql
+      uri: !env PS_DATA_SOURCE_URI
+      sslmode: disable
+
+storage:
+  type: postgresql
+  uri: !env PS_STORAGE_URI
+  sslmode: disable
+
+port: !env PS_PORT
+
+sync_config:
+  path: sync-rules.yaml
+
+client_auth:
+  audience: ["powersync"]
+  jwks:
+    keys:
+      - kty: oct
+        alg: HS256
+        kid: upv
+        k: !env PS_JWT_SECRET
+
+system:
+  logging:
+    level: info
+    format: json

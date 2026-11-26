@@ -19,7 +19,6 @@ import com.unidospelovolei.domain.model.StatusPresenca
 import com.unidospelovolei.domain.model.StatusVinculo
 import com.unidospelovolei.domain.model.UserProfile
 import com.unidospelovolei.domain.model.VinculoPedido
-import io.github.jan.supabase.auth.status.SessionStatus
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -88,9 +87,7 @@ class MembroViewModel(
     val buscandoContas: StateFlow<Boolean> = carregandoContas.asStateFlow()
 
     private val usuarioId =
-        authRepository.sessionStatus.map { status ->
-            (status as? SessionStatus.Authenticated)?.session?.user?.id
-        }
+        authRepository.usuarioId
 
     private val identidade: Flow<Identidade> =
         usuarioId.flatMapLatest { id ->

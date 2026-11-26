@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.unidospelovolei.data.AuthRepository
+import com.unidospelovolei.data.EstadoDaSessao
 import com.unidospelovolei.data.Formato
 import com.unidospelovolei.data.GrupoAtivo
 import com.unidospelovolei.data.MatchesRepository
@@ -12,7 +13,6 @@ import com.unidospelovolei.data.ProfileRepository
 import com.unidospelovolei.data.SyncService
 import com.unidospelovolei.domain.model.MeuGrupo
 import com.unidospelovolei.domain.model.UserProfile
-import io.github.jan.supabase.auth.status.SessionStatus
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -63,10 +63,9 @@ class MainViewModel(
     private val entrando = MutableStateFlow(false)
     private val erro = MutableStateFlow<String?>(null)
 
-    private val sessao = authRepository.sessionStatus
+    private val sessao = authRepository.estado
 
-    private val usuarioId =
-        sessao.map { status -> (status as? SessionStatus.Authenticated)?.session?.user?.id }
+    private val usuarioId = authRepository.usuarioId
 
     private val profile =
         usuarioId.flatMapLatest { id ->
@@ -111,8 +110,8 @@ class MainViewModel(
     val estado: StateFlow<MainUiState> =
         combine(sessao, profile, escolha, ambiente) { statusSessao, perfil, grupo, extra ->
             MainUiState(
-                carregandoSessao = statusSessao is SessionStatus.Initializing,
-                logado = statusSessao is SessionStatus.Authenticated,
+                carregandoSessao = statusSessao is EstadoDaSessao.Carregando,
+                logado = statusSessao is EstadoDaSessao.Autenticado,
                 profile = perfil,
                 meusGrupos = grupo.grupos,
                 grupoAtual = grupo.atual,

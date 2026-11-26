@@ -1,8 +1,7 @@
 import { exigirGrupo } from '../data/grupoAtivo';
 import { novoId } from '../data/mappers';
-import { supabase } from './supabase';
+import { chamarApi } from './api';
 
-const BUCKET = 'mural';
 const LIMITE_DE_BYTES = 5 * 1024 * 1024;
 
 const EXTENSOES: Record<string, string> = {
@@ -20,12 +19,10 @@ export async function enviarImagemDoMural(arquivo: File): Promise<string> {
   const extensao = EXTENSOES[arquivo.type];
   if (!extensao) throw new Error('Formato não aceito. Use JPG, PNG, WEBP ou GIF.');
 
-  const caminho = `${exigirGrupo()}/${novoId()}.${extensao}`;
-  const { error } = await supabase.storage
-    .from(BUCKET)
-    .upload(caminho, arquivo, { contentType: arquivo.type, upsert: false });
-
-  if (error) throw new Error('Não foi possível enviar a imagem. Precisa de internet.');
-
-  return supabase.storage.from(BUCKET).getPublicUrl(caminho).data.publicUrl;
+  try {
+    const { url } = await chamarApi<{ url: string }>('PUT', `/arquivos/mural/${exigirGrupo()}/${novoId()}.${extensao}`, arquivo);
+    return url;
+  } catch (erro) {
+    throw new Error(erro instanceof Error ? erro.message : 'Não foi possível enviar a imagem. Precisa de internet.');
+  }
 }
