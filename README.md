@@ -413,6 +413,16 @@ railway config apply
 Mudou o arquivo, repita o `plan` e o `apply`. O código continua indo pelo
 `git push`.
 
+> **No Windows**, o pacote `railway/iac` confere a versão da CLI chamando `railway`
+> sem shell, e o `railway.cmd` que o npm instala não roda assim: o `plan` falha com
+> *"requires Railway CLI 5.42.1 or newer"* mesmo com a CLI atualizada. O pacote usa a
+> variável `_` como caminho da CLI quando ela existe, então aponte para o executável
+> real antes do `plan` e do `apply`, uma vez por terminal:
+>
+> ```powershell
+> $env:_ = "$env:APPDATA\npm\node_modules\@railway\cli\bin\railway.exe"
+> ```
+
 Duas coisas ficam fora do arquivo e são feitas no painel: os **domínios**
 `*.up.railway.app`, que o Railway não guarda no código, e os **segredos**, que não
 podem ir para o Git. Os segredos são variáveis compartilhadas, em

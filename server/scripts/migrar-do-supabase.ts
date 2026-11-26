@@ -25,10 +25,36 @@ const exigir = (nome: keyof typeof opcoes): string => {
   return valor.replace(/\/+$/, '');
 };
 
-const origemUrl = exigir('origem');
-const destinoUrl = exigir('destino');
-const supabaseUrl = exigir('supabase-url');
-const apiUrl = exigir('api-url');
+const parar = (mensagem: string): never => {
+  console.error(`\n${mensagem}`);
+  process.exit(1);
+};
+
+const banco = (nome: 'origem' | 'destino', dica: string): string => {
+  const valor = exigir(nome);
+  if (!/^postgres(ql)?:\/\//.test(valor)) {
+    parar(`--${nome} precisa ser uma string de conexão do Postgres, começando com postgresql://. ${dica}`);
+  }
+  return valor;
+};
+
+const site = (nome: 'supabase-url' | 'api-url'): string => {
+  const valor = exigir(nome);
+  const completo = /^https?:\/\//.test(valor) ? valor : `https://${valor}`;
+  try {
+    return new URL(completo).origin;
+  } catch {
+    return parar(`--${nome} não é um endereço válido: ${valor}`);
+  }
+};
+
+const origemUrl = banco(
+  'origem',
+  'No Supabase, botão Connect → Session pooler: postgresql://postgres.XXXX:SENHA@aws-...pooler.supabase.com:5432/postgres',
+);
+const destinoUrl = banco('destino', 'No Railway, aba Variables do Postgres → DATABASE_PUBLIC_URL.');
+const supabaseUrl = site('supabase-url');
+const apiUrl = site('api-url');
 
 const origem = abrirPool(origemUrl, 2);
 const destino = abrirPool(destinoUrl, 2);
@@ -177,7 +203,8 @@ async function principal(): Promise<void> {
 
 principal()
   .catch((erro) => {
-    console.error('\nFalhou:', (erro as Error).message);
+    const { message, code } = erro as { message?: string; code?: string };
+    console.error('\nFalhou:', message || code || erro);
     process.exitCode = 1;
   })
   .finally(async () => {
