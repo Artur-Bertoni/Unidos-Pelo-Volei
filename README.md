@@ -766,6 +766,66 @@ cada arquivo enviado à loja, mesmo em reenvio de correção.
 
 ## Publicando uma versão na Play Store
 
+### Publicando com um comando
+
+Na raiz do projeto, dê dois cliques em `publicar-app.cmd`, ou no PowerShell:
+
+```powershell
+.publicar-app.cmd
+```
+
+O script [`publicar-app.ps1`](publicar-app.ps1) faz, em ordem:
+
+1. Confere a credencial da Play Store, o `keystore.properties` e as chaves `prod.*`.
+2. Se houver alteração sem commit, mostra a lista, pede a mensagem e faz o commit — o
+   que estiver ali vai junto: app, site e servidor.
+3. Lista as faixas do app na Play Store, com a versão atual de cada uma, e pergunta
+   para onde enviar: **Produção**, **Teste aberto**, **Teste fechado**, **Teste
+   interno** ou **Compartilhamento interno de apps**. Produção pede confirmação.
+4. Pede as notas da versão e sobe o `versionCode` para um acima do maior que a Play
+   Store já recebeu — nunca mais *"o código de versão já foi usado"* — e o
+   `versionName` no último número (`2.0.1` → `2.0.2`).
+5. Gera o `.aab` assinado, já com os contornos de JDK e certificado desta máquina.
+6. Envia pela API do Google Play e pede a publicação naquela faixa.
+7. Faz o commit da versão, cria a tag `v2.0.2` e dá **push**: o Railway publica o
+   site e o servidor junto.
+
+Se o build ou o envio falhar, a mudança de versão é desfeita e nada vai para a loja.
+O **Compartilhamento interno de apps** só gera um link de instalação para teste: não
+muda a versão nem faz commit de versão.
+
+Dá para passar tudo de uma vez, sem perguntas de notas e versão:
+
+```powershell
+.publicar-app.cmd -Notas "Correções no placar" -Versao 2.1.0
+```
+
+A análise do Google continua existindo: o script envia e pede a publicação, e a
+versão chega às pessoas quando o Google aprovar.
+
+**Configuração única — a credencial que publica:**
+
+1. No [Google Cloud Console](https://console.cloud.google.com), no mesmo projeto do
+   login: **APIs & Services → Library**, procure **Google Play Android Developer
+   API** e clique em **Enable**.
+2. **IAM & Admin → Service Accounts → + Create service account**. Nome
+   `play-publicador` → **Create and continue** → pule os papéis → **Done**.
+3. Clique na conta criada → aba **Keys** → **Add key → Create new key → JSON →
+   Create**. Um `.json` é baixado: mova para `C:UsersSEU_USUARIOchavesplay-publicador.json`,
+   a mesma pasta do keystore, **fora do repositório**. Anote o e-mail da conta, que
+   termina em `.iam.gserviceaccount.com`.
+4. No [Play Console](https://play.google.com/console), na tela inicial (fora do app):
+   **Users and permissions → Invite new users**. Cole o e-mail da conta de serviço,
+   em **App permissions** adicione o UP Vôlei e marque **Release apps to testing
+   tracks**, **Release to production, exclude devices, and use Play App Signing** e
+   **Manage testing tracks and edit tester lists**. **Invite user**.
+
+A permissão às vezes leva algumas horas para valer. Se o script disser
+`The caller does not have permission` logo depois de criar, espere e tente de novo.
+Outro caminho para a credencial: `.publicar-app.cmd -Credencial C:outrolugar.json`.
+
+### Publicando à mão
+
 O roteiro de toda atualização, do código ao celular das pessoas:
 
 1. **Suba o número da versão** em [`app/build.gradle.kts`](app/build.gradle.kts):
