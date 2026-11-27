@@ -124,7 +124,8 @@ async function listarFaixas(): Promise<void> {
 }
 
 async function enviar(): Promise<void> {
-  const faixa = exigir('faixa');
+  const faixa = (values.faixa ?? process.env.PLAY_FAIXA ?? '').trim();
+  if (!faixa) throw new Error('Faltou a faixa de destino.');
   const notas = (values.notas ?? process.env.PLAY_NOTAS ?? '').trim();
   if (!notas) throw new Error('Faltaram as notas da versão.');
   if (notas.length > 500) throw new Error('As notas da versão passam de 500 caracteres, o limite da Play Store.');

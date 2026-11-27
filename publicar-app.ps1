@@ -5,6 +5,7 @@
 )
 
 $ErrorActionPreference = 'Stop'
+[Console]::OutputEncoding = [Text.Encoding]::UTF8
 $raiz = $PSScriptRoot
 $gradleKts = Join-Path $raiz 'app\build.gradle.kts'
 $aab = Join-Path $raiz 'app\build\outputs\bundle\prodRelease\app-prod-release.aab'
@@ -186,10 +187,12 @@ if ($compartilhamento) {
 
 Write-Passo 'Enviando para a Play Store'
 $env:PLAY_NOTAS = $Notas
+$env:PLAY_FAIXA = $escolha.Faixa
 try {
-    $resultado = Invoke-Play @('enviar', '--faixa', $escolha.Faixa, '--aab', $aab, '--nome', $novoNome)
+    $resultado = Invoke-Play @('enviar', '--aab', $aab, '--nome', $novoNome)
 } finally {
     Remove-Item Env:PLAY_NOTAS -ErrorAction SilentlyContinue
+    Remove-Item Env:PLAY_FAIXA -ErrorAction SilentlyContinue
 }
 if ($null -eq $resultado) {
     Restore-Versao
