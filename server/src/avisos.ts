@@ -1,6 +1,6 @@
 import { pathToFileURL } from 'node:url';
 import { GoogleAuth } from 'google-auth-library';
-import webpush from 'web-push';
+import * as webpush from 'web-push';
 import { config } from './config.js';
 import { pool } from './db.js';
 
